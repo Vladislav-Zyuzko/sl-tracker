@@ -1,0 +1,131 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/health": {
+      "get": {
+        "description": "Отвечает 200, если доступны PostgreSQL и Redis, иначе 503. Авторизация не требуется: эндпоинт используется как health-проба обратного прокси.",
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Все зависимости доступны",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Хотя бы одна зависимость недоступна",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Проверка доступности сервиса и его зависимостей",
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "SL Tracker API",
+    "description": "HTTP API трекера задач SL Tracker. Единственный источник правды по контракту: файл генерируется из кода, руками не редактируется.",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "sl_session",
+        "description": "Сессия веб-клиента: httpOnly Secure SameSite=Lax cookie (ADR-0001)."
+      },
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "opaque",
+        "type": "http",
+        "description": "Сессия будущего мобильного клиента (ADR-0002)."
+      }
+    },
+    "schemas": {
+      "DependencyHealthDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "up",
+              "down"
+            ],
+            "type": "string",
+            "description": "Доступна ли зависимость"
+          },
+          "latencyMs": {
+            "type": "number",
+            "description": "Время ответа зависимости, мс",
+            "example": 3
+          },
+          "error": {
+            "type": "string",
+            "description": "Причина недоступности в общих словах. Внутренние детали и стектрейсы наружу не выходят — они в логах сервера.",
+            "example": "нет соединения"
+          }
+        },
+        "required": [
+          "status",
+          "latencyMs"
+        ]
+      },
+      "HealthResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "ok",
+              "degraded"
+            ],
+            "type": "string",
+            "description": "`ok` — все зависимости доступны; `degraded` — хотя бы одна нет (HTTP 503)"
+          },
+          "uptimeSeconds": {
+            "type": "number",
+            "description": "Время работы процесса, секунды",
+            "example": 128
+          },
+          "postgres": {
+            "description": "PostgreSQL",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DependencyHealthDto"
+              }
+            ]
+          },
+          "redis": {
+            "description": "Redis",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DependencyHealthDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "uptimeSeconds",
+          "postgres",
+          "redis"
+        ]
+      }
+    }
+  }
+}
