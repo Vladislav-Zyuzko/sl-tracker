@@ -1,0 +1,47 @@
+# --- Секреты ------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Node / NestJS ------------------------------------------------------------
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Flutter / Dart -----------------------------------------------------------
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+*.g.dart.lock
+
+# Сгенерированный код (freezed, json_serializable) НЕ игнорируется намеренно:
+# без него не собирается чистый клон, а генерация требует полного окружения.
+
+# --- Данные и артефакты локального окружения ----------------------------------
+/data/
+*.dump
+*.sql.gz
+
+# --- Редакторы и ОС -----------------------------------------------------------
+.idea/
+.vscode/
+!.vscode/settings.json
+*.iml
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Логи ---------------------------------------------------------------------
+logs/
+*.log

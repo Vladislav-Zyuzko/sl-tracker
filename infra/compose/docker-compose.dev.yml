@@ -1,0 +1,102 @@
+# Локальное окружение разработки: только данные.
+# Приложения (NestJS и Flutter) запускаются на хосте, а не в контейнерах —
+# так работает горячая перезагрузка.
+#
+# Запуск из корня репозитория:
+#   docker compose -f infra/compose/docker-compose.dev.yml --env-file .env up -d
+#
+# С обратным прокси (адреса как в проде, см. infra/README.md):
+#   docker compose -f infra/compose/docker-compose.dev.yml --env-file .env --profile proxy up -d
+
+name: sl-tracker-dev
+
+services:
+  postgres:
+    # 18.6 — проверено docker run postgres:18-alpine postgres --version
+    image: postgres:18-alpine
+    container_name: sl-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER не задан в .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD не задан в .env}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB не задан в .env}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # ВНИМАНИЕ: в postgres:18 каталог данных — /var/lib/postgresql/18/docker,
+      # а VOLUME объявлен на /var/lib/postgresql. Монтировать надо именно сюда.
+      # Привычный по PG 16 путь /var/lib/postgresql/data приведёт к тому, что данные
+      # уедут в анонимный том и пропадут при пересоздании контейнера.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  redis:
+    # 8.10.1 — проверено docker run redis:8-alpine redis-server --version
+    image: redis:8-alpine
+    container_name: sl-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD не задан в .env}
+    environment:
+      # Этой переменной сам redis-server не пользуется — она нужна healthcheck'у.
+      # redis-cli читает REDISCLI_AUTH автоматически, поэтому пароль не светится
+      # в списке процессов, в отличие от флага -a.
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD не задан в .env}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  minio:
+    # Тег зафиксирован намеренно: latest у MinIO двигается редко и непредсказуемо.
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: sl-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER не задан в .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD не задан в .env}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"      # S3 API
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"  # веб-консоль
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  # Необязательный профиль: адреса как в проде (всё на одном origin).
+  # Нужен, чтобы cookie-сессия локально вела себя так же, как в бою (ADR-0001).
+  # Поднимать только когда уже запущены API на 3000 и Flutter на 8080.
+  caddy:
+    image: caddy:2-alpine
+    container_name: sl-caddy-dev
+    restart: unless-stopped
+    profiles: ["proxy"]
+    ports:
+      - "${DEV_PROXY_PORT:-8081}:80"
+    volumes:
+      - ../caddy/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+    extra_hosts:
+      # Чтобы контейнер достучался до NestJS и Flutter, работающих на хосте.
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

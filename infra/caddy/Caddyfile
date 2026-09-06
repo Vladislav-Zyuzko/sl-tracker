@@ -1,0 +1,75 @@
+# Боевой обратный прокси SL Tracker.
+# Фронт и API на одном домене — см. docs/adr/0001-single-domain-first-party-session.md
+#
+# Домен и почта для Let's Encrypt приходят из переменных окружения контейнера:
+#   SL_DOMAIN=tracker.example.com
+#   SL_ACME_EMAIL=admin@example.com
+
+{
+	email {$SL_ACME_EMAIL}
+}
+
+{$SL_DOMAIN} {
+	encode zstd gzip
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 10MiB
+			roll_keep 10
+		}
+		format json
+	}
+
+	# --- Безопасность -------------------------------------------------------
+	header {
+		# Не даём встраивать приложение в чужие фреймы (защита от кликджекинга).
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# --- API ----------------------------------------------------------------
+	handle /api/* {
+		reverse_proxy api:3000 {
+			health_uri /api/health
+			health_interval 10s
+		}
+	}
+
+	# WebSocket для живых обновлений.
+	handle /ws* {
+		reverse_proxy api:3000
+	}
+
+	# --- Статика Flutter ----------------------------------------------------
+	handle {
+		root * /srv/web
+
+		# index.html и service worker не кэшируем: иначе пользователь застрянет
+		# на старой сборке после деплоя.
+		@nocache path /index.html /flutter_service_worker.js /version.json
+		header @nocache Cache-Control "no-cache, no-store, must-revalidate"
+
+		# Path-роутинг: любой неизвестный путь отдаём приложению,
+		# иначе F5 на /issues/DEV-42 вернёт 404 (ADR-0005).
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# ПРИМЕЧАНИЕ про многопоточный рендеринг Flutter Web.
+#
+# Skwasm использует несколько потоков только при cross-origin isolation, а она
+# требует заголовков:
+#     Cross-Origin-Opener-Policy: same-origin
+#     Cross-Origin-Embedder-Policy: require-corp
+#
+# Мы их НЕ включаем, и это осознанно: require-corp блокирует загрузку любых
+# сторонних ресурсов без заголовка CORP — в том числе аватарок пользователей
+# с серверов Яндекса. Без изоляции Skwasm работает в один поток, что для
+# интерфейса трекера приемлемо.
+#
+# Если однажды понадобится изоляция, аватарки придётся проксировать через свой
+# домен либо кэшировать в MinIO. Решать это надо вместе, а не включением заголовков.

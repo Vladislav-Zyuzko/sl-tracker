@@ -1,0 +1,30 @@
+# Локальный обратный прокси для разработки.
+# Собирает Flutter и NestJS на один origin — http://localhost:8081 — чтобы
+# cookie-сессия вела себя так же, как в проде (ADR-0001).
+#
+# Ожидает, что на хосте уже запущены:
+#   NestJS  на :3000  (npm run start:dev)
+#   Flutter на :8080  (flutter run -d web-server --web-port 8080)
+
+:80 {
+	log {
+		output stdout
+		format console
+	}
+
+	# API — в NestJS.
+	handle /api/* {
+		reverse_proxy host.docker.internal:3000
+	}
+
+	# WebSocket для живых обновлений.
+	handle /ws* {
+		reverse_proxy host.docker.internal:3000
+	}
+
+	# Всё остальное — в dev-сервер Flutter.
+	# Он сам отдаёт index.html на неизвестные пути и держит канал горячей перезагрузки.
+	handle {
+		reverse_proxy host.docker.internal:8080
+	}
+}
