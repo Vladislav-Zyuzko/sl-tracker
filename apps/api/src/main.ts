@@ -17,7 +17,7 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  configureApp(app);
+  await configureApp(app);
 
   const env = app.get<Env>(ENV);
   if (env.NODE_ENV !== 'production') {

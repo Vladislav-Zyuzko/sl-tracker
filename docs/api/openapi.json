@@ -1,6 +1,397 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/api/access-entries": {
+      "get": {
+        "description": "Записи от новых к старым, курсорная пагинация. Запись в списке даёт только вход в трекер и никаких прав внутри проектов (ADR-0006).",
+        "operationId": "AccessController_list",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Размер страницы. Больше максимума не отдаём.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Курсор следующей страницы из поля `nextCursor`",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 256,
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Поиск по подстроке в email и имени вошедшего (US-07)",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessEntryListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный курсор (`invalid_cursor`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не владелец трекера (`access_list_forbidden`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Список доступа",
+        "tags": [
+          "access"
+        ]
+      },
+      "post": {
+        "description": "Источник записи — `manual`, признак владельца ей не выдаётся. Человек может войти сразу, без перезапуска сервиса (US-06).",
+        "operationId": "AccessController_add",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccessEntryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessEntryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный адрес (`invalid_email`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не владелец трекера (`access_list_forbidden`)"
+          },
+          "409": {
+            "description": "Адрес уже в списке (`access_entry_exists`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Добавить адрес в список доступа",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/access-entries/{id}": {
+      "patch": {
+        "description": "Снять признак с последнего владельца нельзя: в трекере всегда есть хотя бы один владелец (US-07).",
+        "operationId": "AccessController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccessEntryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessEntryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не владелец трекера (`access_list_forbidden`)"
+          },
+          "404": {
+            "description": "Записи нет (`access_entry_not_found`)"
+          },
+          "409": {
+            "description": "Последний владелец (`last_instance_owner`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Выдать или снять признак владельца трекера",
+        "tags": [
+          "access"
+        ]
+      },
+      "delete": {
+        "description": "Удаляет запись и **немедленно гасит все сессии** этого человека: запросы из уже открытых вкладок получают 401 (US-09). Комментарии, история, авторство и членство в проектах сохраняются.",
+        "operationId": "AccessController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokeAccessResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не владелец трекера (`access_list_forbidden`)"
+          },
+          "404": {
+            "description": "Записи нет (`access_entry_not_found`)"
+          },
+          "409": {
+            "description": "Своя запись (`cannot_revoke_self`) или последний владелец (`last_instance_owner`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Отозвать доступ",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/auth/yandex/start": {
+      "get": {
+        "description": "Генерирует одноразовый `state` (32 байта, TTL 10 минут в Redis) и редиректит на страницу согласия Яндекса. Открывается полным переходом браузера, а не XHR: ответ — 302 на внешний домен. Если вход не настроен на инстансе, редиректит на `/login?error=oauth_not_configured`.",
+        "operationId": "AuthController_start",
+        "parameters": [
+          {
+            "name": "invite",
+            "required": false,
+            "in": "query",
+            "description": "Токен ссылки-приглашения. Действующее приглашение пускает в трекер в обход списка доступа (ADR-0006, п. 3).",
+            "schema": {}
+          },
+          {
+            "name": "next",
+            "required": false,
+            "in": "query",
+            "description": "Куда вернуть после входа. Принимается только путь внутри приложения (`/issues/DEV-42`); внешние адреса игнорируются.",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Редирект на `oauth.yandex.ru/authorize`"
+          }
+        },
+        "summary": "Начать вход через Яндекс ID",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/yandex/callback": {
+      "get": {
+        "description": "Проверяет `state`, меняет `code` на токен, читает профиль, заводит пользователя и сессию. Всегда отвечает редиректом:\n\n- успех — на сохранённый адрес назначения или `/projects`, с cookie `sl_session`;\n- нет доступа — на `/access-denied?ticket=<тикет>`, **без** cookie: ни сессии, ни пользователя в базе не появляется (US-05). Адрес, под которым человек вошёл, экран получает обменом тикета — в адресной строке его нет;\n- ошибка — на `/login?error=<код>`: `access_denied`, `unauthorized_client` (приложение не прошло модерацию), `invalid_state`, `provider_unavailable`, `oauth_not_configured`, `server_error`.\n\nОтсутствие параметра `state` — не возврат из браузера пользователя, а посторонний запрос: 400 без редиректа. Негодный или истёкший `state` — редирект на `/login?error=invalid_state`.",
+        "operationId": "AuthController_callback",
+        "parameters": [
+          {
+            "name": "error",
+            "required": false,
+            "in": "query",
+            "description": "Код ошибки от Яндекса",
+            "schema": {}
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          },
+          {
+            "name": "code",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Редирект в приложение"
+          }
+        },
+        "summary": "Колбэк Яндекс ID",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/access-denied/{ticket}": {
+      "get": {
+        "description": "Экран «Доступ к трекеру закрыт» показывает адрес, под которым человек вошёл. Тикет одноразовый и живёт 60 секунд: адрес не попадает ни в адресную строку, ни в логи. Повторный обмен — 404. Ничего, кроме собственного адреса обратившегося, тикет не раскрывает.",
+        "operationId": "AuthController_accessDeniedInfo",
+        "parameters": [
+          {
+            "name": "ticket",
+            "required": true,
+            "in": "path",
+            "description": "Значение параметра `ticket` из адреса редиректа",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessDeniedInfoDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Тикет неизвестен, истёк или уже использован"
+          }
+        },
+        "summary": "Обменять тикет экрана отказа на адрес",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "description": "Уничтожает сессию **на сервере** и очищает cookie. Отвечает 204 и тогда, когда сессии уже нет: экран отказа доступа зовёт выход, не зная, была ли сессия создана.",
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Сессия завершена"
+          }
+        },
+        "summary": "Выйти",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/me": {
+      "get": {
+        "description": "Профиль из Яндекс ID и права уровня инстанса. 401 означает «сессии нет или она завершена» — в том числе после отзыва доступа (US-09).",
+        "operationId": "MeController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии (`session_required`, `session_expired`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Текущий пользователь",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/health": {
       "get": {
         "description": "Отвечает 200, если доступны PostgreSQL и Redis, иначе 503. Авторизация не требуется: эндпоинт используется как health-проба обратного прокси.",
@@ -59,6 +450,245 @@
       }
     },
     "schemas": {
+      "AccessEntryUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Анна Петрова"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Аватар из Яндекс ID"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "avatarUrl"
+        ]
+      },
+      "AccessEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "example": "ivan@yandex.ru",
+            "description": "Всегда в нижнем регистре"
+          },
+          "source": {
+            "enum": [
+              "config",
+              "manual",
+              "invitation"
+            ],
+            "type": "string",
+            "description": "Откуда запись: `config` — из конфигурации инстанса, `manual` — добавлена владельцем вручную, `invitation` — появилась при приёме приглашения (ADR-0006)."
+          },
+          "isInstanceOwner": {
+            "type": "boolean",
+            "description": "Владелец трекера — единственная глобальная роль. Даёт право вести список доступа и не даёт никаких прав внутри проектов."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "firstLoginAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Когда этот адрес впервые вошёл. `null` — «ещё не входил» (US-07)."
+          },
+          "user": {
+            "nullable": true,
+            "description": "Пользователь, которым оказался адрес. `null` — человек ещё не входил.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccessEntryUserDto"
+              }
+            ]
+          },
+          "addedBy": {
+            "nullable": true,
+            "description": "Кто добавил запись вручную. Для `config` и `invitation` — `null`.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccessEntryUserDto"
+              }
+            ]
+          },
+          "isSelf": {
+            "type": "boolean",
+            "description": "Запись текущего пользователя: удалить её нельзя (US-09, ответ 409)."
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "source",
+          "isInstanceOwner",
+          "createdAt",
+          "firstLoginAt",
+          "user",
+          "addedBy",
+          "isSelf"
+        ]
+      },
+      "AccessEntryListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Сначала новые",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessEntryDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Курсор следующей страницы. `null` — записей больше нет."
+          },
+          "total": {
+            "type": "number",
+            "description": "Всего записей с учётом поиска"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "total"
+        ]
+      },
+      "CreateAccessEntryDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 320,
+            "example": "ivan@yandex.ru",
+            "description": "Адрес аккаунта Яндекса. Регистр не важен: адрес приводится к нижнему регистру. Формат проверяется сервером, некорректный — 400 с кодом `invalid_email`."
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "UpdateAccessEntryDto": {
+        "type": "object",
+        "properties": {
+          "isInstanceOwner": {
+            "type": "boolean",
+            "description": "Признак владельца трекера. Снять его с последнего владельца нельзя — 409 `last_instance_owner`."
+          }
+        },
+        "required": [
+          "isInstanceOwner"
+        ]
+      },
+      "RevokeAccessResultDto": {
+        "type": "object",
+        "properties": {
+          "revokedSessions": {
+            "type": "number",
+            "description": "Сколько активных сессий человека погашено немедленно (US-09).",
+            "example": 2
+          }
+        },
+        "required": [
+          "revokedSessions"
+        ]
+      },
+      "AccessDeniedInfoDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "ivan@yandex.ru",
+            "description": "Адрес аккаунта Яндекса, которым человек вошёл"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "MeSessionDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "cookie",
+              "bearer"
+            ],
+            "type": "string",
+            "description": "Чем предъявлена сессия. На права не влияет — это транспорт (ADR-0002)."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Когда сессия истекает"
+          }
+        },
+        "required": [
+          "kind",
+          "expiresAt"
+        ]
+      },
+      "MeResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Анна Петрова",
+            "description": "Имя из Яндекс ID, обновляется при входе"
+          },
+          "email": {
+            "type": "string",
+            "example": "anna@yandex.ru"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Аватар из Яндекс ID"
+          },
+          "isInstanceOwner": {
+            "type": "boolean",
+            "description": "Владелец трекера — единственная глобальная роль (permissions.md, п. 1.2). Прав внутри проектов не даёт."
+          },
+          "canManageAccessList": {
+            "type": "boolean",
+            "description": "Показывать ли пункт «Доступ к трекеру». Флаг приходит с сервера готовым: клиент не вычисляет право сам (design/screens/access-list.md, Q-D30)."
+          },
+          "session": {
+            "$ref": "#/components/schemas/MeSessionDto"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "email",
+          "avatarUrl",
+          "isInstanceOwner",
+          "canManageAccessList",
+          "session"
+        ]
+      },
       "DependencyHealthDto": {
         "type": "object",
         "properties": {

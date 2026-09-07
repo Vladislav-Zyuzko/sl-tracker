@@ -11,7 +11,7 @@ describe('GET /api/health', () => {
     app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
       logger: false,
     });
-    configureApp(app);
+    await configureApp(app);
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
   });

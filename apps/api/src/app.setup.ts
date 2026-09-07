@@ -1,3 +1,4 @@
+import fastifyCookie from '@fastify/cookie';
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, type OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
@@ -11,7 +12,11 @@ export const API_PREFIX = 'api';
  * Держится в одном месте, чтобы тесты и сгенерированный контракт не разъезжались
  * с тем, что реально поднимается на сервере.
  */
-export function configureApp(app: NestFastifyApplication): void {
+export async function configureApp(app: NestFastifyApplication): Promise<void> {
+  // Разбор и установка cookie сессии. Cookie не подписывается: её значение — уже
+  // непредсказуемый токен, а проверяется он по HMAC на сервере (см. SessionService).
+  await app.register(fastifyCookie);
+
   app.setGlobalPrefix(API_PREFIX);
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: undefined });
 

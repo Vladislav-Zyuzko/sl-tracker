@@ -44,10 +44,7 @@ export const invitations = pgTable(
   },
   (t) => [
     uniqueIndex('invitations_token_key').on(t.token),
-    index('invitations_project_id_created_at_idx').on(
-      t.projectId,
-      t.createdAt.desc().nullsFirst(),
-    ),
+    index('invitations_project_id_created_at_idx').on(t.projectId, t.createdAt.desc().nullsFirst()),
     // Через приглашение нельзя выдать роль администратора (D-05).
     check('invitations_role_check', sql`${t.role} in ('member', 'reader')`),
   ],

@@ -24,7 +24,7 @@ async function main(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
     logger: ['error', 'warn'],
   });
-  configureApp(app);
+  await configureApp(app);
   await app.init();
 
   const document = buildOpenApiDocument(app);

@@ -6,6 +6,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { FastifyReply } from 'fastify';
+import { Public } from '../auth/decorators/public.decorator.js';
 import { HealthResponseDto } from './dto/health-response.dto.js';
 import { HealthService } from './health.service.js';
 
@@ -21,6 +22,7 @@ export class HealthController {
    * менять его нельзя. 200 — сервис принимает трафик, 503 — не принимает.
    */
   @Get()
+  @Public()
   @ApiOperation({
     summary: 'Проверка доступности сервиса и его зависимостей',
     description:
