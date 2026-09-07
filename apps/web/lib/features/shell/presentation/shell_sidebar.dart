@@ -1,0 +1,391 @@
+import 'package:flutter/material.dart';
+
+import 'package:sl_tracker_web/shared/uikit/buttons/sl_button.dart';
+import 'package:sl_tracker_web/shared/uikit/buttons/sl_icon_button.dart';
+import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
+import 'package:sl_tracker_web/shared/uikit/effects/sl_shimmering_effect.dart';
+import 'package:sl_tracker_web/shared/uikit/inputs/sl_search_field.dart';
+import 'package:sl_tracker_web/shared/uikit/navigation/sl_sidebar_item.dart';
+import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
+import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
+import 'package:sl_tracker_web/shared/uikit/states/sl_skeleton.dart';
+import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
+
+/// Что показывает список активных задач.
+enum ActiveIssuesState {
+  /// Данные грузятся: восемь строк-скелетонов по 36.
+  loading,
+
+  /// Активных задач нет.
+  empty,
+
+  /// Поиск ничего не нашёл.
+  searchEmpty,
+
+  /// Список не загрузился. Шапка, поиск и остальная оболочка при этом
+  /// работают: сбой одного блока не обрушивает приложение.
+  error,
+
+  /// Есть данные.
+  data,
+}
+
+/// Сайдбар оболочки (`docs/design/screens/app-shell.md`).
+///
+/// Отвечает ровно на один вопрос: «что делаю лично я» (D-19). Он не показывает
+/// всё, что происходит в трекере, и не должен пытаться.
+class ShellSidebar extends StatelessWidget {
+  /// @nodoc
+  const ShellSidebar({
+    required this.collapsed,
+    required this.onToggleCollapsed,
+    required this.onOpenProjects,
+    required this.searchFocusNode,
+    required this.onSearchChanged,
+    this.state = ActiveIssuesState.loading,
+    this.activeIssuesCount,
+    this.onRetry,
+    this.onClearSearch,
+    this.isProjectsActive = false,
+    super.key,
+  });
+
+  /// Свёрнут ли сайдбар до 48 px.
+  final bool collapsed;
+
+  /// Свернуть или развернуть.
+  final VoidCallback onToggleCollapsed;
+
+  /// Перейти к списку проектов.
+  final VoidCallback onOpenProjects;
+
+  /// Узел фокуса поля поиска: на него наводят `/` и `Ctrl/Cmd + K`.
+  final FocusNode searchFocusNode;
+
+  /// Изменился запрос поиска.
+  final ValueChanged<String> onSearchChanged;
+
+  /// Состояние списка активных задач.
+  final ActiveIssuesState state;
+
+  /// Число активных задач. `null` — ещё не загружено.
+  final int? activeIssuesCount;
+
+  /// Повторить загрузку списка.
+  final VoidCallback? onRetry;
+
+  /// Очистить поиск.
+  final VoidCallback? onClearSearch;
+
+  /// Открыт ли сейчас экран списка проектов.
+  final bool isProjectsActive;
+
+  /// Высота строки активной задачи. Это `itemExtent` списка: без фиксированного
+  /// экстента виртуализация в Flutter Web деградирует.
+  static const issueRowExtent = 36.0;
+
+  /// Сколько строк-скелетонов показывать при загрузке.
+  static const skeletonRowCount = 8;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SLColorScheme.of(context);
+    final breakpoint = SLBreakpoint.of(context);
+    final width = collapsed
+        ? SLSizes.sidebarCollapsedWidth
+        : (breakpoint.isPhone
+              ? SLSizes.sidebarDrawerWidth
+              : SLSizes.sidebarWidth);
+
+    return Semantics(
+      container: true,
+      label: 'Навигация',
+      child: Container(
+        width: width,
+        decoration: BoxDecoration(
+          color: colors.surfaceSunken,
+          border: Border(
+            right: BorderSide(color: colors.border, width: SLBorders.hairline),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: SLSpacing.space2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: SLSpacing.space2),
+              child: Align(
+                alignment: collapsed ? Alignment.center : Alignment.centerRight,
+                child: SLIconButton(
+                  icon: collapsed
+                      ? Icons.chevron_right_rounded
+                      : Icons.chevron_left_rounded,
+                  tooltip: collapsed ? 'Развернуть панель' : 'Свернуть панель',
+                  size: SLButtonSize.sm,
+                  onPressed: onToggleCollapsed,
+                ),
+              ),
+            ),
+            const SizedBox(height: SLSpacing.space2),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: SLSpacing.space2),
+              child: SLSidebarItem(
+                icon: Icons.folder_outlined,
+                title: 'Мои проекты',
+                collapsed: collapsed,
+                isActive: isProjectsActive,
+                onTap: onOpenProjects,
+              ),
+            ),
+            const SizedBox(height: SLSpacing.space2),
+            if (collapsed)
+              _CollapsedSearchButton(focusNode: searchFocusNode)
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: SLSpacing.space2,
+                ),
+                child: SLSearchField(
+                  hint: breakpoint.isDesktop
+                      ? 'Поиск по моим активным задачам'
+                      : 'Поиск по моим задачам',
+                  focusNode: searchFocusNode,
+                  onQueryChanged: onSearchChanged,
+                ),
+              ),
+            const SizedBox(height: SLSpacing.space2),
+            // В свёрнутом сайдбаре список не рисуется вовсе: на 48 px строка
+            // задачи не помещается, и вместо неё — иконка со счётчиком-точкой,
+            // как в раскладке из спеки.
+            if (collapsed)
+              Expanded(child: _CollapsedActiveIssues(count: activeIssuesCount))
+            else ...[
+              _buildListHeader(context),
+              Expanded(child: _buildList(context)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListHeader(BuildContext context) {
+    final colors = SLColorScheme.of(context);
+    final text = SLTextScheme.of(context);
+
+    return SizedBox(
+      height: 24,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: SLSpacing.space2),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'МОИ АКТИВНЫЕ ЗАДАЧИ',
+                style: text.overline.copyWith(color: colors.textMuted),
+              ),
+            ),
+            if (activeIssuesCount == null)
+              const SLSkeletonBox(width: 20, height: 12)
+            else
+              Text(
+                activeIssuesCount! > SLSidebarItem.countThreshold
+                    ? '${SLSidebarItem.countThreshold}+'
+                    : '$activeIssuesCount',
+                style: text.label.copyWith(color: colors.textMuted),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList(BuildContext context) {
+    return switch (state) {
+      ActiveIssuesState.loading => const _ActiveIssuesSkeleton(),
+      ActiveIssuesState.empty => const _SidebarNotice(
+        icon: Icons.check_circle_outline_rounded,
+        title: 'Нет активных задач',
+        description:
+            'Сюда попадают задачи, где вы исполнитель '
+            'и которые ещё не закрыты.',
+      ),
+      ActiveIssuesState.searchEmpty => _SidebarNotice(
+        icon: Icons.search_off_rounded,
+        title: 'Ничего не найдено среди ваших активных задач',
+        description:
+            'Поиск работает только по задачам, где вы исполнитель '
+            'и которые не закрыты.',
+        actionLabel: 'Очистить поиск',
+        onAction: onClearSearch,
+      ),
+      ActiveIssuesState.error => _SidebarNotice(
+        icon: Icons.error_outline_rounded,
+        title: 'Не удалось загрузить задачи',
+        description: 'Остальная часть приложения продолжает работать.',
+        actionLabel: 'Повторить',
+        onAction: onRetry,
+      ),
+      // Список задач появится вместе с эндпоинтом активных задач: пока его нет
+      // в контракте, состояние `data` не достижимо и рисуется как загрузка.
+      ActiveIssuesState.data => const _ActiveIssuesSkeleton(),
+    };
+  }
+}
+
+/// Кнопка поиска в свёрнутом сайдбаре.
+///
+/// Клик по ней разворачивает сайдбар и ставит фокус в поле — то же самое
+/// делает `/`.
+class _CollapsedSearchButton extends StatelessWidget {
+  const _CollapsedSearchButton({required this.focusNode});
+
+  final FocusNode focusNode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SLIconButton(
+        icon: Icons.search_rounded,
+        tooltip: 'Поиск по моим активным задачам',
+        size: SLButtonSize.sm,
+        onPressed: focusNode.requestFocus,
+      ),
+    );
+  }
+}
+
+/// Список активных задач в свёрнутом сайдбаре.
+///
+/// На 48 px строка задачи не помещается, поэтому от списка остаётся иконка,
+/// а счётчик превращается в точку `accent` в правом верхнем углу — ровно так,
+/// как описан свёрнутый сайдбар в спеке. Число остаётся в доступном имени:
+/// точка не должна быть единственным носителем смысла.
+class _CollapsedActiveIssues extends StatelessWidget {
+  const _CollapsedActiveIssues({required this.count});
+
+  final int? count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SLColorScheme.of(context);
+    final label = count == null
+        ? 'Мои активные задачи'
+        : 'Мои активные задачи, $count';
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Tooltip(
+        message: label,
+        child: Semantics(
+          label: label,
+          child: ExcludeSemantics(
+            child: SizedBox.square(
+              dimension: SLSizes.sidebarCollapsedWidth,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    Icons.assignment_outlined,
+                    size: SLIconSizes.icon16,
+                    color: colors.iconMuted,
+                  ),
+                  if (count != null && count! > 0)
+                    Positioned(
+                      right: 12,
+                      top: 12,
+                      child: Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: colors.accent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Скелетон списка активных задач: восемь строк по 36.
+class _ActiveIssuesSkeleton extends StatelessWidget {
+  const _ActiveIssuesSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SLShimmeringEffect(
+      child: ListView.builder(
+        itemCount: ShellSidebar.skeletonRowCount,
+        itemExtent: ShellSidebar.issueRowExtent,
+        padding: const EdgeInsets.symmetric(horizontal: SLSpacing.space2),
+        // Индикатор приоритета слева, дальше ключ и название — скелетон
+        // повторяет геометрию реальной строки. Первый блок обёрнут во
+        // Flexible: в узкой колонке он сжимается, а не ломает раскладку.
+        itemBuilder: (context, index) => const Row(
+          children: [
+            Flexible(child: SLSkeletonBox(width: 26, height: 14)),
+            SizedBox(width: SLSpacing.space2),
+            Expanded(child: SLSkeletonLine()),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Сообщение на месте списка: пусто, пусто после поиска, ошибка.
+class _SidebarNotice extends StatelessWidget {
+  const _SidebarNotice({
+    required this.icon,
+    required this.title,
+    required this.description,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SLColorScheme.of(context);
+    final text = SLTextScheme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.all(SLSpacing.space2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: SLIconSizes.icon24, color: colors.iconMuted),
+          const SizedBox(height: SLSpacing.space2),
+          Text(title, style: text.bodyS.copyWith(color: colors.textPrimary)),
+          const SizedBox(height: SLSpacing.space1),
+          Text(
+            description,
+            style: text.label.copyWith(color: colors.textMuted),
+          ),
+          if (actionLabel != null) ...[
+            const SizedBox(height: SLSpacing.space2),
+            SLButton(
+              label: actionLabel!,
+              variant: SLButtonVariant.ghost,
+              size: SLButtonSize.sm,
+              onPressed: onAction,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}

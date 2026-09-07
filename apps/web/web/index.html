@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <!-- Заменяется значением --base-href при сборке. Приложение живёт в корне. -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="SL Tracker — трекер задач команды.">
+
+  <!--
+    Приложение за авторизацией: индексировать нечего, и незачем.
+  -->
+  <meta name="robots" content="noindex, nofollow">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="SL Tracker">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>SL Tracker</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    /*
+      Осмысленный лоадер, пока поднимается движок и грузятся шрифты.
+      Цвета взяты из дизайн-системы (surfaceSunken, textMuted, accent,
+      border) — это единственное место вне Dart, где они дублируются,
+      потому что здесь темы ещё нет.
+    */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #F4F7FB;
+    }
+
+    #sl-boot {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #5C6C87;
+      font-size: 13px;
+      line-height: 18px;
+    }
+
+    #sl-boot__title {
+      color: #26395B;
+      font-size: 16px;
+      line-height: 22px;
+      font-weight: 600;
+    }
+
+    #sl-boot__track {
+      width: 160px;
+      height: 2px;
+      border-radius: 4px;
+      background-color: #E8EFF5;
+      overflow: hidden;
+    }
+
+    #sl-boot__bar {
+      width: 40%;
+      height: 100%;
+      border-radius: 4px;
+      background-color: #1A6CE5;
+      animation: sl-boot-slide 1400ms linear infinite;
+    }
+
+    @keyframes sl-boot-slide {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(250%); }
+    }
+
+    /* Уважаем системную настройку «уменьшить движение» и здесь тоже. */
+    @media (prefers-reduced-motion: reduce) {
+      #sl-boot__bar {
+        animation: none;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="sl-boot">
+    <div id="sl-boot__title">SL Tracker</div>
+    <div id="sl-boot__track"><div id="sl-boot__bar"></div></div>
+    <div>Загружаем приложение…</div>
+  </div>
+
+  <script>
+    // Лоадер убирается на первом кадре Flutter, а не по таймеру: иначе
+    // пользователь увидит либо пустой экран, либо мигание.
+    window.addEventListener('flutter-first-frame', function () {
+      var boot = document.getElementById('sl-boot');
+      if (boot) boot.remove();
+    });
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+name: sl_tracker_web
+description: "SL Tracker — веб-клиент трекера задач."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # HTTP. На вебе используется browser-адаптер с withCredentials — сессия живёт
+  # в httpOnly cookie (ADR-0001), клиент токенов не хранит.
+  dio: ^5.11.1
+  # SDK-пакет: нужен ради usePathUrlStrategy, подключается явно,
+  # иначе анализатор справедливо ругается на импорт не-зависимости.
+  flutter_web_plugins:
+    sdk: flutter
+  # Состояние приложения.
+  flutter_riverpod: ^3.4.3
+  # Кодогенерация моделей: аннотации.
+  freezed_annotation: ^3.1.0
+  # Роутинг, path-стратегия URL (ADR-0005).
+  go_router: ^18.0.1
+  json_annotation: ^4.12.0
+  # Локальное хранение настроек оболочки (свёрнут ли сайдбар).
+  shared_preferences: ^2.5.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  build_runner: ^2.16.1
+  flutter_lints: ^6.0.0
+  freezed: ^4.0.1
+  json_serializable: ^6.14.1
+
+flutter:
+  uses-material-design: true
+
+  # Шрифты подключаются файлами, а не пакетом google_fonts: пакет тянет шрифт
+  # по сети при первом кадре — мигание текста и лишний round-trip
+  # (docs/design/system.md, 9.1). Оба семейства содержат кириллицу.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: fonts/Inter-Bold.ttf
+          weight: 700
+    - family: JetBrains Mono
+      fonts:
+        - asset: fonts/JetBrainsMono-Regular.ttf
+          weight: 400
+        - asset: fonts/JetBrainsMono-SemiBold.ttf
+          weight: 600
