@@ -15,6 +15,8 @@ import 'package:sl_tracker_web/features/issues/presentation/issue_screen.dart';
 import 'package:sl_tracker_web/features/profile/presentation/profile_screen.dart';
 import 'package:sl_tracker_web/features/projects/presentation/project_screen.dart';
 import 'package:sl_tracker_web/features/projects/presentation/projects_screen.dart';
+import 'package:sl_tracker_web/features/queues/domain/issue_sort.dart';
+import 'package:sl_tracker_web/features/queues/presentation/queue_issues_providers.dart';
 import 'package:sl_tracker_web/features/queues/presentation/queue_issues_screen.dart';
 import 'package:sl_tracker_web/features/shell/presentation/app_shell.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_empty_state.dart';
@@ -192,10 +194,19 @@ final _routes = <RouteBase>[
         name: AppRoutes.queueName,
         builder: (context, state) {
           final key = state.pathParameters['key'] ?? '';
+          if (!RouteParams.queueKey.hasMatch(key)) {
+            return NotFoundScreen(location: state.uri.toString());
+          }
 
-          return RouteParams.queueKey.hasMatch(key)
-              ? QueueIssuesScreen(queueKey: key)
-              : NotFoundScreen(location: state.uri.toString());
+          // Фильтр и сортировка живут в адресе: ссылку на отфильтрованный
+          // список можно скопировать, а F5 не сбрасывает выбор (US-32).
+          final query = state.uri.queryParameters;
+
+          return QueueIssuesScreen(
+            queueKey: key,
+            statusKeys: QueueIssuesQuery.parseStatuses(query['status']),
+            sort: IssueSort.parse(query['sort']),
+          );
         },
       ),
       GoRoute(

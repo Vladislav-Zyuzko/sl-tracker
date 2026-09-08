@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:sl_tracker_web/features/issues/domain/issue_row.dart';
+import 'package:sl_tracker_web/features/shell/presentation/widgets/active_issue_row.dart';
 import 'package:sl_tracker_web/shared/uikit/buttons/sl_button.dart';
 import 'package:sl_tracker_web/shared/uikit/buttons/sl_icon_button.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
@@ -42,10 +44,18 @@ class ShellSidebar extends StatelessWidget {
     required this.onOpenProjects,
     required this.searchFocusNode,
     required this.onSearchChanged,
+    this.searchController,
     this.state = ActiveIssuesState.loading,
+    this.issues = const [],
     this.activeIssuesCount,
+    this.selectedIssueKey,
+    this.searchQuery = '',
+    this.isLoadingMore = false,
     this.onRetry,
     this.onClearSearch,
+    this.onOpenIssue,
+    this.onOpenIssueInNewTab,
+    this.onLoadMore,
     this.isProjectsActive = false,
     super.key,
   });
@@ -65,17 +75,43 @@ class ShellSidebar extends StatelessWidget {
   /// Изменился запрос поиска.
   final ValueChanged<String> onSearchChanged;
 
+  /// Контроллер поля поиска. Нужен, чтобы «Очистить поиск» очищало и поле,
+  /// а не только список.
+  final TextEditingController? searchController;
+
   /// Состояние списка активных задач.
   final ActiveIssuesState state;
 
+  /// Загруженные задачи.
+  final List<MyIssue> issues;
+
   /// Число активных задач. `null` — ещё не загружено.
   final int? activeIssuesCount;
+
+  /// Ключ открытой сейчас задачи: её строка показывается выбранной.
+  final String? selectedIssueKey;
+
+  /// Текущий запрос поиска: при непустом под полем появляется подпись
+  /// о границах поиска.
+  final String searchQuery;
+
+  /// Идёт ли догрузка следующей порции.
+  final bool isLoadingMore;
 
   /// Повторить загрузку списка.
   final VoidCallback? onRetry;
 
   /// Очистить поиск.
   final VoidCallback? onClearSearch;
+
+  /// Открыть задачу.
+  final ValueChanged<String>? onOpenIssue;
+
+  /// Открыть задачу в новой вкладке.
+  final ValueChanged<String>? onOpenIssueInNewTab;
+
+  /// Догрузить следующую порцию.
+  final VoidCallback? onLoadMore;
 
   /// Открыт ли сейчас экран списка проектов.
   final bool isProjectsActive;
@@ -86,6 +122,9 @@ class ShellSidebar extends StatelessWidget {
 
   /// Сколько строк-скелетонов показывать при загрузке.
   static const skeletonRowCount = 8;
+
+  /// Сколько пикселей до конца списка запускают догрузку.
+  static const loadMoreThreshold = 200.0;
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +179,7 @@ class ShellSidebar extends StatelessWidget {
             const SizedBox(height: SLSpacing.space2),
             if (collapsed)
               _CollapsedSearchButton(focusNode: searchFocusNode)
-            else
+            else ...[
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: SLSpacing.space2,
@@ -150,9 +189,14 @@ class ShellSidebar extends StatelessWidget {
                       ? 'Поиск по моим активным задачам'
                       : 'Поиск по моим задачам',
                   focusNode: searchFocusNode,
+                  controller: searchController,
                   onQueryChanged: onSearchChanged,
                 ),
               ),
+              // Подпись появляется только при непустом запросе: пустое поле
+              // не должно занимать место под объяснение (`app-shell.md`).
+              if (searchQuery.isNotEmpty) _buildSearchScopeNotice(context),
+            ],
             const SizedBox(height: SLSpacing.space2),
             // В свёрнутом сайдбаре список не рисуется вовсе: на 48 px строка
             // задачи не помещается, и вместо неё — иконка со счётчиком-точкой,
@@ -165,6 +209,24 @@ class ShellSidebar extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSearchScopeNotice(BuildContext context) {
+    final colors = SLColorScheme.of(context);
+    final text = SLTextScheme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        SLSpacing.space2,
+        SLSpacing.space1,
+        SLSpacing.space2,
+        0,
+      ),
+      child: Text(
+        'Ищем только среди ваших активных задач',
+        style: text.label.copyWith(color: colors.textMuted),
       ),
     );
   }
@@ -226,10 +288,56 @@ class ShellSidebar extends StatelessWidget {
         actionLabel: 'Повторить',
         onAction: onRetry,
       ),
-      // Список задач появится вместе с эндпоинтом активных задач: пока его нет
-      // в контракте, состояние `data` не достижимо и рисуется как загрузка.
-      ActiveIssuesState.data => const _ActiveIssuesSkeleton(),
+      ActiveIssuesState.data => _buildIssues(context),
     };
+  }
+
+  Widget _buildIssues(BuildContext context) {
+    final itemCount = issues.length + (isLoadingMore ? 1 : 0);
+
+    return Semantics(
+      container: true,
+      label: 'Мои активные задачи, ${activeIssuesCount ?? issues.length}',
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification.metrics.extentAfter < loadMoreThreshold) {
+            onLoadMore?.call();
+          }
+
+          return false;
+        },
+        child: ListView.builder(
+          // Виртуализация обязательна: у активного человека здесь сотни строк,
+          // и рисовать их все ради панели 240 px недопустимо.
+          itemExtent: issueRowExtent,
+          itemCount: itemCount,
+          padding: const EdgeInsets.symmetric(horizontal: SLSpacing.space2),
+          itemBuilder: (context, index) {
+            if (index >= issues.length) {
+              return const SLShimmeringEffect(
+                child: Row(
+                  children: [
+                    SLSkeletonBox(width: 26, height: 14),
+                    SizedBox(width: SLSpacing.space2),
+                    Expanded(child: SLSkeletonLine()),
+                  ],
+                ),
+              );
+            }
+
+            final issue = issues[index];
+
+            return ActiveIssueRow(
+              key: ValueKey(issue.key),
+              issue: issue,
+              isSelected: issue.key == selectedIssueKey,
+              onOpen: () => onOpenIssue?.call(issue.key),
+              onOpenInNewTab: () => onOpenIssueInNewTab?.call(issue.key),
+            );
+          },
+        ),
+      ),
+    );
   }
 }
 

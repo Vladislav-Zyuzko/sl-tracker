@@ -30,14 +30,21 @@ class SLStatusChip extends StatelessWidget {
   /// @nodoc
   const SLStatusChip({
     required this.status,
+    this.label,
     this.size = SLStatusChipSize.compact,
     this.onPressed,
     this.isMenuOpen = false,
     super.key,
   });
 
-  /// Статус задачи.
+  /// Статус задачи: он задаёт палитру и иконку.
   final IssueStatus status;
+
+  /// Название статуса от сервера. Статусы — данные, а не перечисление
+  /// (ADR-0003): очередь вправе назвать статус по-своему, и показывать вместо
+  /// её названия зашитую в клиент подпись нельзя. `null` — берём подпись
+  /// из [status].
+  final String? label;
 
   /// @nodoc
   final SLStatusChipSize size;
@@ -72,6 +79,7 @@ class SLStatusChip extends StatelessWidget {
     final iconSize = isCompact ? SLIconSizes.icon12 : SLIconSizes.icon16;
     final labelStyle = isCompact ? text.caption : text.labelStrong;
     final isInteractive = onPressed != null;
+    final title = label ?? status.label;
 
     final chip = Container(
       height: height,
@@ -91,7 +99,7 @@ class SLStatusChip extends StatelessWidget {
           Icon(iconOf(status), size: iconSize, color: foreground),
           const SizedBox(width: SLSpacing.space1),
           Text(
-            status.label,
+            title,
             style: labelStyle.copyWith(
               color: foreground,
               fontWeight: FontWeight.w600,
@@ -117,14 +125,14 @@ class SLStatusChip extends StatelessWidget {
 
     if (!isInteractive) {
       return Semantics(
-        label: 'Статус: ${status.label}',
+        label: 'Статус: $title',
         child: ExcludeSemantics(child: chip),
       );
     }
 
     return Semantics(
       button: true,
-      label: 'Статус: ${status.label}, изменить',
+      label: 'Статус: $title, изменить',
       child: ExcludeSemantics(
         child: _InteractiveChip(onPressed: onPressed!, child: chip),
       ),

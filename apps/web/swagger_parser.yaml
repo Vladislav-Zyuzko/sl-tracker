@@ -29,6 +29,12 @@ swagger_parser:
   client_postfix: Client
   export_file: true
 
+  # `multipart/form-data` описывается `MultipartFile` из `dio`, а не
+  # `dart:io File`: файловой системы в браузере нет, файл приходит массивом
+  # байтов из `<input type="file">`. Без этого флага тело загрузки обложки
+  # и вложений пришлось бы собирать руками мимо контракта.
+  use_multipart_file: true
+
   # Новое значение перечисления с бэкенда не должно ронять клиент.
   unknown_enum_value: true
   enums_parent_prefix: true

@@ -5,6 +5,7 @@ import 'package:sl_tracker_web/core/platform/file_picker.dart';
 import 'package:sl_tracker_web/features/projects/data/projects_repository.dart';
 import 'package:sl_tracker_web/features/projects/domain/project_cover.dart';
 import 'package:sl_tracker_web/features/projects/presentation/widgets/project_cover_section.dart';
+import 'package:sl_tracker_web/shared/uikit/media/sl_cover_image.dart';
 
 import '../../helpers/fake_platform.dart';
 import '../../helpers/fake_project_repositories.dart';
@@ -156,6 +157,60 @@ void main() {
       expect(ProjectCover.formatSize(900), '900 Б');
       expect(ProjectCover.formatSize(2048), '2 КБ');
       expect(ProjectCover.formatSize((4.2 * 1024 * 1024).round()), '4,2 МБ');
+    });
+  });
+
+  group('протухшая подписанная ссылка', () {
+    testWidgets('обложка просит обновить ссылку ровно один раз', (
+      tester,
+    ) async {
+      // Подписанный адрес живёт 10 минут. Истёк — вместо «сломанного
+      // изображения» показывается монограмма, а владелец данных один раз
+      // получает просьбу перезапросить объект.
+      var refreshes = 0;
+
+      await pumpInTheme(
+        tester,
+        SLCoverImage(
+          projectId: 'project-1',
+          projectName: 'Sweet Limit',
+          coverUrl: 'https://storage.example/cover-expired',
+          width: 280,
+          height: 158,
+          onCoverExpired: () => refreshes++,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(refreshes, 1);
+      expect(find.text('SW'), findsOneWidget);
+
+      // Повторные кадры новых запросов не порождают: иначе недоступное
+      // хранилище превратилось бы в бесконечный цикл.
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(refreshes, 1);
+    });
+
+    testWidgets('без обложки никого не тревожим', (tester) async {
+      var refreshes = 0;
+
+      await pumpInTheme(
+        tester,
+        SLCoverImage(
+          projectId: 'project-1',
+          projectName: 'Sweet Limit',
+          coverUrl: null,
+          width: 280,
+          height: 158,
+          onCoverExpired: () => refreshes++,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(refreshes, 0);
+      expect(find.text('SW'), findsOneWidget);
     });
   });
 }

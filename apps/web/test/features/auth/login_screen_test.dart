@@ -7,6 +7,7 @@ import 'package:sl_tracker_web/features/auth/data/auth_repository.dart';
 import 'package:sl_tracker_web/features/auth/presentation/login_notice.dart';
 import 'package:sl_tracker_web/features/auth/presentation/login_screen.dart';
 import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
+import 'package:sl_tracker_web/shared/uikit/buttons/sl_button.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_error_state.dart';
 
 import '../../helpers/fake_platform.dart';
@@ -128,6 +129,47 @@ void main() {
       );
     });
 
+    testWidgets('ненастроенный вход отключает кнопку', (tester) async {
+      // Единственный код, при котором повтор гарантированно бессмыслен:
+      // ненастроенный OAuth сам не рассосётся (`screens/login.md`).
+      await pumpLogin(
+        tester,
+        const LoginScreen(errorCode: 'oauth_not_configured'),
+      );
+
+      expect(find.text('Вход не настроен'), findsOneWidget);
+      expect(
+        find.text(
+          'На этом сервере не настроен вход через Яндекс ID. '
+          'Это чинится администратором, повторять попытку бесполезно.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<SLBanner>(find.byType(SLBanner)).variant,
+        SLBannerVariant.warning,
+      );
+
+      final button = tester.widget<SLButton>(
+        find.widgetWithText(SLButton, 'Войти через Яндекс'),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('при остальных кодах кнопка остаётся рабочей', (tester) async {
+      final navigator = RecordingBrowserNavigator();
+      await pumpLogin(
+        tester,
+        const LoginScreen(errorCode: 'access_denied'),
+        navigator: navigator,
+      );
+
+      await tester.tap(find.text('Войти через Яндекс'));
+      await tester.pump();
+
+      expect(navigator.urls, hasLength(1));
+    });
+
     testWidgets('истёкшая сессия объявляется отдельно (US-02)', (tester) async {
       await pumpLogin(tester, const LoginScreen(sessionExpired: true));
 
@@ -190,6 +232,29 @@ void main() {
         expect(notice.description, isNotEmpty, reason: code);
         expect(notice.details, code);
       }
+    });
+
+    test('кнопку блокирует ровно один код', () {
+      const codes = [
+        'access_denied',
+        'unauthorized_client',
+        'invalid_state',
+        'provider_unavailable',
+        'server_error',
+      ];
+
+      for (final code in codes) {
+        expect(
+          LoginNotice.ofOAuthError(code).blocksSignIn,
+          isFalse,
+          reason: code,
+        );
+      }
+
+      expect(
+        LoginNotice.ofOAuthError('oauth_not_configured').blocksSignIn,
+        isTrue,
+      );
     });
 
     test('неизвестный код не оставляет пользователя без объяснения', () {

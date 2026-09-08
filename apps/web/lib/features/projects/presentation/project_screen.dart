@@ -7,6 +7,7 @@ import 'package:sl_tracker_web/core/api/generated/export.dart';
 import 'package:sl_tracker_web/core/network/api_failure.dart';
 import 'package:sl_tracker_web/features/projects/domain/project_role.dart';
 import 'package:sl_tracker_web/features/projects/presentation/project_providers.dart';
+import 'package:sl_tracker_web/features/queues/presentation/queue_providers.dart';
 import 'package:sl_tracker_web/features/projects/presentation/tabs/project_invitations_tab.dart';
 import 'package:sl_tracker_web/features/projects/presentation/tabs/project_members_tab.dart';
 import 'package:sl_tracker_web/features/projects/presentation/tabs/project_queues_tab.dart';
@@ -100,6 +101,11 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
     if (role == SLRole.admin) ...[ProjectTab.invitations, ProjectTab.settings],
   ];
 
+  /// Перезапрашивает проект: нужен, когда истекла подписанная ссылка
+  /// на обложку.
+  void _refreshProject() =>
+      ref.read(projectProvider(widget.slug).notifier).refresh();
+
   Future<void> _delete(ProjectDto project) async {
     final deleted = await DeleteProjectDialog.show(context, project);
     if (deleted != true || !mounted) return;
@@ -182,6 +188,9 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
           showAddress: current != ProjectTab.invitations,
           onEdit: () => setState(() => _tab = ProjectTab.settings),
           onDelete: () => _delete(project),
+          // Ссылка на обложку подписана на 10 минут. Истекла — перезапрашиваем
+          // проект и получаем свежую; до ответа стоит монограмма.
+          onCoverExpired: _refreshProject,
         ),
         SLTabBar<ProjectTab>(
           tabs: _buildTabItems(tabs, project, isAdmin: isAdmin),
@@ -210,18 +219,20 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
     ProjectDto project, {
     required bool isAdmin,
   }) {
-    // Счётчик приглашений нужен самой вкладке — тот же провайдер, тот же
-    // запрос: лишнего обращения к серверу не будет.
+    // Счётчики нужны самим вкладкам — те же провайдеры, те же запросы:
+    // лишнего обращения к серверу не будет.
     final invitations = isAdmin
         ? ref.watch(projectInvitationsProvider(project.slug))
         : null;
+    final queues = ref.watch(projectQueuesProvider(project.slug));
 
     return [
       for (final tab in tabs)
         switch (tab) {
-          ProjectTab.queues => const SLTabItem(
+          ProjectTab.queues => SLTabItem(
             value: ProjectTab.queues,
             label: 'Очереди',
+            count: queues.value?.length ?? SLTabItem.loading,
           ),
           ProjectTab.members => SLTabItem(
             value: ProjectTab.members,
@@ -246,7 +257,10 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
     ProjectDto project, {
     required bool isAdmin,
   }) => switch (tab) {
-    ProjectTab.queues => ProjectQueuesTab(canManage: isAdmin),
+    ProjectTab.queues => ProjectQueuesTab(
+      slug: project.slug,
+      canManage: isAdmin,
+    ),
     ProjectTab.members => ProjectMembersTab(
       slug: project.slug,
       canManage: isAdmin,
@@ -254,6 +268,7 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
     ProjectTab.invitations => ProjectInvitationsTab(slug: project.slug),
     ProjectTab.settings => ProjectSettingsTab(
       project: project,
+      onCoverExpired: _refreshProject,
       // Адрес в строке браузера меняем сразу: человек должен видеть новый
       // адрес там же, где он его только что задал.
       onSlugChanged: (slug) => context.replace(AppRoutes.projectPath(slug)),
@@ -276,7 +291,11 @@ class _LoadingView extends StatelessWidget {
         // когда придёт роль, — гадать о ней до ответа сервера нельзя.
         SLTabBar<ProjectTab>(
           tabs: const [
-            SLTabItem(value: ProjectTab.queues, label: 'Очереди'),
+            SLTabItem(
+              value: ProjectTab.queues,
+              label: 'Очереди',
+              count: SLTabItem.loading,
+            ),
             SLTabItem(
               value: ProjectTab.members,
               label: 'Участники',

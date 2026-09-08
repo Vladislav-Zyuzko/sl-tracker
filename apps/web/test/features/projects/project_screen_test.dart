@@ -11,9 +11,11 @@ import 'package:sl_tracker_web/features/projects/data/projects_repository.dart';
 import 'package:sl_tracker_web/features/projects/presentation/project_screen.dart';
 import 'package:sl_tracker_web/features/projects/presentation/widgets/copy_invitation_link_button.dart';
 import 'package:sl_tracker_web/features/projects/presentation/widgets/copy_project_address_button.dart';
+import 'package:sl_tracker_web/features/queues/data/queues_repository.dart';
 
 import '../../helpers/fake_platform.dart';
 import '../../helpers/fake_project_repositories.dart';
+import '../../helpers/fake_queue_repositories.dart';
 import '../../helpers/pump_widget.dart';
 
 /// Поднимает экран проекта по адресу `/projects/<slug>`.
@@ -36,6 +38,9 @@ Future<GoRouter> pumpProject(
     browserNavigatorProvider.overrideWithValue(
       navigator ?? RecordingBrowserNavigator(),
     ),
+    // Вкладка «Очереди» открыта по умолчанию и ходит за списком очередей:
+    // без подмены репозитория тест стучался бы в сеть.
+    queuesRepositoryProvider.overrideWithValue(FakeQueuesRepository()),
   ],
   routes: [
     GoRoute(

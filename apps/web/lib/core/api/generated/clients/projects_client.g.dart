@@ -195,21 +195,13 @@ class _ProjectsClient implements ProjectsClient {
   @override
   Future<ProjectDto> projectsControllerUploadCover({
     required String slug,
-    required File file,
+    required MultipartFile file,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
     final _headers = <String, dynamic>{};
     final _data = FormData();
-    _data.files.add(
-      MapEntry(
-        'file',
-        MultipartFile.fromFileSync(
-          file.path,
-          filename: file.path.split(Platform.pathSeparator).last,
-        ),
-      ),
-    );
+    _data.files.add(MapEntry('file', file));
     final _options = _setStreamType<ProjectDto>(
       Options(
             method: 'PUT',

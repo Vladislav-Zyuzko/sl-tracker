@@ -11,12 +11,9 @@ import 'package:sl_tracker_web/features/projects/domain/project_role.dart';
 /// Проекты и их участники.
 class ProjectsRepository {
   /// @nodoc
-  const ProjectsRepository(this._client, this._dio);
+  const ProjectsRepository(this._client);
 
   final ProjectsClient _client;
-
-  /// Нужен для одного запроса — загрузки обложки, см. [uploadCover].
-  final Dio _dio;
 
   /// Размер страницы списка проектов.
   ///
@@ -103,15 +100,15 @@ class ProjectsRepository {
 
   /// Загружает обложку.
   ///
-  /// Единственное место, где запрос собирается руками, а не сгенерированным
-  /// клиентом. Причина техническая: `swagger_parser` описывает `multipart`
-  /// как `dart:io File`, а в браузере файловой системы нет — файл приходит
-  /// массивом байтов из `<input type="file">`. Тело и ответ при этом строго
-  /// по контракту: путь из него же, ответ разбирается в [ProjectDto].
+  /// Файл приходит массивом байтов из `<input type="file">`: файловой системы
+  /// в браузере нет. Сгенерированный клиент принимает `MultipartFile` из
+  /// `dio` (флаг `use_multipart_file` в `swagger_parser.yaml`), поэтому тело
+  /// запроса больше не собирается руками мимо контракта.
   Future<ProjectDto> uploadCover(String slug, PickedFile file) async {
     try {
-      final form = FormData.fromMap({
-        'file': MultipartFile.fromBytes(
+      return await _client.projectsControllerUploadCover(
+        slug: slug,
+        file: MultipartFile.fromBytes(
           file.bytes,
           filename: file.name,
           // Тип, о котором сказал браузер, — подсказка: сервер всё равно
@@ -120,14 +117,7 @@ class ProjectsRepository {
               ? null
               : DioMediaType.parse(file.mimeType),
         ),
-      });
-
-      final response = await _dio.put<Map<String, dynamic>>(
-        '/api/projects/$slug/cover',
-        data: form,
       );
-
-      return ProjectDto.fromJson(response.data!);
     } on Object catch (error) {
       throw ApiFailure.of(error);
     }
@@ -192,8 +182,5 @@ class ProjectsRepository {
 
 /// @nodoc
 final projectsRepositoryProvider = Provider<ProjectsRepository>(
-  (ref) => ProjectsRepository(
-    ref.watch(apiClientProvider).projects,
-    ref.watch(dioProvider),
-  ),
+  (ref) => ProjectsRepository(ref.watch(apiClientProvider).projects),
 );

@@ -79,3 +79,37 @@ extension SLRoleX on SLRole {
     SLRole.reader => CreateInvitationDtoRole.reader,
   };
 }
+
+/// Роль в проекте, которому принадлежит очередь. Прав уровня очереди в MVP
+/// нет: они наследуются от проекта (`permissions.md`, п. 3).
+extension QueueDtoRoleX on QueueDtoRole {
+  /// @nodoc
+  SLRole get role => switch (this) {
+    QueueDtoRole.admin => SLRole.admin,
+    QueueDtoRole.member => SLRole.member,
+    QueueDtoRole.reader || QueueDtoRole.$unknown => SLRole.reader,
+  };
+}
+
+/// @nodoc
+extension CreatedQueueDtoRoleX on CreatedQueueDtoRole {
+  /// @nodoc
+  SLRole get role => switch (this) {
+    CreatedQueueDtoRole.admin => SLRole.admin,
+    CreatedQueueDtoRole.member => SLRole.member,
+    CreatedQueueDtoRole.reader || CreatedQueueDtoRole.$unknown => SLRole.reader,
+  };
+}
+
+/// Роль запросившего в ответе списка задач: по ней прячется «Создать задачу».
+///
+/// Поле необязательное. Его отсутствие трактуется как [SLRole.reader] —
+/// без явного разрешения кнопку не показываем.
+extension IssueListDtoRoleX on IssueListDtoRole {
+  /// @nodoc
+  SLRole get role => switch (this) {
+    IssueListDtoRole.admin => SLRole.admin,
+    IssueListDtoRole.member => SLRole.member,
+    IssueListDtoRole.reader || IssueListDtoRole.$unknown => SLRole.reader,
+  };
+}

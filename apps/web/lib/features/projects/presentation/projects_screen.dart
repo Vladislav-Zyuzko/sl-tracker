@@ -103,6 +103,10 @@ class _ProjectsScreenState extends ConsumerState<ProjectsScreen> {
     context.go(AppRoutes.projectPath(created.slug));
   }
 
+  /// Перезапрашивает список: нужен, когда истекла подписанная ссылка
+  /// на обложку — вместе со списком приходят свежие адреса.
+  void _refreshList() => ref.read(projectsListProvider.notifier).refresh();
+
   void _open(ProjectDto project) =>
       context.go(AppRoutes.projectPath(project.slug));
 
@@ -194,12 +198,14 @@ class _ProjectsScreenState extends ConsumerState<ProjectsScreen> {
                 data: data,
                 onOpen: _open,
                 onOpenInNewTab: _openInNewTab,
+                onCoverExpired: _refreshList,
               )
             : _WrapGrid(
                 data: data,
                 isPhone: isPhone,
                 onOpen: _open,
                 onOpenInNewTab: _openInNewTab,
+                onCoverExpired: _refreshList,
               ),
       ),
     );
@@ -279,12 +285,14 @@ class _WrapGrid extends StatelessWidget {
     required this.isPhone,
     required this.onOpen,
     required this.onOpenInNewTab,
+    required this.onCoverExpired,
   });
 
   final ProjectsListPage data;
   final bool isPhone;
   final ValueChanged<ProjectDto> onOpen;
   final ValueChanged<ProjectDto> onOpenInNewTab;
+  final VoidCallback onCoverExpired;
 
   @override
   Widget build(BuildContext context) {
@@ -312,6 +320,7 @@ class _WrapGrid extends StatelessWidget {
                       width: width,
                       onOpen: () => onOpen(project),
                       onOpenInNewTab: () => onOpenInNewTab(project),
+                      onCoverExpired: onCoverExpired,
                     ),
                 ],
               ),
@@ -330,11 +339,13 @@ class _VirtualizedGrid extends StatelessWidget {
     required this.data,
     required this.onOpen,
     required this.onOpenInNewTab,
+    required this.onCoverExpired,
   });
 
   final ProjectsListPage data;
   final ValueChanged<ProjectDto> onOpen;
   final ValueChanged<ProjectDto> onOpenInNewTab;
+  final VoidCallback onCoverExpired;
 
   @override
   Widget build(BuildContext context) {
@@ -355,6 +366,7 @@ class _VirtualizedGrid extends StatelessWidget {
           project: project,
           onOpen: () => onOpen(project),
           onOpenInNewTab: () => onOpenInNewTab(project),
+          onCoverExpired: onCoverExpired,
         );
       },
     );

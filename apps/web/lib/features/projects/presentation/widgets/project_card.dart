@@ -24,6 +24,7 @@ class ProjectCard extends StatefulWidget {
     required this.project,
     required this.onOpen,
     required this.onOpenInNewTab,
+    this.onCoverExpired,
     this.width = ProjectCard.defaultWidth,
     super.key,
   });
@@ -36,6 +37,10 @@ class ProjectCard extends StatefulWidget {
 
   /// `Ctrl/Cmd + клик` и средний клик: в вебе это привычка.
   final VoidCallback onOpenInNewTab;
+
+  /// Подписанная ссылка на обложку истекла: список перезапрашивается,
+  /// и карточка получает свежий адрес.
+  final VoidCallback? onCoverExpired;
 
   /// Ширина карточки. На телефоне карточка занимает всю ширину колонки.
   final double width;
@@ -186,6 +191,7 @@ class _ProjectCardState extends State<ProjectCard> {
             coverUrl: widget.project.coverUrl,
             width: widget.width,
             height: height,
+            onCoverExpired: widget.onCoverExpired,
             // Верхние углы скругляет сама карточка через `clipBehavior`:
             // собственный радиус здесь дал бы двойное скругление.
             borderRadius: BorderRadius.zero,

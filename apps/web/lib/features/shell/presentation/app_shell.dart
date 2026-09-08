@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:sl_tracker_web/app/router/app_routes.dart';
+import 'package:sl_tracker_web/core/platform/browser_navigator.dart';
 import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
+import 'package:sl_tracker_web/features/shell/presentation/active_issues_providers.dart';
 import 'package:sl_tracker_web/features/shell/presentation/shell_header.dart';
 import 'package:sl_tracker_web/features/shell/presentation/shell_shortcuts.dart';
 import 'package:sl_tracker_web/features/shell/presentation/shell_sidebar.dart';
@@ -22,8 +24,9 @@ import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
 /// отрисовываются сразу и по-настоящему: область содержимого показывает
 /// собственный скелетон, а не блокирует всю оболочку.
 ///
-/// Данных пока нет — сайдбар показывает состояние загрузки. Подключение
-/// списка активных задач ждёт эндпоинта в контракте.
+/// Сайдбар живой: он показывает мои незакрытые задачи и ищет по ним
+/// **на сервере** (D-20). Сбой этого блока не обрушивает оболочку — шапка,
+/// поиск и содержимое продолжают работать.
 class AppShell extends ConsumerStatefulWidget {
   /// @nodoc
   const AppShell({required this.child, super.key});
@@ -39,11 +42,13 @@ class _AppShellState extends ConsumerState<AppShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _searchFocusNode = FocusNode(debugLabel: 'sidebar-search');
   final _contentFocusNode = FocusNode(debugLabel: 'content');
+  final _searchController = TextEditingController();
 
   @override
   void dispose() {
     _searchFocusNode.dispose();
     _contentFocusNode.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -74,6 +79,33 @@ class _AppShellState extends ConsumerState<AppShell> {
       Navigator.of(context).maybePop();
     }
     context.go(location);
+  }
+
+  /// Запрос поиска ушёл на сервер, а не в фильтр по загруженной странице:
+  /// иначе за пределами первых 50 строк осталось бы ровно то, что человек
+  /// ищет (D-20).
+  void _onSearchChanged(String query) =>
+      ref.read(activeIssuesSearchProvider.notifier).search(query);
+
+  void _clearSearch() {
+    _searchController.clear();
+    ref.read(activeIssuesSearchProvider.notifier).clear();
+    _searchFocusNode.requestFocus();
+  }
+
+  void _openIssueInNewTab(String issueKey) {
+    final navigator = ref.read(browserNavigatorProvider);
+    final origin = navigator.origin;
+
+    navigator.openInNewTab('$origin${AppRoutes.issuePath(issueKey)}');
+  }
+
+  /// Ключ задачи, открытой прямо сейчас: её строка в сайдбаре выбрана.
+  String? _selectedIssueKey(String location) {
+    final segments = Uri.parse(location).pathSegments;
+    if (segments.length != 2 || segments.first != 'issues') return null;
+
+    return segments[1];
   }
 
   void _showHotkeys() {
@@ -118,14 +150,48 @@ class _AppShellState extends ConsumerState<AppShell> {
     final collapsed =
         breakpoint.isTablet || ref.watch(sidebarCollapsedProvider);
 
-    final sidebar = ShellSidebar(
+    final activeIssues = ref.watch(activeIssuesProvider);
+    final searchQuery = ref.watch(activeIssuesSearchProvider);
+    final page = activeIssues.value;
+
+    // Состояние списка выводится из ответа и запроса: «задач нет»
+    // и «поиск ничего не нашёл» — разные сообщения, и подменять одно другим
+    // нельзя (`app-shell.md`, «Поиск: главный риск экрана»).
+    final issuesState = switch (activeIssues) {
+      AsyncError() => ActiveIssuesState.error,
+      AsyncLoading(hasValue: false) => ActiveIssuesState.loading,
+      _ when (page?.items.isEmpty ?? true) && searchQuery.isNotEmpty =>
+        ActiveIssuesState.searchEmpty,
+      _ when page?.items.isEmpty ?? true => ActiveIssuesState.empty,
+      _ => ActiveIssuesState.data,
+    };
+
+    ShellSidebar buildSidebar({required bool collapsed}) => ShellSidebar(
       collapsed: collapsed,
-      onToggleCollapsed: _toggleSidebar,
+      // На телефоне сайдбар живёт в выдвижной панели, и шеврон закрывает
+      // её, а не сворачивает до 48 px — сворачивать там нечего.
+      onToggleCollapsed: breakpoint.isPhone
+          ? () => Navigator.of(context).maybePop()
+          : _toggleSidebar,
       onOpenProjects: () => _go(AppRoutes.projects),
       searchFocusNode: _searchFocusNode,
-      onSearchChanged: (_) {},
+      searchController: _searchController,
+      onSearchChanged: _onSearchChanged,
+      searchQuery: searchQuery,
+      state: issuesState,
+      issues: page?.items ?? const [],
+      activeIssuesCount: page?.total,
+      selectedIssueKey: _selectedIssueKey(location),
+      isLoadingMore: page?.isLoadingMore ?? false,
+      onRetry: () => ref.read(activeIssuesProvider.notifier).refresh(),
+      onClearSearch: _clearSearch,
+      onOpenIssue: (key) => _go(AppRoutes.issuePath(key)),
+      onOpenIssueInNewTab: _openIssueInNewTab,
+      onLoadMore: () => ref.read(activeIssuesProvider.notifier).loadMore(),
       isProjectsActive: location == AppRoutes.projects,
     );
+
+    final sidebar = buildSidebar(collapsed: collapsed);
 
     return ShellShortcuts(
       onFocusSearch: _focusSearch,
@@ -140,14 +206,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             ? Drawer(
                 width: SLSizes.sidebarDrawerWidth,
                 backgroundColor: colors.surfaceSunken,
-                child: ShellSidebar(
-                  collapsed: false,
-                  onToggleCollapsed: () => Navigator.of(context).maybePop(),
-                  onOpenProjects: () => _go(AppRoutes.projects),
-                  searchFocusNode: _searchFocusNode,
-                  onSearchChanged: (_) {},
-                  isProjectsActive: location == AppRoutes.projects,
-                ),
+                child: buildSidebar(collapsed: false),
               )
             : null,
         body: Column(

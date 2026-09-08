@@ -18,7 +18,12 @@ import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
 /// **Ссылка живёт 10 минут** (подписанный адрес в `coverUrl`), поэтому
 /// надолго её не кэшируем и по истечении срока молча показываем монограмму:
 /// иконка «сломанное изображение» здесь не помогает никому.
-class SLCoverImage extends StatelessWidget {
+///
+/// Протухшая ссылка чинится сама: виджет один раз просит владельца обновить
+/// данные ([onCoverExpired]) и до ответа показывает монограмму. Ровно один
+/// раз за время жизни виджета — иначе недоступное хранилище превратилось бы
+/// в бесконечный цикл запросов.
+class SLCoverImage extends StatefulWidget {
   /// @nodoc
   const SLCoverImage({
     required this.projectId,
@@ -27,6 +32,7 @@ class SLCoverImage extends StatelessWidget {
     required this.width,
     required this.height,
     this.borderRadius = SLRadii.mdAll,
+    this.onCoverExpired,
     super.key,
   });
 
@@ -49,6 +55,11 @@ class SLCoverImage extends StatelessWidget {
   /// @nodoc
   final BorderRadius borderRadius;
 
+  /// Ссылка не открылась — почти наверняка истекли те самые 10 минут.
+  /// Владелец данных перезапрашивает объект и получает свежий адрес.
+  /// `null` — обновлять некому, остаётся монограмма.
+  final VoidCallback? onCoverExpired;
+
   /// Прозрачность подложки под монограммой.
   static const monogramSurfaceOpacity = 0.12;
 
@@ -64,29 +75,53 @@ class SLCoverImage extends StatelessWidget {
   }
 
   @override
+  State<SLCoverImage> createState() => _SLCoverImageState();
+}
+
+class _SLCoverImageState extends State<SLCoverImage> {
+  var _refreshRequested = false;
+
+  /// Просит владельца обновить ссылку — один раз.
+  ///
+  /// Через `addPostFrameCallback`, потому что `errorBuilder` вызывается
+  /// во время построения кадра, а трогать провайдеры и состояние оттуда
+  /// нельзя.
+  void _requestRefresh() {
+    if (_refreshRequested || widget.onCoverExpired == null) return;
+    _refreshRequested = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onCoverExpired!();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final url = coverUrl;
+    final url = widget.coverUrl;
 
     return ExcludeSemantics(
       child: SizedBox(
-        width: width,
-        height: height,
+        width: widget.width,
+        height: widget.height,
         child: ClipRRect(
-          borderRadius: borderRadius,
+          borderRadius: widget.borderRadius,
           child: url == null
               ? _buildPlaceholder(context)
               : Image.network(
                   url,
                   fit: BoxFit.cover,
-                  width: width,
-                  height: height,
+                  width: widget.width,
+                  height: widget.height,
                   loadingBuilder: (context, child, progress) => progress == null
                       ? child
                       : ColoredBox(
                           color: SLColorScheme.of(context).skeletonBase,
                         ),
-                  errorBuilder: (context, error, stackTrace) =>
-                      _buildPlaceholder(context),
+                  errorBuilder: (context, error, stackTrace) {
+                    _requestRefresh();
+
+                    return _buildPlaceholder(context);
+                  },
                 ),
         ),
       ),
@@ -95,8 +130,8 @@ class SLCoverImage extends StatelessWidget {
 
   Widget _buildPlaceholder(BuildContext context) {
     final colors = SLColorScheme.of(context);
-    final fill = SLAvatarColors.of(context).fillOf(projectId);
-    final monogram = monogramOf(projectName);
+    final fill = SLAvatarColors.of(context).fillOf(widget.projectId);
+    final monogram = SLCoverImage.monogramOf(widget.projectName);
 
     return ColoredBox(
       color: colors.surfaceSunken,
@@ -105,11 +140,13 @@ class SLCoverImage extends StatelessWidget {
           : Center(
               child: Container(
                 padding: EdgeInsets.symmetric(
-                  horizontal: height * 0.12,
-                  vertical: height * 0.06,
+                  horizontal: widget.height * 0.12,
+                  vertical: widget.height * 0.06,
                 ),
                 decoration: BoxDecoration(
-                  color: fill.withValues(alpha: monogramSurfaceOpacity),
+                  color: fill.withValues(
+                    alpha: SLCoverImage.monogramSurfaceOpacity,
+                  ),
                   borderRadius: SLRadii.smAll,
                 ),
                 child: Text(
@@ -127,8 +164,8 @@ class SLCoverImage extends StatelessWidget {
   TextStyle _monogramStyle(BuildContext context) {
     final text = SLTextScheme.of(context);
 
-    if (height >= 120) return text.h1;
-    if (height >= 48) return text.title;
+    if (widget.height >= 120) return text.h1;
+    if (widget.height >= 48) return text.title;
 
     return text.labelStrong;
   }

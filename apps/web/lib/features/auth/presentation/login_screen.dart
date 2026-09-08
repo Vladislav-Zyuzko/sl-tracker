@@ -142,7 +142,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               size: SLButtonSize.lg,
               expand: true,
               isLoading: _redirecting,
-              onPressed: _signIn,
+              // Единственный код, при котором повтор заведомо бессмыслен,
+              // — `oauth_not_configured`. Пояснение под кнопкой остаётся.
+              onPressed: notice?.blocksSignIn ?? false ? null : _signIn,
             ),
           const SizedBox(height: SLSpacing.space4),
           const _AccessHint(),

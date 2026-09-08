@@ -19,7 +19,8 @@ mixin _$InvitationDto {
  String get id;/// Роль, которую получит вступивший. Администратора выдать нельзя (D-05).
  InvitationDtoRole get role;/// Вычисляется из срока и отметки об отзыве, отдельно не хранится. Истёкшие и отозванные остаются в списке, но повторно активировать их нельзя (US-22).
  InvitationDtoState get state;/// Полная ссылка-приглашение. Заполнена только у действующего приглашения: у истёкшего и отозванного её нет и копировать нечего (US-22).
- String? get url; DateTime get expiresAt; DateTime? get revokedAt; DateTime get createdAt;/// Кто создал приглашение
+ String? get url; DateTime get expiresAt;/// Срок жизни ссылки в днях — тот, что выбрал администратор при создании. Отдаётся полем, а не выводится клиентом из разницы дат: строка списка показывает «Участник · 7 дней · до 19 фев» (design/screens/project.md), и вычитание дат у истёкшего приглашения дало бы не то, что выбирали.
+ InvitationDtoLifetimeDays get lifetimeDays; DateTime? get revokedAt; DateTime get createdAt;/// Кто создал приглашение
  InvitationAuthorDto get createdBy;/// Сколько человек вступило по этой ссылке (US-22)
  num get acceptedCount;
 /// Create a copy of InvitationDto
@@ -35,20 +36,20 @@ $InvitationDtoCopyWith<InvitationDto> get copyWith => _$InvitationDtoCopyWithImp
 @override
 bool operator ==(Object other) {
   final _this = this as InvitationDto;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InvitationDto&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.role, _this.role) || other.role == _this.role)&&(identical(other.state, _this.state) || other.state == _this.state)&&(identical(other.url, _this.url) || other.url == _this.url)&&(identical(other.expiresAt, _this.expiresAt) || other.expiresAt == _this.expiresAt)&&(identical(other.revokedAt, _this.revokedAt) || other.revokedAt == _this.revokedAt)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.createdBy, _this.createdBy) || other.createdBy == _this.createdBy)&&(identical(other.acceptedCount, _this.acceptedCount) || other.acceptedCount == _this.acceptedCount));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is InvitationDto&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.role, _this.role) || other.role == _this.role)&&(identical(other.state, _this.state) || other.state == _this.state)&&(identical(other.url, _this.url) || other.url == _this.url)&&(identical(other.expiresAt, _this.expiresAt) || other.expiresAt == _this.expiresAt)&&(identical(other.lifetimeDays, _this.lifetimeDays) || other.lifetimeDays == _this.lifetimeDays)&&(identical(other.revokedAt, _this.revokedAt) || other.revokedAt == _this.revokedAt)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.createdBy, _this.createdBy) || other.createdBy == _this.createdBy)&&(identical(other.acceptedCount, _this.acceptedCount) || other.acceptedCount == _this.acceptedCount));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as InvitationDto;
-  return Object.hash(runtimeType,_this.id,_this.role,_this.state,_this.url,_this.expiresAt,_this.revokedAt,_this.createdAt,_this.createdBy,_this.acceptedCount);
+  return Object.hash(runtimeType,_this.id,_this.role,_this.state,_this.url,_this.expiresAt,_this.lifetimeDays,_this.revokedAt,_this.createdAt,_this.createdBy,_this.acceptedCount);
 }
 
 @override
 String toString() {
   final _this = this as InvitationDto;
-  return 'InvitationDto(id: ${_this.id}, role: ${_this.role}, state: ${_this.state}, url: ${_this.url}, expiresAt: ${_this.expiresAt}, revokedAt: ${_this.revokedAt}, createdAt: ${_this.createdAt}, createdBy: ${_this.createdBy}, acceptedCount: ${_this.acceptedCount})';
+  return 'InvitationDto(id: ${_this.id}, role: ${_this.role}, state: ${_this.state}, url: ${_this.url}, expiresAt: ${_this.expiresAt}, lifetimeDays: ${_this.lifetimeDays}, revokedAt: ${_this.revokedAt}, createdAt: ${_this.createdAt}, createdBy: ${_this.createdBy}, acceptedCount: ${_this.acceptedCount})';
 }
 
 
@@ -59,7 +60,7 @@ abstract mixin class $InvitationDtoCopyWith<$Res>  {
   factory $InvitationDtoCopyWith(InvitationDto value, $Res Function(InvitationDto) _then) = _$InvitationDtoCopyWithImpl;
 @useResult
 $Res call({
- String id, InvitationDtoRole role, InvitationDtoState state, String? url, DateTime expiresAt, DateTime? revokedAt, DateTime createdAt, InvitationAuthorDto createdBy, num acceptedCount
+ String id, InvitationDtoRole role, InvitationDtoState state, String? url, DateTime expiresAt, InvitationDtoLifetimeDays lifetimeDays, DateTime? revokedAt, DateTime createdAt, InvitationAuthorDto createdBy, num acceptedCount
 });
 
 
@@ -76,14 +77,15 @@ class _$InvitationDtoCopyWithImpl<$Res>
 
 /// Create a copy of InvitationDto
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? role = null,Object? state = null,Object? url = freezed,Object? expiresAt = null,Object? revokedAt = freezed,Object? createdAt = null,Object? createdBy = null,Object? acceptedCount = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? role = null,Object? state = null,Object? url = freezed,Object? expiresAt = null,Object? lifetimeDays = null,Object? revokedAt = freezed,Object? createdAt = null,Object? createdBy = null,Object? acceptedCount = null,}) {
   return _then(InvitationDto(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as InvitationDtoRole,state: null == state ? _self.state : state // ignore: cast_nullable_to_non_nullable
 as InvitationDtoState,url: freezed == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
 as String?,expiresAt: null == expiresAt ? _self.expiresAt : expiresAt // ignore: cast_nullable_to_non_nullable
-as DateTime,revokedAt: freezed == revokedAt ? _self.revokedAt : revokedAt // ignore: cast_nullable_to_non_nullable
+as DateTime,lifetimeDays: null == lifetimeDays ? _self.lifetimeDays : lifetimeDays // ignore: cast_nullable_to_non_nullable
+as InvitationDtoLifetimeDays,revokedAt: freezed == revokedAt ? _self.revokedAt : revokedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,createdBy: null == createdBy ? _self.createdBy : createdBy // ignore: cast_nullable_to_non_nullable
 as InvitationAuthorDto,acceptedCount: null == acceptedCount ? _self.acceptedCount : acceptedCount // ignore: cast_nullable_to_non_nullable
@@ -181,10 +183,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  InvitationDtoRole role,  InvitationDtoState state,  String? url,  DateTime expiresAt,  DateTime? revokedAt,  DateTime createdAt,  InvitationAuthorDto createdBy,  num acceptedCount)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  InvitationDtoRole role,  InvitationDtoState state,  String? url,  DateTime expiresAt,  InvitationDtoLifetimeDays lifetimeDays,  DateTime? revokedAt,  DateTime createdAt,  InvitationAuthorDto createdBy,  num acceptedCount)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _InvitationDto() when $default != null:
-return $default(_that.id,_that.role,_that.state,_that.url,_that.expiresAt,_that.revokedAt,_that.createdAt,_that.createdBy,_that.acceptedCount);case _:
+return $default(_that.id,_that.role,_that.state,_that.url,_that.expiresAt,_that.lifetimeDays,_that.revokedAt,_that.createdAt,_that.createdBy,_that.acceptedCount);case _:
   return orElse();
 
 }
@@ -202,10 +204,10 @@ return $default(_that.id,_that.role,_that.state,_that.url,_that.expiresAt,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  InvitationDtoRole role,  InvitationDtoState state,  String? url,  DateTime expiresAt,  DateTime? revokedAt,  DateTime createdAt,  InvitationAuthorDto createdBy,  num acceptedCount)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  InvitationDtoRole role,  InvitationDtoState state,  String? url,  DateTime expiresAt,  InvitationDtoLifetimeDays lifetimeDays,  DateTime? revokedAt,  DateTime createdAt,  InvitationAuthorDto createdBy,  num acceptedCount)  $default,) {final _that = this;
 switch (_that) {
 case _InvitationDto():
-return $default(_that.id,_that.role,_that.state,_that.url,_that.expiresAt,_that.revokedAt,_that.createdAt,_that.createdBy,_that.acceptedCount);case _:
+return $default(_that.id,_that.role,_that.state,_that.url,_that.expiresAt,_that.lifetimeDays,_that.revokedAt,_that.createdAt,_that.createdBy,_that.acceptedCount);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -222,10 +224,10 @@ return $default(_that.id,_that.role,_that.state,_that.url,_that.expiresAt,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  InvitationDtoRole role,  InvitationDtoState state,  String? url,  DateTime expiresAt,  DateTime? revokedAt,  DateTime createdAt,  InvitationAuthorDto createdBy,  num acceptedCount)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  InvitationDtoRole role,  InvitationDtoState state,  String? url,  DateTime expiresAt,  InvitationDtoLifetimeDays lifetimeDays,  DateTime? revokedAt,  DateTime createdAt,  InvitationAuthorDto createdBy,  num acceptedCount)?  $default,) {final _that = this;
 switch (_that) {
 case _InvitationDto() when $default != null:
-return $default(_that.id,_that.role,_that.state,_that.url,_that.expiresAt,_that.revokedAt,_that.createdAt,_that.createdBy,_that.acceptedCount);case _:
+return $default(_that.id,_that.role,_that.state,_that.url,_that.expiresAt,_that.lifetimeDays,_that.revokedAt,_that.createdAt,_that.createdBy,_that.acceptedCount);case _:
   return null;
 
 }
@@ -237,7 +239,7 @@ return $default(_that.id,_that.role,_that.state,_that.url,_that.expiresAt,_that.
 @JsonSerializable()
 
 class _InvitationDto implements InvitationDto {
-  const _InvitationDto({required this.id, required this.role, required this.state, required this.url, required this.expiresAt, required this.revokedAt, required this.createdAt, required this.createdBy, required this.acceptedCount});
+  const _InvitationDto({required this.id, required this.role, required this.state, required this.url, required this.expiresAt, required this.lifetimeDays, required this.revokedAt, required this.createdAt, required this.createdBy, required this.acceptedCount});
   factory _InvitationDto.fromJson(Map<String, dynamic> json) => _$InvitationDtoFromJson(json);
 
 @override final  String id;
@@ -248,6 +250,8 @@ class _InvitationDto implements InvitationDto {
 /// Полная ссылка-приглашение. Заполнена только у действующего приглашения: у истёкшего и отозванного её нет и копировать нечего (US-22).
 @override final  String? url;
 @override final  DateTime expiresAt;
+/// Срок жизни ссылки в днях — тот, что выбрал администратор при создании. Отдаётся полем, а не выводится клиентом из разницы дат: строка списка показывает «Участник · 7 дней · до 19 фев» (design/screens/project.md), и вычитание дат у истёкшего приглашения дало бы не то, что выбирали.
+@override final  InvitationDtoLifetimeDays lifetimeDays;
 @override final  DateTime? revokedAt;
 @override final  DateTime createdAt;
 /// Кто создал приглашение
@@ -268,18 +272,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _InvitationDto&&(identical(other.id, id) || other.id == id)&&(identical(other.role, role) || other.role == role)&&(identical(other.state, state) || other.state == state)&&(identical(other.url, url) || other.url == url)&&(identical(other.expiresAt, expiresAt) || other.expiresAt == expiresAt)&&(identical(other.revokedAt, revokedAt) || other.revokedAt == revokedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.createdBy, createdBy) || other.createdBy == createdBy)&&(identical(other.acceptedCount, acceptedCount) || other.acceptedCount == acceptedCount));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _InvitationDto&&(identical(other.id, id) || other.id == id)&&(identical(other.role, role) || other.role == role)&&(identical(other.state, state) || other.state == state)&&(identical(other.url, url) || other.url == url)&&(identical(other.expiresAt, expiresAt) || other.expiresAt == expiresAt)&&(identical(other.lifetimeDays, lifetimeDays) || other.lifetimeDays == lifetimeDays)&&(identical(other.revokedAt, revokedAt) || other.revokedAt == revokedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.createdBy, createdBy) || other.createdBy == createdBy)&&(identical(other.acceptedCount, acceptedCount) || other.acceptedCount == acceptedCount));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,role,state,url,expiresAt,revokedAt,createdAt,createdBy,acceptedCount);
+    return Object.hash(runtimeType,id,role,state,url,expiresAt,lifetimeDays,revokedAt,createdAt,createdBy,acceptedCount);
 }
 
 @override
 String toString() {
-    return 'InvitationDto(id: $id, role: $role, state: $state, url: $url, expiresAt: $expiresAt, revokedAt: $revokedAt, createdAt: $createdAt, createdBy: $createdBy, acceptedCount: $acceptedCount)';
+    return 'InvitationDto(id: $id, role: $role, state: $state, url: $url, expiresAt: $expiresAt, lifetimeDays: $lifetimeDays, revokedAt: $revokedAt, createdAt: $createdAt, createdBy: $createdBy, acceptedCount: $acceptedCount)';
 }
 
 
@@ -290,7 +294,7 @@ abstract mixin class _$InvitationDtoCopyWith<$Res> implements $InvitationDtoCopy
   factory _$InvitationDtoCopyWith(_InvitationDto value, $Res Function(_InvitationDto) _then) = __$InvitationDtoCopyWithImpl;
 @override @useResult
 $Res call({
- String id, InvitationDtoRole role, InvitationDtoState state, String? url, DateTime expiresAt, DateTime? revokedAt, DateTime createdAt, InvitationAuthorDto createdBy, num acceptedCount
+ String id, InvitationDtoRole role, InvitationDtoState state, String? url, DateTime expiresAt, InvitationDtoLifetimeDays lifetimeDays, DateTime? revokedAt, DateTime createdAt, InvitationAuthorDto createdBy, num acceptedCount
 });
 
 
@@ -307,14 +311,15 @@ class __$InvitationDtoCopyWithImpl<$Res>
 
 /// Create a copy of InvitationDto
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? role = null,Object? state = null,Object? url = freezed,Object? expiresAt = null,Object? revokedAt = freezed,Object? createdAt = null,Object? createdBy = null,Object? acceptedCount = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? role = null,Object? state = null,Object? url = freezed,Object? expiresAt = null,Object? lifetimeDays = null,Object? revokedAt = freezed,Object? createdAt = null,Object? createdBy = null,Object? acceptedCount = null,}) {
   return _then(_InvitationDto(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as InvitationDtoRole,state: null == state ? _self.state : state // ignore: cast_nullable_to_non_nullable
 as InvitationDtoState,url: freezed == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
 as String?,expiresAt: null == expiresAt ? _self.expiresAt : expiresAt // ignore: cast_nullable_to_non_nullable
-as DateTime,revokedAt: freezed == revokedAt ? _self.revokedAt : revokedAt // ignore: cast_nullable_to_non_nullable
+as DateTime,lifetimeDays: null == lifetimeDays ? _self.lifetimeDays : lifetimeDays // ignore: cast_nullable_to_non_nullable
+as InvitationDtoLifetimeDays,revokedAt: freezed == revokedAt ? _self.revokedAt : revokedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,createdBy: null == createdBy ? _self.createdBy : createdBy // ignore: cast_nullable_to_non_nullable
 as InvitationAuthorDto,acceptedCount: null == acceptedCount ? _self.acceptedCount : acceptedCount // ignore: cast_nullable_to_non_nullable

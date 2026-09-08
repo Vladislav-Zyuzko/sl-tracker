@@ -9,9 +9,7 @@ import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
 ///
 /// Источников **три**, а не два: `config` — из конфигурации инстанса,
 /// `manual` — добавлена владельцем вручную через этот экран, `invitation` —
-/// появилась сама при приёме приглашения. Спека дизайна описывает только
-/// `config` и `invitation`; пара для `manual` подобрана здесь и вынесена
-/// на подтверждение дизайнеру (см. отчёт).
+/// появилась сама при приёме приглашения.
 ///
 /// Цвет — не единственный носитель смысла: плашка всегда с текстом и иконкой.
 class AccessSourceBadge extends StatelessWidget {
@@ -49,8 +47,12 @@ class AccessSourceBadge extends StatelessWidget {
         colors.textSecondary,
         Icons.settings_rounded,
       ),
+      // Не `successSurface`: тот же зелёный занят на соседней вкладке под
+      // «Приглашение действует», и два разных смысла одним цветом на двух
+      // административных экранах путают. Источник читается по иконке
+      // и подписи — цвет здесь и не был носителем смысла.
       AccessEntryDtoSource.manual => (
-        colors.successSurface,
+        colors.surfaceSunken,
         colors.textSecondary,
         Icons.add_circle_outline_rounded,
       ),

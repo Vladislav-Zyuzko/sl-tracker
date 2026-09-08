@@ -202,6 +202,12 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
               coverUrl: preview.coverUrl,
               width: InviteAcceptScreen.coverWidth,
               height: InviteAcceptScreen.coverHeight,
+              // Подписанная ссылка живёт 10 минут, а страницу приглашения
+              // вполне могут открыть и через полчаса: тогда обложка
+              // подтянется сама, молча.
+              onCoverExpired: () => ref
+                  .read(invitePreviewProvider(widget.token).notifier)
+                  .refresh(),
             ),
           ),
           const SizedBox(height: SLSpacing.space4),

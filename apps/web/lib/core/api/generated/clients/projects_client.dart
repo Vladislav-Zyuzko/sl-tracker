@@ -3,7 +3,6 @@
 // ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
 
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
@@ -86,7 +85,7 @@ abstract class ProjectsClient {
   @PUT('/api/projects/{slug}/cover')
   Future<ProjectDto> projectsControllerUploadCover({
     @Path('slug') required String slug,
-    @Part(name: 'file') required File file,
+    @Part(name: 'file') required MultipartFile file,
   });
 
   /// Удалить обложку проекта.

@@ -27,6 +27,7 @@ class ProjectHeader extends StatefulWidget {
     required this.showAddress,
     required this.onEdit,
     required this.onDelete,
+    this.onCoverExpired,
     super.key,
   });
 
@@ -55,6 +56,10 @@ class ProjectHeader extends StatefulWidget {
 
   /// «Удалить проект».
   final VoidCallback onDelete;
+
+  /// Подписанная ссылка на обложку истекла: проект перезапрашивается,
+  /// и шапка получает свежий адрес.
+  final VoidCallback? onCoverExpired;
 
   /// Высота шапки на десктопе.
   static const height = 96.0;
@@ -115,6 +120,7 @@ class _ProjectHeaderState extends State<ProjectHeader> {
                     width: coverWidth,
                     height: coverWidth / ProjectHeader.coverAspectRatio,
                     borderRadius: SLRadii.smAll,
+                    onCoverExpired: widget.onCoverExpired,
                   ),
                   const SizedBox(width: SLSpacing.space3),
                   Expanded(

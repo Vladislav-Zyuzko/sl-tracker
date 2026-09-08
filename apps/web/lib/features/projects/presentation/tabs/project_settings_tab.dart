@@ -19,6 +19,7 @@ class ProjectSettingsTab extends StatelessWidget {
     required this.project,
     required this.onSlugChanged,
     required this.onDelete,
+    this.onCoverExpired,
     super.key,
   });
 
@@ -30,6 +31,9 @@ class ProjectSettingsTab extends StatelessWidget {
 
   /// Удаление проекта.
   final VoidCallback onDelete;
+
+  /// Подписанная ссылка на обложку истекла: проект перезапрашивается.
+  final VoidCallback? onCoverExpired;
 
   /// Ширина колонки настроек: формы шире читать неудобно.
   static const contentWidth = 560.0;
@@ -47,7 +51,10 @@ class ProjectSettingsTab extends StatelessWidget {
             ProjectDetailsSection(project: project),
             const SizedBox(height: SLSpacing.space8),
             const _SectionTitle('Обложка'),
-            ProjectCoverSection(project: project),
+            ProjectCoverSection(
+              project: project,
+              onCoverExpired: onCoverExpired,
+            ),
             const SizedBox(height: SLSpacing.space8),
             const _SectionTitle('Короткое имя в адресе'),
             ProjectSlugSection(project: project, onChanged: onSlugChanged),

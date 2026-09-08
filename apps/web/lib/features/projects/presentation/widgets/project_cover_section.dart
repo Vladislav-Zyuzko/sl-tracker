@@ -26,7 +26,14 @@ import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
 /// изображение».
 class ProjectCoverSection extends ConsumerStatefulWidget {
   /// @nodoc
-  const ProjectCoverSection({required this.project, super.key});
+  const ProjectCoverSection({
+    required this.project,
+    this.onCoverExpired,
+    super.key,
+  });
+
+  /// Подписанная ссылка истекла: проект перезапрашивается ради свежего адреса.
+  final VoidCallback? onCoverExpired;
 
   /// Проект.
   final ProjectDto project;
@@ -152,6 +159,7 @@ class _ProjectCoverSectionState extends ConsumerState<ProjectCoverSection> {
           coverUrl: project.coverUrl,
           width: ProjectCoverSection.previewWidth,
           height: ProjectCoverSection.previewHeight,
+          onCoverExpired: widget.onCoverExpired,
         ),
         const SizedBox(height: SLSpacing.space2),
         Text(

@@ -32,8 +32,13 @@ Future<void> main(List<String> args) async {
     ),
   );
   dio.interceptors.add(EmptyBodyInterceptor());
+  var lastRequestUri = '';
   dio.interceptors.add(
     InterceptorsWrapper(
+      onRequest: (options, handler) {
+        lastRequestUri = options.uri.toString();
+        handler.next(options);
+      },
       onError: (error, handler) {
         final failure = ApiFailure.fromDioException(error);
         if (failure.kind == ApiFailureKind.unauthorized) unauthorized++;
@@ -212,23 +217,23 @@ Future<void> main(List<String> args) async {
     }
   });
 
-  // Загрузка обложки собирается руками, а не сгенерированным клиентом:
-  // `swagger_parser` описывает multipart как `dart:io File`, которого
-  // в браузере нет. Проверяем, что запрос уходит и доезжает до авторизации,
-  // а не разваливается на сборке тела.
+  // Обложка уходит `multipart/form-data` через сгенерированный клиент:
+  // `use_multipart_file` в `swagger_parser.yaml` заменил `dart:io File`
+  // на `MultipartFile`, которому в браузере есть чем себя наполнить.
+  // Проверяем, что запрос собирается и доезжает до авторизации, а не
+  // разваливается на теле.
   await check('multipart-обложка уходит на сервер и получает 401', () async {
-    final form = FormData.fromMap({
-      'file': MultipartFile.fromBytes(
-        // Восьмибайтовая сигнатура PNG: содержимое здесь неважно,
-        // до проверки типа запрос всё равно не доживёт.
-        const [137, 80, 78, 71, 13, 10, 26, 10],
-        filename: 'cover.png',
-        contentType: DioMediaType.parse('image/png'),
-      ),
-    });
-
     try {
-      await dio.put<void>('/api/projects/sweet-limit/cover', data: form);
+      await client.projects.projectsControllerUploadCover(
+        slug: 'sweet-limit',
+        file: MultipartFile.fromBytes(
+          // Восьмибайтовая сигнатура PNG: содержимое здесь неважно,
+          // до проверки типа запрос всё равно не доживёт.
+          const [137, 80, 78, 71, 13, 10, 26, 10],
+          filename: 'cover.png',
+          contentType: DioMediaType.parse('image/png'),
+        ),
+      );
       throw StateError('ожидался 401');
     } on DioException catch (error) {
       final failure = ApiFailure.of(error);
@@ -264,6 +269,171 @@ Future<void> main(List<String> args) async {
     final location = response.headers.value('location') ?? '';
     assert(response.statusCode == 302, 'status=${response.statusCode}');
     assert(location.startsWith('https://oauth.yandex.ru/'), location);
+  });
+
+  // Очереди и задачи: разделы контракта, ради которых написан этот заход.
+  await check('GET очередей проекта без сессии — 401', () async {
+    try {
+      await client.queues.projectQueuesControllerList(slug: 'sweet-limit');
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('POST создания очереди без сессии — 401, а не 400', () async {
+    try {
+      await client.queues.projectQueuesControllerCreate(
+        slug: 'sweet-limit',
+        body: const CreateQueueDto(key: 'DEV', name: 'Разработка'),
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.statusCode != 400, 'тело не принято: $failure');
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('GET очереди по ключу без сессии — 401', () async {
+    try {
+      await client.queues.queueControllerGet(key: 'DEV');
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('GET статусов очереди без сессии — 401', () async {
+    try {
+      await client.queues.queueControllerStatuses(key: 'DEV');
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('PATCH переименования очереди без сессии — 401', () async {
+    try {
+      await client.queues.queueControllerUpdate(
+        key: 'DEV',
+        body: const UpdateQueueDto(name: 'Разработка'),
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('DELETE очереди без сессии — 401', () async {
+    try {
+      await client.queues.queueControllerRemove(key: 'DEV');
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  // Главный запрос экрана. Проверяется не только код ответа, но и то, как
+  // собран адрес: фильтр по статусу принимает ключи через запятую, и ошибка
+  // здесь стоила бы пустого списка на рабочем экране.
+  await check('GET задач очереди собирает фильтр и сортировку', () async {
+    try {
+      await client.issues.queueIssuesControllerList(
+        key: 'DEV',
+        status: 'in_progress,review',
+        sort: Sort.newest,
+        limit: 50,
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+      assert(
+        lastRequestUri.contains('/api/queues/DEV/issues'),
+        'путь собран неверно: $lastRequestUri',
+      );
+      assert(
+        lastRequestUri.contains('status=in_progress%2Creview') ||
+            lastRequestUri.contains('status=in_progress,review'),
+        'фильтр статусов не доехал: $lastRequestUri',
+      );
+      assert(
+        lastRequestUri.contains('sort=newest'),
+        'сортировка не доехала: $lastRequestUri',
+      );
+      assert(
+        lastRequestUri.contains('limit=50'),
+        'размер порции не доехал: $lastRequestUri',
+      );
+    }
+  });
+
+  await check('GET моих активных задач с поиском — 401', () async {
+    try {
+      await client.issues.myIssuesControllerMyActive(q: 'csv', limit: 50);
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+      assert(
+        lastRequestUri.contains('q=csv'),
+        'поисковый запрос не доехал: $lastRequestUri',
+      );
+    }
+  });
+
+  await check('POST создания задачи без сессии — 401, а не 400', () async {
+    try {
+      await client.issues.queueIssuesControllerCreate(
+        key: 'DEV',
+        body: const CreateIssueDto(title: 'Проверка связи'),
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.statusCode != 400, 'тело не принято: $failure');
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('GET задачи по ключу без сессии — 401', () async {
+    try {
+      await client.issues.issueControllerGet(key: 'DEV-1');
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('PATCH смены статуса задачи без сессии — 401', () async {
+    try {
+      await client.issues.issueControllerUpdate(
+        key: 'DEV-1',
+        body: const UpdateIssueDto(statusId: 'status-1'),
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.statusCode != 400, 'тело не принято: $failure');
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('GET истории задачи без сессии — 401', () async {
+    try {
+      await client.issues.issueControllerListHistory(key: 'DEV-1');
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
   });
 
   stdout.writeln(
