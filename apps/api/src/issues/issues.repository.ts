@@ -13,6 +13,12 @@ import {
   statuses,
   users,
 } from '../database/schema/index.js';
+import { MentionsRepository } from '../mentions/index.js';
+import {
+  NotificationEventsService,
+  type IssueEventRef,
+  type NotificationDraft,
+} from '../notifications/index.js';
 import type { ProjectRole } from '../projects/index.js';
 import type { StatusCategory } from '../queues/status-category.js';
 import { IssueKeyService } from './issue-key.service.js';
@@ -157,6 +163,8 @@ export class IssuesRepository {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly keys: IssueKeyService,
+    private readonly mentions: MentionsRepository,
+    private readonly events: NotificationEventsService,
   ) {}
 
   /**
@@ -171,6 +179,7 @@ export class IssuesRepository {
    */
   async create(input: {
     queueId: string;
+    projectId: string;
     title: string;
     description: string | null;
     statusId: string;
@@ -210,6 +219,41 @@ export class IssuesRepository {
         oldRefId: null,
         newRefId: null,
       });
+
+      const issue: IssueEventRef = {
+        id: created!.id,
+        key: created!.key,
+        title: created!.title,
+        projectId: input.projectId,
+      };
+
+      // Упоминания в описании — такие же, как в комментарии, только `comment_id` пуст
+      // (US-74). Посторонние отсеиваются в самом репозитории упоминаний (D-41).
+      const mentioned = input.description
+        ? await this.mentions.sync(
+            tx,
+            { issueId: created!.id, commentId: null },
+            input.description,
+            {
+              projectId: input.projectId,
+              actorId: input.createdByUserId,
+            },
+          )
+        : [];
+
+      // Порядок заготовок — приоритет: назначение важнее упоминания, и один человек
+      // получает по одному действию не больше одного уведомления (US-101).
+      await this.events.emit(tx, { actorId: input.createdByUserId, projectId: input.projectId }, [
+        ...(input.assigneeId ? [this.events.assigned(issue, input.assigneeId)] : []),
+        ...(input.authorId !== input.createdByUserId
+          ? [this.events.authorAssigned(issue, input.authorId)]
+          : []),
+        this.events.mentioned(
+          issue,
+          mentioned.filter((row) => row.isNew).map((row) => row.id),
+          { commentId: null, body: input.description ?? '' },
+        ),
+      ]);
 
       return created!;
     });
@@ -325,6 +369,7 @@ export class IssuesRepository {
     issueId: string,
     patch: IssuePatch,
     actorId: string,
+    projectId: string,
   ): Promise<{ issue: IssueRow; changed: number } | null> {
     return this.db.transaction(async (tx) => {
       const [before] = await tx
@@ -368,6 +413,19 @@ export class IssuesRepository {
           .insert(issueHistory)
           .values(entries.map((entry) => ({ ...entry, issueId, actorId, groupId })));
       }
+
+      await this.notifyOfChanges(tx, {
+        issue: {
+          id: issueId,
+          key: updated!.key,
+          title: updated!.title,
+          projectId,
+        },
+        actorId,
+        before: snapshot,
+        changes,
+        statusNames: labels.statusNames,
+      });
 
       return { issue: updated!, changed: entries.length };
     });
@@ -586,6 +644,74 @@ export class IssuesRepository {
 
       return true;
     });
+  }
+
+  /**
+   * Уведомления об изменении задачи (US-100, US-101, US-104) — в той же транзакции,
+   * что и само изменение.
+   *
+   * Заготовки идут по убыванию личной адресованности: «назначили на меня» важнее
+   * «упомянули», а «упомянули» важнее «сменился статус». Человек, попавший в более
+   * раннюю заготовку, из последующих выпадает: одно действие пользователя даёт ему
+   * **не больше одного** уведомления (US-101).
+   *
+   * Чего здесь нет намеренно: снятие исполнителя уведомления не создаёт (US-100),
+   * как и изменение приоритета, сложности, названия, описания, вложений и ссылок —
+   * они видны в истории (US-101).
+   */
+  private async notifyOfChanges(
+    tx: Executor,
+    input: {
+      issue: IssueEventRef;
+      actorId: string;
+      before: IssueSnapshot;
+      changes: IssuePatch;
+      statusNames: ReadonlyMap<string, string>;
+    },
+  ): Promise<void> {
+    const drafts: NotificationDraft[] = [];
+
+    if (input.changes.assigneeId) {
+      drafts.push(this.events.assigned(input.issue, input.changes.assigneeId));
+    }
+    if (input.changes.authorId) {
+      drafts.push(this.events.authorAssigned(input.issue, input.changes.authorId));
+    }
+
+    if (input.changes.description !== undefined && input.changes.description) {
+      const mentioned = await this.mentions.sync(
+        tx,
+        { issueId: input.issue.id, commentId: null },
+        input.changes.description,
+        { projectId: input.issue.projectId, actorId: input.actorId },
+      );
+      drafts.push(
+        this.events.mentioned(
+          input.issue,
+          mentioned.filter((row) => row.isNew).map((row) => row.id),
+          { commentId: null, body: input.changes.description },
+        ),
+      );
+    }
+
+    if (input.changes.statusId) {
+      drafts.push(
+        this.events.statusChanged(
+          input.issue,
+          await this.events.subscribersOf(tx, input.issue.id),
+          {
+            from: input.statusNames.get(input.before.statusId) ?? null,
+            to: input.statusNames.get(input.changes.statusId) ?? null,
+          },
+        ),
+      );
+    }
+
+    await this.events.emit(
+      tx,
+      { actorId: input.actorId, projectId: input.issue.projectId },
+      drafts,
+    );
   }
 
   /**

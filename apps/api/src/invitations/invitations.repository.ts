@@ -9,6 +9,7 @@ import {
   projects,
   users,
 } from '../database/schema/index.js';
+import { NotificationEventsService } from '../notifications/index.js';
 import type { ProjectRole } from '../projects/index.js';
 import { isUsable } from './invitation-state.js';
 
@@ -66,7 +67,10 @@ const SELECTION = {
  */
 @Injectable()
 export class InvitationsRepository {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly events: NotificationEventsService,
+  ) {}
 
   async create(input: {
     projectId: string;
@@ -213,6 +217,7 @@ export class InvitationsRepository {
           expiresAt: invitations.expiresAt,
           revokedAt: invitations.revokedAt,
           slug: projects.slug,
+          projectName: projects.name,
         })
         .from(invitations)
         .innerJoin(projects, eq(projects.id, invitations.projectId))
@@ -251,6 +256,25 @@ export class InvitationsRepository {
       });
 
       await this.grantAccess(tx, input.email);
+
+      // Уведомление администраторам о новом участнике (US-23) — в той же транзакции,
+      // что и само вступление: «вступил, но никто не узнал» здесь не должно случаться.
+      // Самому вступившему оно не приходит, даже если он администратор другого
+      // проекта: получателем является только администратор **этого** проекта,
+      // а инициатор события отсеивается всегда.
+      const [profile] = await tx
+        .select({ displayName: users.displayName })
+        .from(users)
+        .where(eq(users.id, input.userId))
+        .limit(1);
+
+      await this.events.emit(tx, { actorId: input.userId, projectId: row.projectId }, [
+        this.events.memberJoined(
+          { id: row.projectId, slug: row.slug, name: row.projectName },
+          await this.events.projectAdmins(tx, row.projectId),
+          { displayName: profile?.displayName ?? '' },
+        ),
+      ]);
 
       return {
         outcome: 'joined' as const,

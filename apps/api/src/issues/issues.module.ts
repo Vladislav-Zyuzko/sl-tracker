@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { MentionsModule } from '../mentions/index.js';
+import { NotificationsModule } from '../notifications/index.js';
 import { QueuesModule } from '../queues/index.js';
 import { IssueAccessService } from './issue-access.service.js';
 import { IssueHistoryRepository } from './issue-history.repository.js';
@@ -7,6 +9,8 @@ import { IssueKeyService } from './issue-key.service.js';
 import { IssueController, QueueIssuesController } from './issues.controller.js';
 import { IssuesRepository } from './issues.repository.js';
 import { IssuesService } from './issues.service.js';
+import { MentionSuggestionsController } from './mention-suggestions.controller.js';
+import { MentionSuggestionsService } from './mention-suggestions.service.js';
 import { MyIssuesController } from './my-issues.controller.js';
 import { MyIssuesRepository } from './my-issues.repository.js';
 import { MyIssuesService } from './my-issues.service.js';
@@ -18,10 +22,19 @@ import { MyIssuesService } from './my-issues.service.js';
  * `QueuesModule` импортируется ради `QueueAccessService` и статусов очереди. Стрелка
  * идёт только в эту сторону: очереди про задачи ничего не знают, кроме того, что
  * непустую очередь нельзя удалить.
+ *
+ * `MentionsModule` и `NotificationsModule` нужны потому, что изменение задачи —
+ * это ещё и упоминания в описании, и уведомления о назначении и смене статуса,
+ * а они пишутся в **той же транзакции**, что и само изменение.
  */
 @Module({
-  imports: [QueuesModule],
-  controllers: [MyIssuesController, QueueIssuesController, IssueController],
+  imports: [QueuesModule, MentionsModule, NotificationsModule],
+  controllers: [
+    MyIssuesController,
+    QueueIssuesController,
+    MentionSuggestionsController,
+    IssueController,
+  ],
   providers: [
     IssueKeyService,
     IssuesRepository,
@@ -31,6 +44,7 @@ import { MyIssuesService } from './my-issues.service.js';
     IssueHistoryService,
     MyIssuesRepository,
     MyIssuesService,
+    MentionSuggestionsService,
   ],
   exports: [IssueKeyService, IssuesRepository, IssueAccessService],
 })

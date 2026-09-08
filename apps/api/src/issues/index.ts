@@ -29,3 +29,5 @@ export {
 export { MyIssuesService } from './my-issues.service.js';
 export { MyIssuesRepository } from './my-issues.repository.js';
 export type { MyIssueRow, StatusCategory } from './my-issues.repository.js';
+export { MentionSuggestionsService } from './mention-suggestions.service.js';
+export type { MentionSuggestion } from './mention-suggestions.service.js';

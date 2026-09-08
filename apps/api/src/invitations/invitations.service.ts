@@ -16,6 +16,7 @@ import {
   type InvitationState,
   expiryFrom,
   invitationState,
+  lifetimeDaysOf,
 } from './invitation-state.js';
 import {
   type InvitableRole,
@@ -31,6 +32,8 @@ export interface InvitationView {
   state: InvitationState;
   /** Полная ссылка — только у действующего приглашения (US-22). */
   url: string | null;
+  /** Выбранный при создании срок жизни в днях: 1, 7 или 30 (US-20). */
+  lifetimeDays: number;
 }
 
 export interface InvitationsPage {
@@ -218,6 +221,7 @@ export class InvitationsService {
       // Ссылку отдаём только у действующего приглашения: истёкшее и отозванное
       // повторно активировать нельзя, и кнопки «Скопировать» у них нет (US-22).
       url: state === 'active' ? `${this.appBaseUrl}/invite/${row.token}` : null,
+      lifetimeDays: lifetimeDaysOf(row),
     };
   }
 }

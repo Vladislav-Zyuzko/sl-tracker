@@ -123,6 +123,7 @@ export class IssuesService {
 
     const created = await this.repository.create({
       queueId: queue.queue.id,
+      projectId: queue.queue.projectId,
       title,
       description: normalizeDescription(input.description),
       statusId: status.id,
@@ -209,7 +210,12 @@ export class IssuesService {
       });
     }
 
-    const updated = await this.repository.update(issue.id, patch, actor.id);
+    const updated = await this.repository.update(
+      issue.id,
+      patch,
+      actor.id,
+      context.detail.projectId,
+    );
     if (!updated) {
       throw issueNotFound();
     }

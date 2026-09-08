@@ -36,3 +36,17 @@ export type InvitationLifetimeDays = (typeof INVITATION_LIFETIMES_DAYS)[number];
 export function expiryFrom(days: number, now: Date = new Date()): Date {
   return new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 }
+
+/**
+ * Срок жизни приглашения в днях — тот, что выбирали при создании.
+ *
+ * Считается из уже сохранённых дат, а не хранится отдельной колонкой: два источника
+ * правды об одном и том же разъезжаются. Округление до ближайшего допустимого срока
+ * убирает дребезг в доли секунды между `created_at` и `expires_at`.
+ */
+export function lifetimeDaysOf(row: { createdAt: Date; expiresAt: Date }): number {
+  const days = (row.expiresAt.getTime() - row.createdAt.getTime()) / (24 * 60 * 60 * 1000);
+  return [...INVITATION_LIFETIMES_DAYS].reduce((best, candidate) =>
+    Math.abs(candidate - days) < Math.abs(best - days) ? candidate : best,
+  );
+}

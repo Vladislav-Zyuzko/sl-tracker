@@ -54,6 +54,17 @@ export class InvitationDto {
   @ApiProperty({ type: String, format: 'date-time' })
   expiresAt!: string;
 
+  @ApiProperty({
+    enum: INVITATION_LIFETIMES_DAYS,
+    description:
+      'Срок жизни ссылки в днях — тот, что выбрал администратор при создании. Отдаётся ' +
+      'полем, а не выводится клиентом из разницы дат: строка списка показывает ' +
+      '«Участник · 7 дней · до 19 фев» (design/screens/project.md), и вычитание дат ' +
+      'у истёкшего приглашения дало бы не то, что выбирали.',
+    example: 7,
+  })
+  lifetimeDays!: number;
+
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   revokedAt!: string | null;
 
@@ -73,6 +84,7 @@ export class InvitationDto {
       state: view.state,
       url: view.url,
       expiresAt: view.row.expiresAt.toISOString(),
+      lifetimeDays: view.lifetimeDays,
       revokedAt: view.row.revokedAt ? view.row.revokedAt.toISOString() : null,
       createdAt: view.row.createdAt.toISOString(),
       createdBy: {

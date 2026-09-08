@@ -109,10 +109,25 @@ export class ObjectStorageService implements OnModuleInit {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: objectKey }));
   }
 
-  async signedUrl(objectKey: string, ttlSeconds = SIGNED_URL_TTL_SECONDS): Promise<string> {
+  /**
+   * Подписанная ссылка на объект. `downloadFileName` превращает её в ссылку скачивания:
+   * хранилище отдаёт файл с исходным именем, хотя в бакете он лежит под своим,
+   * сгенерированным сервером (US-46).
+   */
+  async signedUrl(
+    objectKey: string,
+    ttlSeconds = SIGNED_URL_TTL_SECONDS,
+    options?: { downloadFileName?: string },
+  ): Promise<string> {
     return getSignedUrl(
       this.signer,
-      new GetObjectCommand({ Bucket: this.bucket, Key: objectKey }),
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: objectKey,
+        ResponseContentDisposition: options?.downloadFileName
+          ? contentDisposition(options.downloadFileName)
+          : undefined,
+      }),
       {
         expiresIn: ttlSeconds,
       },
@@ -147,4 +162,14 @@ export class ObjectStorageService implements OnModuleInit {
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Заголовок `Content-Disposition` по RFC 6266: ASCII-вариант для старых клиентов
+ * и `filename*` в UTF-8 для всех остальных — иначе кириллическое имя файла
+ * приезжает в браузер мусором.
+ */
+function contentDisposition(fileName: string): string {
+  const ascii = fileName.replace(/[^\u0020-\u007e]/g, '_').replace(/["\\]/g, '_');
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }

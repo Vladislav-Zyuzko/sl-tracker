@@ -5,6 +5,7 @@ import {
   expiryFrom,
   invitationState,
   isUsable,
+  lifetimeDaysOf,
 } from './invitation-state.js';
 
 const NOW = new Date('2026-02-12T10:00:00.000Z');
@@ -48,5 +49,18 @@ describe('Состояние приглашения (US-20, US-22)', () => {
 
   it('срок по умолчанию — 7 дней (US-20)', () => {
     expect(INVITATION_DEFAULT_LIFETIME_DAYS).toBe(7);
+  });
+
+  it.each([...INVITATION_LIFETIMES_DAYS])(
+    'срок жизни %s дней восстанавливается из дат для показа в списке',
+    (days) => {
+      expect(lifetimeDaysOf({ createdAt: NOW, expiresAt: expiryFrom(days, NOW) })).toBe(days);
+    },
+  );
+
+  it('срок жизни округляется до выбранного значения, а не показывает 6,999 дня', () => {
+    const createdAt = NOW;
+    const expiresAt = new Date(expiryFrom(7, NOW).getTime() - 1500);
+    expect(lifetimeDaysOf({ createdAt, expiresAt })).toBe(7);
   });
 });

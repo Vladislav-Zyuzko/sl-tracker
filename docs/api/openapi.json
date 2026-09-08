@@ -1349,6 +1349,257 @@
         ]
       }
     },
+    "/api/notifications": {
+      "get": {
+        "description": "Лента, сначала новые. Порция по умолчанию — 30, жёсткий максимум 100; пагинация курсорная (`nextCursor` подставляется как есть).\n\nТекст строки собирается из `type`, `actor` и `payload`: `payload` — **снимок на момент события**, он не меняется вслед за переименованием задачи или правкой комментария (US-102). Поля `issueKey` и `commentId` верхнего уровня — наоборот, состояние сейчас: `null` в них означает, что переходить некуда (задача удалена или пользователь больше не в проекте; комментарий удалён).\n\n`unreadCount` в ответе — то же число, что отдаёт `/api/notifications/unread-count`: экран может не делать второй запрос ради счётчика в своей шапке.",
+        "operationId": "NotificationsController_list",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 30,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Курсор следующей порции из поля `nextCursor`",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 256,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный курсор (`invalid_cursor`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Мои уведомления",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/notifications/unread-count": {
+      "get": {
+        "description": "Дешёвый запрос для колокольчика в шапке: считается по частичному индексу. Отдаётся точное число — «99+» рисует интерфейс (US-103).",
+        "operationId": "NotificationsController_unreadCount",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadCountDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Счётчик непрочитанных",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/notifications/settings": {
+      "get": {
+        "description": "Все типы уведомлений с признаком «включено». По умолчанию включены все (US-103); типы, которые пользователь никогда не трогал, тоже присутствуют в ответе.\n\nКанал хранится отдельным измерением, хотя в MVP он один — `in_app`: появление email не должно потребовать от пользователя перенастройки (D-18).",
+        "operationId": "NotificationsController_settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Настройки подписки",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "put": {
+        "description": "Меняются только перечисленные типы, остальные остаются как были. Отключённый тип не создаёт ни записи в центре уведомлений, ни увеличения счётчика — то есть уведомление не появляется вовсе, а не скрывается (US-103). Уже полученные уведомления отключение типа не удаляет.",
+        "operationId": "NotificationsController_updateSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNotificationSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Изменить настройки подписки",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/notifications/read-all": {
+      "post": {
+        "description": "Строки не исчезают и не переупорядочиваются — гаснут только точки непрочитанного (US-103). В ответе — сколько записей изменилось.",
+        "operationId": "NotificationsController_markAllRead",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkAllReadResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Отметить все как прочитанные",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/notifications/{id}/read": {
+      "post": {
+        "description": "Идемпотентно: повторный вызов не меняет время прочтения. Чужое уведомление — 404: о его существовании клиент не узнаёт.",
+        "operationId": "NotificationsController_markRead",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Счётчик непрочитанных после пометки",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadCountDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "404": {
+            "description": "Уведомления нет или оно чужое (`notification_not_found`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Отметить уведомление прочитанным",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/api/projects/{slug}/queues": {
       "get": {
         "description": "Виден всем участникам проекта, включая читателя (US-31). Сортировка — по названию по возрастанию. `openIssueCount` — число незавершённых задач, то есть тех, чей статус **не** в категории `done`. Очередей у проекта единицы, поэтому список отдаётся целиком, без курсора.",
@@ -1954,6 +2205,83 @@
         ]
       }
     },
+    "/api/issues/{key}/mention-suggestions": {
+      "get": {
+        "description": "Участники проекта, которому принадлежит задача, отфильтрованные по имени и email без учёта регистра (US-74). Порядок — по имени; не более 10 строк по умолчанию.\n\nВ подсказку попадают участники **в любой роли**, включая читателя и администратора; посторонние пользователи трекера — никогда, и перебором состав трекера отсюда не узнать: выборка идёт по участникам проекта, а не по пользователям (D-41, ADR-0006, п. 6). Себя подсказка показывает — упомянуть себя можно, уведомление себе при этом не приходит.\n\nИдентификатор из ответа подставляется в токен `@[Имя](user:<uuid>)` в тексте комментария или описания. Читатель текстов не создаёт и получает 403 (D-29). Маршрут ограничен по частоте: это поиск.",
+        "operationId": "MentionSuggestionsController_suggest",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "description": "Ключ задачи, регистронезависим",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "required": false,
+            "in": "query",
+            "description": "Строка после `@`. Фильтрует по имени и по email без учёта регистра. Пустая строка — начало списка участников проекта.",
+            "schema": {
+              "minLength": 0,
+              "maxLength": 100,
+              "example": "ан",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 20,
+              "default": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentionSuggestionListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Читатель никого не упоминает (`mention_forbidden`)"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          },
+          "429": {
+            "description": "Слишком часто (`rate_limited`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Подсказка упоминаний",
+        "tags": [
+          "mentions"
+        ]
+      }
+    },
     "/api/issues/{key}": {
       "get": {
         "description": "Видна всем участникам проекта, включая читателя, — целиком, но без контролов изменения (US-41). Поле `permissions` говорит, что запросившему разрешено.\n\nПоля «Создатель» в ответе нет намеренно: в интерфейсе задачи это слово не используется, реальный создатель виден только в первой записи истории (D-13).",
@@ -2298,6 +2626,460 @@
         "summary": "Удалить внешнюю ссылку",
         "tags": [
           "issues"
+        ]
+      }
+    },
+    "/api/issues/{key}/comments": {
+      "get": {
+        "description": "Плоская лента в хронологическом порядке, **сначала старые** (US-70). Видна всем участникам проекта, включая читателя.\n\nПагинация идёт **назад по времени**: запрос без курсора отдаёт последние `limit` комментариев, а `nextCursor` ведёт к более ранним — это кнопка «Показать более ранние» над лентой. `limit` по умолчанию 50, жёсткий максимум 100.\n\nАвтор каждого комментария и упомянутые в нём участники приходят сразу: второй запрос за именами и аватарами не нужен.",
+        "operationId": "CommentsController_list",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "description": "Ключ задачи, регистронезависим",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Курсор более ранней порции из поля `nextCursor`",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 256,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный курсор (`invalid_cursor`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Комментарии задачи",
+        "tags": [
+          "comments"
+        ]
+      },
+      "post": {
+        "description": "Администратор и участник проекта; читатель — 403 (US-71, D-29). Пустой текст и текст из одних пробелов отклоняются, максимум — 10 000 символов.\n\nАвтор комментария становится подписчиком задачи и дальше получает уведомления по ней (D-17). Подписчики задачи, кроме автора комментария, получают уведомление (US-102); упомянутые — уведомление об упоминании вместо него, то есть **одно, а не два** (US-104).\n\nУпоминание записывается токеном `@[Имя](user:<uuid>)`. Упомянуть можно **только участника проекта задачи**: токен с посторонним игнорируется молча — без ошибки, без связи и без уведомления (D-41, ADR-0006, п. 6).",
+        "operationId": "CommentsController_create",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Пустой или слишком длинный текст (`invalid_comment_body`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Читатель не комментирует (`comment_forbidden`)"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Написать комментарий",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
+    "/api/issues/{key}/comments/{commentId}": {
+      "patch": {
+        "description": "Править может **только автор** — администратор чужой комментарий не редактирует и получает 403 (US-72). Срок правки не ограничен. После сохранения проставляется `editedAt`, и в ленте появляется пометка «изменён».\n\nУведомление создаётся только **вновь** упомянутым: ранее упомянутые повторно не уведомляются, нового уведомления о комментарии правка не создаёт (US-74, US-102).",
+        "operationId": "CommentsController_update",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          },
+          {
+            "name": "commentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCommentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Пустой или слишком длинный текст (`invalid_comment_body`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Комментарий чужой (`comment_forbidden`)"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Изменить свой комментарий",
+        "tags": [
+          "comments"
+        ]
+      },
+      "delete": {
+        "description": "Свой комментарий удаляет автор, чужой — только администратор проекта; участник чужой удалить не может (US-73).\n\nУдаление физическое: текст не остаётся нигде, плашки «комментарий удалён» в ленте нет. В историю задачи попадает факт удаления — кто удалил и чей комментарий, **без текста** (US-91). Уведомления, которые на него ссылались, остаются в центре уведомлений, но теряют ссылку на комментарий (US-102). Новых уведомлений удаление не создаёт.",
+        "operationId": "CommentsController_remove",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          },
+          {
+            "name": "commentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Комментарий удалён"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Комментарий чужой, а вы не администратор (`comment_forbidden`)"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Удалить комментарий",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
+    "/api/issues/{key}/attachments": {
+      "get": {
+        "description": "Видны всем участникам проекта, включая читателя. Порядок — по времени добавления. У каждого вложения приходят подписанные ссылки на просмотр и на скачивание; они действуют 10 минут, поэтому кэшировать их надолго нельзя.",
+        "operationId": "AttachmentsController_list",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "description": "Ключ задачи, регистронезависим",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Курсор следующей порции из поля `nextCursor`",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 256,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный курсор (`invalid_cursor`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Вложения задачи",
+        "tags": [
+          "attachments"
+        ]
+      },
+      "post": {
+        "description": "Администратор и участник проекта; читатель — 403 (US-46). Один файл в поле `file`, **любой тип**, до 25 МБ (D-21). Несколько файлов загружаются несколькими запросами: так у каждого свой прогресс и своя ошибка, и один отклонённый файл не отменяет остальные.\n\nТип определяется по содержимому файла, а не по заголовку и не по расширению; имя объекта в хранилище генерирует сервер, исходное имя сохраняется только для показа и скачивания. Добавление попадает в историю задачи.",
+        "operationId": "AttachmentsController_upload",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Файла нет (`attachment_file_required`) или он пустой (`attachment_empty`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Читатель не прикладывает файлы (`attachment_forbidden`)"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          },
+          "413": {
+            "description": "Файл больше 25 МБ (`attachment_too_large`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Приложить файл",
+        "tags": [
+          "attachments"
+        ]
+      }
+    },
+    "/api/issues/{key}/attachments/{attachmentId}": {
+      "delete": {
+        "description": "Администратор проекта — любое вложение, участник — **только своё**, читатель — никакое (US-46). Удаление попадает в историю задачи; файл убирается из хранилища.",
+        "operationId": "AttachmentsController_remove",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          },
+          {
+            "name": "attachmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Вложение удалено"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Вложение чужое, а вы не администратор (`attachment_forbidden`)"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Удалить вложение",
+        "tags": [
+          "attachments"
         ]
       }
     }
@@ -2991,6 +3773,16 @@
             "type": "string",
             "format": "date-time"
           },
+          "lifetimeDays": {
+            "type": "number",
+            "enum": [
+              1,
+              7,
+              30
+            ],
+            "description": "Срок жизни ссылки в днях — тот, что выбрал администратор при создании. Отдаётся полем, а не выводится клиентом из разницы дат: строка списка показывает «Участник · 7 дней · до 19 фев» (design/screens/project.md), и вычитание дат у истёкшего приглашения дало бы не то, что выбирали.",
+            "example": 7
+          },
           "revokedAt": {
             "type": "string",
             "nullable": true,
@@ -3019,6 +3811,7 @@
           "state",
           "url",
           "expiresAt",
+          "lifetimeDays",
           "revokedAt",
           "createdAt",
           "createdBy",
@@ -3114,6 +3907,305 @@
           "projectSlug",
           "role",
           "alreadyMember"
+        ]
+      },
+      "IssueUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Анна Иванова"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "avatarUrl"
+        ]
+      },
+      "NotificationPayloadDto": {
+        "type": "object",
+        "properties": {
+          "issueKey": {
+            "type": "string",
+            "example": "DEV-42",
+            "description": "Ключ задачи на момент события"
+          },
+          "issueTitle": {
+            "type": "string",
+            "example": "Починить экспорт CSV"
+          },
+          "fromStatusName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Статус до перехода. Только `issue_status_changed`."
+          },
+          "toStatusName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Статус после перехода. Только `issue_status_changed`."
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "Начало текста, ~100 символов: комментарий (`issue_commented`) либо текст с упоминанием (`issue_mentioned`). Упоминания развёрнуты в `@Имя`, **разметка Markdown не снята** — её убирает клиент при отрисовке превью (US-102)."
+          },
+          "source": {
+            "enum": [
+              "comment",
+              "description"
+            ],
+            "type": "string",
+            "description": "Где находится упоминание. `description` — в описании задачи: прокручивать надо к описанию, а не к комментарию (US-104). Только `issue_mentioned`."
+          },
+          "projectSlug": {
+            "type": "string",
+            "description": "Только `project_member_joined`"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "Только `project_member_joined`"
+          },
+          "memberName": {
+            "type": "string",
+            "description": "Имя вступившего. Только `project_member_joined`."
+          }
+        }
+      },
+      "NotificationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "enum": [
+              "issue_assigned",
+              "issue_author_assigned",
+              "issue_status_changed",
+              "issue_commented",
+              "issue_mentioned",
+              "project_member_joined"
+            ],
+            "type": "string",
+            "description": "Тип события. От него зависит текст строки и то, какие поля заполнены в `payload` (design/screens/notifications.md)."
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "in_app"
+            ],
+            "description": "Канал доставки. В MVP всегда `in_app` (D-18)."
+          },
+          "actor": {
+            "nullable": true,
+            "description": "Кто инициировал событие. `null` — системное событие: в ленте вместо аватара иконка, а не случайный пользователь.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IssueUserDto"
+              }
+            ]
+          },
+          "issueKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Ключ задачи **сейчас**. `null` означает, что задачи больше нет или она в проекте, из которого пользователя исключили: переход по такому уведомлению показывает «Задача не найдена» (US-103). Текст строки берётся из `payload.issueKey`."
+          },
+          "projectSlug": {
+            "type": "string",
+            "nullable": true,
+            "description": "Короткое имя проекта — адрес перехода для `project_member_joined` (US-23)"
+          },
+          "commentId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "Комментарий, к которому нужно прокрутить задачу (`/issues/DEV-42?comment=<id>`). `null` у удалённого комментария — тогда открывается сама задача, и клиент показывает «Комментарий удалён» (US-102)."
+          },
+          "payload": {
+            "$ref": "#/components/schemas/NotificationPayloadDto"
+          },
+          "readAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "`null` — непрочитанное: точка слева и жирное имя инициатора"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "channel",
+          "actor",
+          "issueKey",
+          "projectSlug",
+          "commentId",
+          "payload",
+          "readAt",
+          "createdAt"
+        ]
+      },
+      "NotificationListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Сначала новые (US-103)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Курсор следующей порции"
+          },
+          "total": {
+            "type": "number",
+            "description": "Всего уведомлений у пользователя"
+          },
+          "unreadCount": {
+            "type": "number",
+            "description": "Непрочитанных: то же число, что и в счётчике шапки"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "total",
+          "unreadCount"
+        ]
+      },
+      "UnreadCountDto": {
+        "type": "object",
+        "properties": {
+          "unreadCount": {
+            "type": "number",
+            "description": "Точное число непрочитанных. Обрезку до «99+» делает интерфейс, а не сервер: иначе он не сможет показать точное значение до 99 (US-103).",
+            "example": 12
+          }
+        },
+        "required": [
+          "unreadCount"
+        ]
+      },
+      "NotificationSettingDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "enum": [
+              "issue_assigned",
+              "issue_author_assigned",
+              "issue_status_changed",
+              "issue_commented",
+              "issue_mentioned",
+              "project_member_joined"
+            ],
+            "type": "string"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "in_app"
+            ]
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "По умолчанию включены все типы (US-103)"
+          }
+        },
+        "required": [
+          "type",
+          "channel",
+          "enabled"
+        ]
+      },
+      "NotificationSettingsDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Все типы уведомлений, включая те, которые пользователь не трогал: отсутствие записи в базе означает «включено», и клиенту не нужно об этом знать.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationSettingDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "UpdateNotificationSettingDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "enum": [
+              "issue_assigned",
+              "issue_author_assigned",
+              "issue_status_changed",
+              "issue_commented",
+              "issue_mentioned",
+              "project_member_joined"
+            ],
+            "type": "string"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "in_app"
+            ],
+            "default": "in_app",
+            "description": "Канал. В MVP единственный, но передавать его можно уже сейчас (D-18)."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Выключенный тип не создаёт ни записи, ни счётчика (US-103)"
+          }
+        },
+        "required": [
+          "type",
+          "enabled"
+        ]
+      },
+      "UpdateNotificationSettingsDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Меняются только перечисленные типы; остальные остаются как были.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpdateNotificationSettingDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "MarkAllReadResultDto": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "number",
+            "description": "Сколько уведомлений стало прочитанными",
+            "example": 12
+          }
+        },
+        "required": [
+          "updated"
         ]
       },
       "QueueDto": {
@@ -3479,28 +4571,6 @@
           "key",
           "name",
           "category"
-        ]
-      },
-      "IssueUserDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "displayName": {
-            "type": "string",
-            "example": "Анна Иванова"
-          },
-          "avatarUrl": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "displayName",
-          "avatarUrl"
         ]
       },
       "IssueRowDto": {
@@ -3890,6 +4960,50 @@
           "updatedAt"
         ]
       },
+      "MentionSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Подставляется в токен `@[Имя](user:<uuid>)`"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Анна Иванова"
+          },
+          "email": {
+            "type": "string",
+            "example": "anna@example.com",
+            "description": "Показывается второй строкой **только при совпадении имён** (US-74). Адрес виден лишь по участникам того же проекта — там он и так есть на вкладке «Участники»."
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "email",
+          "avatarUrl"
+        ]
+      },
+      "MentionSuggestionListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "По имени по возрастанию; не более 10 совпадений",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MentionSuggestionDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
       "UpdateIssueDto": {
         "type": "object",
         "properties": {
@@ -4090,6 +5204,229 @@
         },
         "required": [
           "url"
+        ]
+      },
+      "CommentPermissionsDto": {
+        "type": "object",
+        "properties": {
+          "canEdit": {
+            "type": "boolean",
+            "description": "Править может **только автор**, независимо от роли: администратор чужой комментарий не редактирует (US-72)."
+          },
+          "canDelete": {
+            "type": "boolean",
+            "description": "Свой комментарий удаляет автор, чужой — только администратор проекта (US-73)."
+          }
+        },
+        "required": [
+          "canEdit",
+          "canDelete"
+        ]
+      },
+      "CommentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 10000,
+            "description": "Текст в Markdown, как есть. Упоминания записаны токеном `@[Имя](user:<uuid>)`; актуальные имена и аватары упомянутых — в поле `mentions`, а токен, которому там ничего не соответствует, показывается **обычным текстом** (US-74).\n\n**Сервер разметку не санитизирует**: клиент обязан рендерить её без исполнения содержимого (D-22)."
+          },
+          "author": {
+            "description": "Автор: имя и аватар приезжают сразу",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IssueUserDto"
+              }
+            ]
+          },
+          "mentions": {
+            "description": "Упомянутые в тексте участники проекта — **актуальные** имена и аватары: человек сменил имя в Яндекс ID, и оно поменялось во всех старых комментариях (US-74). Упоминание того, кто не состоит в проекте, сюда не попадает никогда (D-41).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IssueUserDto"
+            }
+          },
+          "editedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Когда комментарий правили. Не `null` — в ленте помечается «изменён» (US-72)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/CommentPermissionsDto"
+          }
+        },
+        "required": [
+          "id",
+          "body",
+          "author",
+          "mentions",
+          "editedAt",
+          "createdAt",
+          "permissions"
+        ]
+      },
+      "CommentListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "В хронологическом порядке, **сначала старые** (US-70)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommentDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Курсор **более ранних** комментариев — тех, что выше по ленте («Показать более ранние»). Страница без курсора отдаёт последние комментарии задачи. `null` — более ранних нет."
+          },
+          "total": {
+            "type": "number",
+            "description": "Всего комментариев у задачи — счётчик на вкладке"
+          },
+          "canComment": {
+            "type": "boolean",
+            "description": "Может ли запросивший написать комментарий. `false` у читателя: поле ввода не показывается, а прямой вызов API вернёт 403 (US-71, D-29)."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "total",
+          "canComment"
+        ]
+      },
+      "CreateCommentDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000,
+            "description": "Markdown. Пустой текст и текст из одних пробелов отклоняются (US-71). Упоминание вставляется токеном `@[Имя](user:<uuid>)`, идентификатор берётся из подсказки `GET /api/issues/{key}/mention-suggestions`. Токен с посторонним пользователем **молча игнорируется**: связи и уведомления не будет, текст останется текстом (D-41).",
+            "example": "Посмотри, пожалуйста, @[Анна Иванова](user:0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0)"
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "UpdateCommentDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000,
+            "description": "Markdown. Пустой текст и текст из одних пробелов отклоняются (US-71). Упоминание вставляется токеном `@[Имя](user:<uuid>)`, идентификатор берётся из подсказки `GET /api/issues/{key}/mention-suggestions`. Токен с посторонним пользователем **молча игнорируется**: связи и уведомления не будет, текст останется текстом (D-41).",
+            "example": "Посмотри, пожалуйста, @[Анна Иванова](user:0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0)"
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "AttachmentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": "string",
+            "example": "screenshot.png",
+            "description": "Имя файла как его назвал загрузивший"
+          },
+          "contentType": {
+            "type": "string",
+            "example": "image/png",
+            "description": "Тип, определённый **по содержимому файла**, а не по заголовку запроса и не по расширению. Неопознанное содержимое — `application/octet-stream`."
+          },
+          "sizeBytes": {
+            "type": "number",
+            "example": 184320,
+            "description": "Размер в байтах, максимум 26 214 400 (25 МБ)"
+          },
+          "isImage": {
+            "type": "boolean",
+            "description": "Показывать превью в задаче. Верно для image/png, image/jpeg, image/webp, image/gif (US-46)."
+          },
+          "url": {
+            "type": "string",
+            "description": "Подписанная ссылка на содержимое, живёт 10 минут. Бакет не публичный: та же ссылка без подписи ничего не отдаёт, и посторонний файл не получит (US-46, D-21). Ссылка выдаётся заново при каждом запросе списка — сохранять её надолго нельзя."
+          },
+          "downloadUrl": {
+            "type": "string",
+            "description": "Та же подписанная ссылка, но с `Content-Disposition: attachment`: браузер скачивает файл под исходным именем, хотя в хранилище он лежит под именем, сгенерированным сервером."
+          },
+          "uploadedBy": {
+            "description": "Кто приложил",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IssueUserDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "canDelete": {
+            "type": "boolean",
+            "description": "Может ли запросивший удалить это вложение: администратор проекта — любое, участник — только своё, читатель — никакое (US-46)."
+          }
+        },
+        "required": [
+          "id",
+          "fileName",
+          "contentType",
+          "sizeBytes",
+          "isImage",
+          "url",
+          "downloadUrl",
+          "uploadedBy",
+          "createdAt",
+          "canDelete"
+        ]
+      },
+      "AttachmentListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Сначала старые, в порядке добавления",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "total": {
+            "type": "number",
+            "description": "Всего вложений у задачи"
+          },
+          "canUpload": {
+            "type": "boolean",
+            "description": "Может ли запросивший приложить файл. `false` у читателя (US-46, D-29)."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "total",
+          "canUpload"
         ]
       }
     }
