@@ -9,17 +9,9 @@ import 'package:sl_tracker_web/features/auth/presentation/login_screen.dart';
 import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_error_state.dart';
 
+import '../../helpers/fake_platform.dart';
 import '../../helpers/fake_repositories.dart';
 import '../../helpers/pump_widget.dart';
-
-/// Запоминает адрес вместо ухода браузера: проверять надо намерение,
-/// а не то, что тестовый рендерер умеет менять адресную строку.
-class RecordingBrowserNavigator implements BrowserNavigator {
-  final urls = <String>[];
-
-  @override
-  void assign(String url) => urls.add(url);
-}
 
 /// Поднимает экран входа в состоянии «сессии нет».
 ///

@@ -13,4 +13,11 @@ class _WebBrowserNavigator implements BrowserNavigator {
 
   @override
   void assign(String url) => web.window.location.assign(url);
+
+  @override
+  void openInNewTab(String url) =>
+      web.window.open(url, '_blank', 'noopener,noreferrer');
+
+  @override
+  String get origin => web.window.location.origin;
 }

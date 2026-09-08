@@ -173,7 +173,19 @@ class SLToastController extends Notifier<List<SLToast>> {
 /// Слой тостов над приложением.
 ///
 /// Ставится один раз в корне: тосты переживают переходы между экранами.
-class SLToastHost extends ConsumerWidget {
+///
+/// Внутри — собственный [Overlay], и это не украшательство. Хост живёт
+/// в `builder` у `MaterialApp.router`, то есть **над** навигатором, а значит
+/// над его оверлеем. Всё, что требует оверлея (тултип у кнопки закрытия,
+/// меню), без своего слоя падает с «No Overlay widget found» — ровно так
+/// это и выяснилось: виджет-тест поднял приложение так же, как оно собрано
+/// на самом деле.
+///
+/// Оверлей есть всегда, а не только когда есть тосты: его единственная
+/// запись подписана на очередь сама и перестраивается без пересоздания слоя.
+/// Пустые места слоя события мыши не ловят — `Stack` внутри записи
+/// проверяет попадание только по своим детям.
+class SLToastHost extends StatelessWidget {
   /// @nodoc
   const SLToastHost({required this.child, super.key});
 
@@ -184,34 +196,55 @@ class SLToastHost extends ConsumerWidget {
   static const toastWidth = 360.0;
 
   @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        child ?? const SizedBox.shrink(),
+        Positioned.fill(
+          child: Overlay(
+            initialEntries: [
+              OverlayEntry(builder: (context) => const _SLToastLayer()),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Стек видимых тостов.
+class _SLToastLayer extends ConsumerWidget {
+  const _SLToastLayer();
+
+  @override
   Widget build(BuildContext context, WidgetRef ref) {
     final toasts = ref.watch(toastControllerProvider);
+    if (toasts.isEmpty) return const SizedBox.shrink();
+
     final density = SLDensity.ofContext(context);
     final isPhone = SLBreakpoint.of(context).isPhone;
 
     return Stack(
       children: [
-        child ?? const SizedBox.shrink(),
-        if (toasts.isNotEmpty)
-          Positioned(
-            // Под шапкой приложения и в стороне от края.
-            top: density.appBarHeight + SLSpacing.space4,
-            right: SLSpacing.space4,
-            left: isPhone ? SLSpacing.space4 : null,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (final toast in toasts)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: SLSpacing.space2),
-                    child: SizedBox(
-                      width: isPhone ? null : toastWidth,
-                      child: _SLToastCard(toast: toast),
-                    ),
+        Positioned(
+          // Под шапкой приложения и в стороне от края.
+          top: density.appBarHeight + SLSpacing.space4,
+          right: SLSpacing.space4,
+          left: isPhone ? SLSpacing.space4 : null,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (final toast in toasts)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: SLSpacing.space2),
+                  child: SizedBox(
+                    width: isPhone ? null : SLToastHost.toastWidth,
+                    child: _SLToastCard(toast: toast),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
+        ),
       ],
     );
   }

@@ -28,6 +28,14 @@ enum ApiFailureKind {
   /// 409. Конфликт: объект изменился, пока пользователь его редактировал.
   conflict,
 
+  /// 410. Объект был, но больше не действует: истёкшее или отозванное
+  /// приглашение. Отличается от [notFound] тем, что ссылка когда-то работала,
+  /// — но снаружи оба состояния одинаково безопасны и ничего не раскрывают.
+  gone,
+
+  /// 413. Тело запроса больше допустимого: обложка тяжелее 5 МБ.
+  tooLarge,
+
   /// 422. Сервер отверг данные формы. Ошибки полей — в [ApiFailure.fieldErrors].
   validation,
 
@@ -129,6 +137,8 @@ class ApiFailure implements Exception {
     if (statusCode == 403) return ApiFailureKind.forbidden;
     if (statusCode == 404) return ApiFailureKind.notFound;
     if (statusCode == 409) return ApiFailureKind.conflict;
+    if (statusCode == 410) return ApiFailureKind.gone;
+    if (statusCode == 413) return ApiFailureKind.tooLarge;
     if (statusCode == 422) return ApiFailureKind.validation;
     if (statusCode >= 500) return ApiFailureKind.server;
 

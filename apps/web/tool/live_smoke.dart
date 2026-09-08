@@ -107,6 +107,135 @@ Future<void> main(List<String> args) async {
     }
   });
 
+  await check('GET /api/projects/{slug} без сессии — 401', () async {
+    try {
+      await client.projects.projectsControllerGet(slug: 'sweet-limit');
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('GET участников без сессии — 401', () async {
+    try {
+      await client.projects.membersControllerList(slug: 'sweet-limit');
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('GET приглашений проекта без сессии — 401', () async {
+    try {
+      await client.invitations.projectInvitationsControllerList(
+        slug: 'sweet-limit',
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  // Отзыв приглашения — POST без тела. Ровно на таких запросах сгенерированный
+  // клиент раньше ставил `Content-Type: application/json`, и Fastify отвечал
+  // 400. Проверка сторожит именно это: код ответа обязан быть 401, а не 400.
+  await check('POST отзыва приглашения без тела не ломается о 400', () async {
+    try {
+      await client.invitations.projectInvitationsControllerRevoke(
+        slug: 'sweet-limit',
+        id: '00000000-0000-0000-0000-000000000000',
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(
+        failure.statusCode != 400,
+        'пустой POST снова отвергнут: $failure',
+      );
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('приглашение по неизвестному токену без сессии — 401', () async {
+    // Без сессии сервер обязан ответить 401 раньше, чем 404: иначе
+    // по коду ответа можно было бы перебирать существующие токены,
+    // даже не входя в трекер.
+    try {
+      await client.invitations.invitationAcceptControllerPreview(
+        token: 'nesuschestvuyuschiy-token-dlya-proverki',
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('вступление по приглашению без сессии — 401', () async {
+    try {
+      await client.invitations.invitationAcceptControllerAccept(
+        token: 'nesuschestvuyuschiy-token-dlya-proverki',
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(
+        failure.statusCode != 400,
+        'пустой POST снова отвергнут: $failure',
+      );
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('создание проекта без сессии — 401, а не 500', () async {
+    try {
+      await client.projects.projectsControllerCreate(
+        body: const CreateProjectDto(name: 'Проверка связи'),
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('удаление обложки без сессии — 401', () async {
+    try {
+      await client.projects.projectsControllerRemoveCover(slug: 'sweet-limit');
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  // Загрузка обложки собирается руками, а не сгенерированным клиентом:
+  // `swagger_parser` описывает multipart как `dart:io File`, которого
+  // в браузере нет. Проверяем, что запрос уходит и доезжает до авторизации,
+  // а не разваливается на сборке тела.
+  await check('multipart-обложка уходит на сервер и получает 401', () async {
+    final form = FormData.fromMap({
+      'file': MultipartFile.fromBytes(
+        // Восьмибайтовая сигнатура PNG: содержимое здесь неважно,
+        // до проверки типа запрос всё равно не доживёт.
+        const [137, 80, 78, 71, 13, 10, 26, 10],
+        filename: 'cover.png',
+        contentType: DioMediaType.parse('image/png'),
+      ),
+    });
+
+    try {
+      await dio.put<void>('/api/projects/sweet-limit/cover', data: form);
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
   await check('обмен несуществующего тикета — 404 ticket_not_found', () async {
     try {
       await client.auth.authControllerAccessDeniedInfo(

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:sl_tracker_web/shared/uikit/feedback/sl_toast.dart';
 import 'package:sl_tracker_web/shared/uikit/themes/sl_theme_data.dart';
 
 /// Задаёт логический размер окна на время теста.
@@ -62,4 +64,38 @@ Future<ProviderContainer> pumpWithProviders(
   );
 
   return container;
+}
+
+/// Поднимает виджет внутри настоящего `GoRouter`.
+///
+/// Нужен там, где экран сам меняет адрес: замена прежнего короткого имени
+/// проекта на действующее, переход после создания и вступления. Проверять
+/// это моком роутера бессмысленно — проверяется как раз адрес.
+Future<GoRouter> pumpWithRouter(
+  WidgetTester tester, {
+  required List<RouteBase> routes,
+  String initialLocation = '/',
+  List<Override> overrides = const [],
+  Size windowSize = const Size(1280, 800),
+}) async {
+  useWindowSize(tester, windowSize);
+
+  final router = GoRouter(initialLocation: initialLocation, routes: routes);
+  addTearDown(router.dispose);
+
+  final container = ProviderContainer(overrides: overrides);
+  addTearDown(container.dispose);
+
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(
+        theme: SLThemeData.light,
+        routerConfig: router,
+        builder: (context, child) => SLToastHost(child: child),
+      ),
+    ),
+  );
+
+  return router;
 }
