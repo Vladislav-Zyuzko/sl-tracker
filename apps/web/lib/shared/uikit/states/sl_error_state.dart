@@ -170,12 +170,17 @@ enum SLBannerVariant {
 ///
 /// Живая область для скринридера: при появлении фокус на него не переводится,
 /// но при отправке формы фокус ставится на первое поле с ошибкой.
-class SLBanner extends StatelessWidget {
+///
+/// Технический код ошибки пользователю не показывается: он прячется
+/// в раскрывающийся блок «Подробности» — там он бесполезен читателю
+/// и бесценен в баг-репорте (`screens/login.md`).
+class SLBanner extends StatefulWidget {
   /// @nodoc
   const SLBanner({
     required this.title,
     this.description,
     this.variant = SLBannerVariant.danger,
+    this.details,
     this.onDismiss,
     super.key,
   });
@@ -189,6 +194,10 @@ class SLBanner extends StatelessWidget {
   /// @nodoc
   final SLBannerVariant variant;
 
+  /// Технические подробности: код ошибки, идентификатор запроса.
+  /// `null` — блока «Подробности» нет.
+  final String? details;
+
   /// Обработчик закрытия. `null` — баннер не закрывается.
   final VoidCallback? onDismiss;
 
@@ -196,9 +205,21 @@ class SLBanner extends StatelessWidget {
   static const stripeWidth = 3.0;
 
   @override
+  State<SLBanner> createState() => _SLBannerState();
+}
+
+class _SLBannerState extends State<SLBanner> {
+  var _detailsExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = SLColorScheme.of(context);
     final text = SLTextScheme.of(context);
+    final variant = widget.variant;
+    final title = widget.title;
+    final description = widget.description;
+    final details = widget.details;
+    final onDismiss = widget.onDismiss;
 
     final (background, border, accent, icon) = switch (variant) {
       SLBannerVariant.danger => (
@@ -235,68 +256,123 @@ class SLBanner extends StatelessWidget {
           borderRadius: SLRadii.smAll,
           border: Border.all(color: border, width: SLBorders.hairline),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: stripeWidth,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: const BorderRadius.horizontal(
-                    left: Radius.circular(SLRadii.sm),
+        // Полоса слева тянется на всю высоту баннера, а высота эта заранее
+        // не известна: баннер живёт и в модалке, и в прокручиваемой колонке,
+        // где вертикальные ограничения бесконечны.
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: SLBanner.stripeWidth,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(SLRadii.sm),
+                    ),
                   ),
                 ),
               ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(SLSpacing.space3),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(icon, size: SLIconSizes.icon16, color: accent),
-                    const SizedBox(width: SLSpacing.space2),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            title,
-                            style: text.bodyS.copyWith(
-                              color: colors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          if (description != null) ...[
-                            const SizedBox(height: SLSpacing.space1),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(SLSpacing.space3),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(icon, size: SLIconSizes.icon16, color: accent),
+                      const SizedBox(width: SLSpacing.space2),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                             Text(
-                              description!,
+                              title,
                               style: text.bodyS.copyWith(
                                 color: colors.textPrimary,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
+                            if (description != null) ...[
+                              const SizedBox(height: SLSpacing.space1),
+                              Text(
+                                description,
+                                style: text.bodyS.copyWith(
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                            ],
+                            if (details != null)
+                              _BannerDetails(
+                                details: details,
+                                expanded: _detailsExpanded,
+                                onToggle: () => setState(
+                                  () => _detailsExpanded = !_detailsExpanded,
+                                ),
+                              ),
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    if (onDismiss != null) ...[
-                      const SizedBox(width: SLSpacing.space2),
-                      SLIconButton(
-                        icon: Icons.close_rounded,
-                        tooltip: 'Закрыть сообщение',
-                        size: SLButtonSize.sm,
-                        onPressed: onDismiss,
-                      ),
+                      if (onDismiss != null) ...[
+                        const SizedBox(width: SLSpacing.space2),
+                        SLIconButton(
+                          icon: Icons.close_rounded,
+                          tooltip: 'Закрыть сообщение',
+                          size: SLButtonSize.sm,
+                          onPressed: onDismiss,
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// Раскрывающийся блок с техническими подробностями внутри баннера.
+class _BannerDetails extends StatelessWidget {
+  const _BannerDetails({
+    required this.details,
+    required this.expanded,
+    required this.onToggle,
+  });
+
+  final String details;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SLColorScheme.of(context);
+    final text = SLTextScheme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SLButton(
+            label: expanded ? 'Скрыть подробности' : 'Подробности',
+            variant: SLButtonVariant.ghost,
+            size: SLButtonSize.sm,
+            onPressed: onToggle,
+          ),
+        ),
+        if (expanded)
+          SelectionArea(
+            child: Text(
+              details,
+              style: text.mono.copyWith(color: colors.textMuted, fontSize: 11),
+            ),
+          ),
+      ],
     );
   }
 }

@@ -44,6 +44,7 @@ class ApiFailure implements Exception {
   const ApiFailure({
     required this.kind,
     this.statusCode,
+    this.code,
     this.requestId,
     this.message,
     this.fieldErrors = const {},
@@ -54,6 +55,15 @@ class ApiFailure implements Exception {
 
   /// HTTP-код ответа, если он был.
   final int? statusCode;
+
+  /// Машинный код ошибки из тела ответа: `access_entry_exists`,
+  /// `last_instance_owner`, `cannot_revoke_self`, `invalid_email`,
+  /// `csrf_origin_mismatch` и прочие.
+  ///
+  /// Бэкенд отдаёт тело вида `{"message": ..., "code": ..., "statusCode": ...}`.
+  /// Экран выбирает текст по коду, а не по `message`: тексты задаёт дизайн,
+  /// а не сервер.
+  final String? code;
 
   /// Идентификатор запроса из заголовка ответа.
   ///
@@ -70,6 +80,19 @@ class ApiFailure implements Exception {
 
   /// Заголовок ответа, в котором бэкенд отдаёт идентификатор запроса.
   static const requestIdHeader = 'x-request-id';
+
+  /// Приводит любую пойманную ошибку к [ApiFailure].
+  ///
+  /// Репозиторий ловит `DioException` от сгенерированного клиента и отдаёт
+  /// наружу уже понятную причину: выше по стеку про `dio` никто не знает.
+  /// Ошибка разбора ответа тоже становится [ApiFailure], а не улетает
+  /// в никуда с белым экраном.
+  static ApiFailure of(Object error) => switch (error) {
+    ApiFailure() => error,
+    DioException(error: final ApiFailure failure) => failure,
+    DioException() => ApiFailure.fromDioException(error),
+    _ => ApiFailure(kind: ApiFailureKind.unknown, message: error.toString()),
+  };
 
   /// Разбирает ошибку `dio` в [ApiFailure].
   factory ApiFailure.fromDioException(DioException error) {
@@ -93,6 +116,7 @@ class ApiFailure implements Exception {
     return ApiFailure(
       kind: kind,
       statusCode: statusCode,
+      code: _codeOf(response?.data),
       requestId: requestId,
       message: error.message,
       fieldErrors: _fieldErrorsOf(response?.data),
@@ -116,6 +140,15 @@ class ApiFailure implements Exception {
   /// Формат пока не зафиксирован контрактом: ожидается объект `errors`
   /// вида «поле — сообщение». Если его нет, список остаётся пустым и форма
   /// показывает общий баннер — падать на незнакомом теле нельзя.
+  /// Достаёт машинный код ошибки из тела ответа.
+  static String? _codeOf(Object? data) {
+    if (data is! Map) return null;
+
+    final code = data['code'];
+
+    return code is String && code.isNotEmpty ? code : null;
+  }
+
   static Map<String, String> _fieldErrorsOf(Object? data) {
     if (data is! Map) return const {};
 
@@ -130,5 +163,6 @@ class ApiFailure implements Exception {
   }
 
   @override
-  String toString() => 'ApiFailure(${kind.name}, status: $statusCode)';
+  String toString() =>
+      'ApiFailure(${kind.name}, status: $statusCode, code: $code)';
 }

@@ -1,0 +1,59 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+// Clients
+export 'clients/access_client.dart';
+export 'clients/auth_client.dart';
+export 'clients/health_client.dart';
+export 'clients/projects_client.dart';
+export 'clients/invitations_client.dart';
+export 'clients/issues_client.dart';
+// Data classes
+export 'models/access_entry_user_dto.dart';
+export 'models/access_entry_dto.dart';
+export 'models/access_entry_list_dto.dart';
+export 'models/create_access_entry_dto.dart';
+export 'models/update_access_entry_dto.dart';
+export 'models/revoke_access_result_dto.dart';
+export 'models/access_denied_info_dto.dart';
+export 'models/me_session_dto.dart';
+export 'models/me_response_dto.dart';
+export 'models/dependency_health_dto.dart';
+export 'models/health_response_dto.dart';
+export 'models/project_member_preview_dto.dart';
+export 'models/project_dto.dart';
+export 'models/project_list_dto.dart';
+export 'models/create_project_dto.dart';
+export 'models/update_project_dto.dart';
+export 'models/update_project_slug_dto.dart';
+export 'models/project_member_dto.dart';
+export 'models/project_member_list_dto.dart';
+export 'models/update_member_role_dto.dart';
+export 'models/remove_member_result_dto.dart';
+export 'models/create_invitation_dto.dart';
+export 'models/invitation_author_dto.dart';
+export 'models/invitation_dto.dart';
+export 'models/invitation_list_dto.dart';
+export 'models/invitation_preview_dto.dart';
+export 'models/accept_invitation_result_dto.dart';
+export 'models/issue_status_dto.dart';
+export 'models/my_issue_dto.dart';
+export 'models/my_issue_list_dto.dart';
+export 'models/access_entry_dto_source.dart';
+export 'models/me_session_dto_kind.dart';
+export 'models/dependency_health_dto_status.dart';
+export 'models/health_response_dto_status.dart';
+export 'models/project_member_preview_dto_role.dart';
+export 'models/project_dto_role.dart';
+export 'models/project_member_dto_role.dart';
+export 'models/update_member_role_dto_role.dart';
+export 'models/create_invitation_dto_role.dart';
+export 'models/create_invitation_dto_expires_in_days.dart';
+export 'models/invitation_dto_role.dart';
+export 'models/invitation_dto_state.dart';
+export 'models/invitation_preview_dto_role.dart';
+export 'models/accept_invitation_result_dto_role.dart';
+export 'models/issue_status_dto_category.dart';
+// Root client
+export 'sl_api_client.dart';

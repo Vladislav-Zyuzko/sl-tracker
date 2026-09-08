@@ -26,6 +26,8 @@ dependencies:
   json_annotation: ^4.12.0
   # Локальное хранение настроек оболочки (свёрнут ли сайдбар).
   shared_preferences: ^2.5.5
+  retrofit: ^4.10.0
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
@@ -35,6 +37,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   freezed: ^4.0.1
   json_serializable: ^6.14.1
+  swagger_parser: ^1.44.3
+  retrofit_generator: ^10.2.11
 
 flutter:
   uses-material-design: true

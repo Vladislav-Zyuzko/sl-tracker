@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:sl_tracker_web/app/not_found_screen.dart';
 import 'package:sl_tracker_web/app/router/app_routes.dart';
 import 'package:sl_tracker_web/features/access/presentation/access_denied_screen.dart';
 import 'package:sl_tracker_web/features/access/presentation/access_list_screen.dart';
+import 'package:sl_tracker_web/features/auth/domain/session.dart';
+import 'package:sl_tracker_web/features/auth/domain/session_state.dart';
 import 'package:sl_tracker_web/features/auth/presentation/login_screen.dart';
+import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
 import 'package:sl_tracker_web/features/invites/presentation/invite_accept_screen.dart';
 import 'package:sl_tracker_web/features/issues/presentation/issue_screen.dart';
 import 'package:sl_tracker_web/features/profile/presentation/profile_screen.dart';
@@ -18,17 +22,93 @@ import 'package:sl_tracker_web/shared/uikit/states/sl_error_state.dart';
 
 /// Роутер приложения.
 ///
-/// Провайдер, а не глобальная переменная: роутеру понадобится читать состояние
-/// сессии, чтобы уводить на вход, и держать это через Riverpod честнее,
-/// чем через синглтон.
+/// Провайдер, а не глобальная переменная: роутер читает состояние сессии,
+/// чтобы уводить на вход. Пересоздавать `GoRouter` на каждое изменение
+/// сессии нельзя — потеряется история браузера, поэтому смена состояния
+/// приходит через [refreshListenable].
 final routerProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
+  final refresh = ValueNotifier<Session>(ref.read(sessionControllerProvider));
+  ref.listen(sessionControllerProvider, (_, next) => refresh.value = next);
+
+  final router = GoRouter(
     initialLocation: AppRoutes.projects,
+    refreshListenable: refresh,
+    redirect: (context, state) =>
+        _redirect(state, ref.read(sessionControllerProvider)),
     routes: _routes,
     errorBuilder: (context, state) =>
-        _NotFoundScreen(location: state.uri.toString()),
+        NotFoundScreen(location: state.uri.toString()),
   );
+
+  ref.onDispose(() {
+    router.dispose();
+    refresh.dispose();
+  });
+
+  return router;
 });
+
+/// Куда пускать, а куда нет.
+///
+/// Правило одно: внутрь приложения — только с сессией, на вход — только без
+/// неё. Пока сессия не проверена, никого никуда не уводим: иначе перезагрузка
+/// страницы выкидывала бы человека на вход каждый раз, пока идёт `GET /api/me`.
+String? _redirect(GoRouterState state, Session session) {
+  if (session.isResolving) return null;
+
+  final path = state.uri.path;
+  final isLogin = path == AppRoutes.login;
+  final isAccessDenied = path == AppRoutes.accessDenied;
+
+  if (session.isSignedOut) {
+    // Экраны вне оболочки открыты всем: на вход человек и так идёт,
+    // а экран отказа показывается ровно тогда, когда сессии нет.
+    if (isLogin || isAccessDenied) return null;
+
+    return Uri(
+      path: AppRoutes.login,
+      queryParameters: {
+        // Адрес назначения: после входа человек попадёт туда, куда шёл (US-01).
+        if (path != AppRoutes.projects) 'next': state.uri.toString(),
+        if (session.state == SessionState.expired) 'reason': 'expired',
+      },
+    ).toString();
+  }
+
+  // Вошедшему на экране входа делать нечего — и мигать им тоже не нужно.
+  if (isLogin) return safeNextLocation(state.uri.queryParameters['next']);
+  if (isAccessDenied) return AppRoutes.projects;
+
+  return null;
+}
+
+/// Проверяет адрес возврата после входа.
+///
+/// Принимается только путь внутри приложения. `//evil.example` — это
+/// протокол-относительный внешний адрес, а не наш путь, и такие отбрасываются:
+/// параметр в адресной строке задаёт кто угодно.
+String safeNextLocation(String? next) {
+  if (next == null || !next.startsWith('/') || next.startsWith('//')) {
+    return AppRoutes.projects;
+  }
+
+  return next;
+}
+
+/// Токен приглашения из адреса возврата.
+///
+/// Человек, пришедший по ссылке-приглашению без сессии, уходит на вход
+/// с `next=/invite/<token>`. Токен нужно передать бэкенду при старте входа:
+/// действующее приглашение пускает в трекер в обход списка доступа
+/// (ADR-0006, п. 3), иначе человек упрётся в экран отказа (US-21).
+String? inviteTokenOf(String? next) {
+  if (next == null) return null;
+
+  final segments = Uri.parse(next).pathSegments;
+  if (segments.length != 2 || segments.first != 'invite') return null;
+
+  return RouteParams.inviteToken.hasMatch(segments[1]) ? segments[1] : null;
+}
 
 /// Заглушка экрана уведомлений: спека есть, данных пока нет.
 class _NotificationsScreen extends StatelessWidget {
@@ -49,7 +129,17 @@ final _routes = <RouteBase>[
   GoRoute(
     path: AppRoutes.login,
     name: AppRoutes.loginName,
-    builder: (context, state) => const LoginScreen(),
+    builder: (context, state) {
+      final query = state.uri.queryParameters;
+      final next = query['next'];
+
+      return LoginScreen(
+        errorCode: query['error'],
+        next: next == null ? null : safeNextLocation(next),
+        invite: inviteTokenOf(next),
+        sessionExpired: query['reason'] == 'expired',
+      );
+    },
   ),
   GoRoute(
     path: AppRoutes.accessDenied,
@@ -94,7 +184,7 @@ final _routes = <RouteBase>[
 
           return RouteParams.projectSlug.hasMatch(slug)
               ? ProjectScreen(slug: slug)
-              : _NotFoundScreen(location: state.uri.toString());
+              : NotFoundScreen(location: state.uri.toString());
         },
       ),
       GoRoute(
@@ -105,7 +195,7 @@ final _routes = <RouteBase>[
 
           return RouteParams.queueKey.hasMatch(key)
               ? QueueIssuesScreen(queueKey: key)
-              : _NotFoundScreen(location: state.uri.toString());
+              : NotFoundScreen(location: state.uri.toString());
         },
       ),
       GoRoute(
@@ -141,24 +231,6 @@ final _routes = <RouteBase>[
     ],
   ),
 ];
-
-/// Неизвестный адрес.
-class _NotFoundScreen extends StatelessWidget {
-  const _NotFoundScreen({required this.location});
-
-  final String location;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SLErrorState(
-      title: 'Страница не найдена',
-      description: 'Проверьте адрес: возможно, в ссылке опечатка.',
-      actionLabel: 'К списку проектов',
-      onAction: () => GoRouter.of(context).go(AppRoutes.projects),
-      details: location,
-    ),
-  );
-}
 
 /// Задача не найдена.
 ///

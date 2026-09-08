@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:sl_tracker_web/app/router/app_routes.dart';
+import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
 import 'package:sl_tracker_web/features/shell/presentation/shell_header.dart';
 import 'package:sl_tracker_web/features/shell/presentation/shell_shortcuts.dart';
 import 'package:sl_tracker_web/features/shell/presentation/shell_sidebar.dart';
 import 'package:sl_tracker_web/features/shell/presentation/sidebar_providers.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
+import 'package:sl_tracker_web/shared/uikit/feedback/sl_toast.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_motion.dart';
@@ -81,11 +83,35 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
   }
 
+  /// Выход.
+  ///
+  /// Уводить на экран входа руками не нужно: состояние сессии меняется,
+  /// и роутер сам приводит адрес в порядок.
+  Future<void> _signOut() async {
+    try {
+      await ref.read(sessionControllerProvider.notifier).signOut();
+    } on Object {
+      if (!mounted) return;
+      ref
+          .read(toastControllerProvider.notifier)
+          .error(
+            'Не удалось выйти',
+            actionLabel: 'Повторить',
+            onAction: _signOut,
+          );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = SLColorScheme.of(context);
     final breakpoint = SLBreakpoint.of(context);
     final location = GoRouterState.of(context).uri.path;
+    // Узкая подписка: шапка перерисовывается на смене профиля,
+    // а не на каждом чихе состояния сессии.
+    final user = ref.watch(
+      sessionControllerProvider.select((session) => session.user),
+    );
 
     // На планшете сайдбар свёрнут принудительно, выбор пользователя
     // при этом сохраняется и вернётся на десктопе.
@@ -133,6 +159,13 @@ class _AppShellState extends ConsumerState<AppShell> {
               onNotifications: () => _go(AppRoutes.notifications),
               onOpenProfile: () => _go(AppRoutes.profile),
               onOpenAccessList: () => _go(AppRoutes.access),
+              userName: user?.displayName,
+              userId: user?.id,
+              userAvatarUrl: user?.avatarUrl,
+              // Пункт «Доступ к трекеру» показывается по флагу из
+              // `GET /api/me`: клиент не вычисляет право сам.
+              canManageAccessList: user?.canManageAccessList ?? false,
+              onSignOut: _signOut,
               onMenuTap: breakpoint.isPhone
                   ? () => _scaffoldKey.currentState?.openDrawer()
                   : null,

@@ -25,6 +25,7 @@ class ShellHeader extends StatelessWidget {
     this.unreadCount,
     this.userName,
     this.userId,
+    this.userAvatarUrl,
     this.canManageAccessList = false,
     this.onSignOut,
     this.onMenuTap,
@@ -49,6 +50,9 @@ class ShellHeader extends StatelessWidget {
 
   /// Идентификатор пользователя — по нему выбирается цвет аватара.
   final String? userId;
+
+  /// Фотография из Яндекс ID. `null` — рисуются инициалы.
+  final String? userAvatarUrl;
 
   /// Есть ли право вести список доступа.
   ///
@@ -125,6 +129,7 @@ class ShellHeader extends StatelessWidget {
             _ProfileMenu(
               userName: userName,
               userId: userId,
+              userAvatarUrl: userAvatarUrl,
               showName: !isPhone && breakpoint != SLBreakpoint.md,
               canManageAccessList: canManageAccessList,
               onOpenProfile: onOpenProfile,
@@ -221,6 +226,7 @@ class _ProfileMenu extends StatelessWidget {
   const _ProfileMenu({
     required this.userName,
     required this.userId,
+    required this.userAvatarUrl,
     required this.showName,
     required this.canManageAccessList,
     required this.onOpenProfile,
@@ -232,6 +238,7 @@ class _ProfileMenu extends StatelessWidget {
 
   final String? userName;
   final String? userId;
+  final String? userAvatarUrl;
   final bool showName;
   final bool canManageAccessList;
   final VoidCallback onOpenProfile;
@@ -280,6 +287,7 @@ class _ProfileMenu extends StatelessWidget {
                   SLAvatar(
                     userId: userId!,
                     fullName: userName!,
+                    photoUrl: userAvatarUrl,
                     size: SLAvatarSize.sm,
                     decorative: true,
                   ),

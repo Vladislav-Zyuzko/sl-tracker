@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sl_tracker_web/shared/uikit/themes/sl_theme_data.dart';
@@ -34,4 +36,30 @@ Future<void> pumpInTheme(
       home: Scaffold(body: Center(child: child)),
     ),
   );
+}
+
+/// Поднимает виджет внутри `ProviderScope` и темы приложения.
+///
+/// Возвращает контейнер, чтобы тест мог заглянуть в состояние провайдеров
+/// после взаимодействия — иначе пришлось бы проверять его через интерфейс,
+/// то есть дважды одно и то же.
+Future<ProviderContainer> pumpWithProviders(
+  WidgetTester tester,
+  Widget child, {
+  List<Override> overrides = const [],
+  Size windowSize = const Size(1280, 800),
+}) async {
+  useWindowSize(tester, windowSize);
+
+  final container = ProviderContainer(overrides: overrides);
+  addTearDown(container.dispose);
+
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(theme: SLThemeData.light, home: child),
+    ),
+  );
+
+  return container;
 }

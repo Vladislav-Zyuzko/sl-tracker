@@ -1,0 +1,219 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:sl_tracker_web/core/network/api_failure.dart';
+import 'package:sl_tracker_web/core/platform/browser_navigator.dart';
+import 'package:sl_tracker_web/features/auth/data/auth_repository.dart';
+import 'package:sl_tracker_web/features/auth/presentation/login_notice.dart';
+import 'package:sl_tracker_web/features/auth/presentation/login_screen.dart';
+import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
+import 'package:sl_tracker_web/shared/uikit/states/sl_error_state.dart';
+
+import '../../helpers/fake_repositories.dart';
+import '../../helpers/pump_widget.dart';
+
+/// Запоминает адрес вместо ухода браузера: проверять надо намерение,
+/// а не то, что тестовый рендерер умеет менять адресную строку.
+class RecordingBrowserNavigator implements BrowserNavigator {
+  final urls = <String>[];
+
+  @override
+  void assign(String url) => urls.add(url);
+}
+
+/// Поднимает экран входа в состоянии «сессии нет».
+///
+/// Именно так экран видит неаутентифицированный человек: приложение уже
+/// сходило за `GET /api/me` и получило 401.
+Future<ProviderContainer> pumpLogin(
+  WidgetTester tester,
+  LoginScreen screen, {
+  BrowserNavigator? navigator,
+}) async {
+  final container = await pumpWithProviders(
+    tester,
+    screen,
+    overrides: [
+      authRepositoryProvider.overrideWithValue(
+        FakeAuthRepository(
+          meFailure: const ApiFailure(
+            kind: ApiFailureKind.unauthorized,
+            statusCode: 401,
+          ),
+        ),
+      ),
+      if (navigator != null)
+        browserNavigatorProvider.overrideWithValue(navigator),
+    ],
+  );
+
+  await container.read(sessionControllerProvider.notifier).load();
+  await tester.pump();
+
+  return container;
+}
+
+void main() {
+  group('экран входа', () {
+    testWidgets('кнопка уводит на /api/auth/yandex/start полным переходом', (
+      tester,
+    ) async {
+      final navigator = RecordingBrowserNavigator();
+
+      await pumpLogin(tester, const LoginScreen(), navigator: navigator);
+
+      await tester.tap(find.text('Войти через Яндекс'));
+      await tester.pump();
+
+      expect(navigator.urls, ['/api/auth/yandex/start']);
+    });
+
+    testWidgets('адрес назначения уезжает параметром next (US-01)', (
+      tester,
+    ) async {
+      final navigator = RecordingBrowserNavigator();
+
+      await pumpLogin(
+        tester,
+        const LoginScreen(next: '/issues/SL-123'),
+        navigator: navigator,
+      );
+
+      await tester.tap(find.text('Войти через Яндекс'));
+      await tester.pump();
+
+      expect(
+        navigator.urls.single,
+        '/api/auth/yandex/start?next=%2Fissues%2FSL-123',
+      );
+    });
+
+    testWidgets('повторное нажатие второй раз браузер не уводит', (
+      tester,
+    ) async {
+      final navigator = RecordingBrowserNavigator();
+
+      await pumpLogin(tester, const LoginScreen(), navigator: navigator);
+
+      await tester.tap(find.text('Войти через Яндекс'));
+      await tester.pump();
+      await tester.tap(find.byType(LoginScreen));
+      await tester.pump();
+
+      expect(navigator.urls.length, 1);
+    });
+
+    testWidgets('отказ в Яндексе объясняется спокойно, а не как поломка', (
+      tester,
+    ) async {
+      await pumpLogin(tester, const LoginScreen(errorCode: 'access_denied'));
+
+      expect(find.text('Вход отменён'), findsOneWidget);
+      expect(
+        tester.widget<SLBanner>(find.byType(SLBanner)).variant,
+        SLBannerVariant.info,
+      );
+      // Код показывается только под «Подробности» — на экране его нет.
+      expect(find.text('access_denied'), findsNothing);
+
+      await tester.tap(find.text('Подробности'));
+      await tester.pump();
+      expect(find.text('access_denied'), findsOneWidget);
+    });
+
+    testWidgets('немодерированное приложение — предупреждение, не ошибка', (
+      tester,
+    ) async {
+      await pumpLogin(
+        tester,
+        const LoginScreen(errorCode: 'unauthorized_client'),
+      );
+
+      expect(find.text('Вход временно недоступен'), findsOneWidget);
+      expect(
+        tester.widget<SLBanner>(find.byType(SLBanner)).variant,
+        SLBannerVariant.warning,
+      );
+    });
+
+    testWidgets('истёкшая сессия объявляется отдельно (US-02)', (tester) async {
+      await pumpLogin(tester, const LoginScreen(sessionExpired: true));
+
+      expect(find.text('Сессия истекла'), findsOneWidget);
+    });
+
+    testWidgets('сбой проверки сессии становится баннером', (tester) async {
+      final container = await pumpWithProviders(
+        tester,
+        const LoginScreen(),
+        overrides: [
+          authRepositoryProvider.overrideWithValue(
+            FakeAuthRepository(
+              meFailure: const ApiFailure(
+                kind: ApiFailureKind.server,
+                statusCode: 502,
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await container.read(sessionControllerProvider.notifier).load();
+      await tester.pump();
+
+      expect(find.text('Не удалось войти'), findsOneWidget);
+      expect(
+        find.text('Проверьте соединение и попробуйте ещё раз.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('пока сессия проверяется, вместо кнопки — «Завершаем вход»', (
+      tester,
+    ) async {
+      // Состояние «неизвестно» — ровно то, в котором приложение только что
+      // вернулось из Яндекса и ещё не спросило `GET /api/me`.
+      await pumpWithProviders(tester, const LoginScreen());
+
+      expect(find.text('Завершаем вход…'), findsOneWidget);
+      expect(find.text('Войти через Яндекс'), findsNothing);
+    });
+  });
+
+  group('тексты ошибок входа', () {
+    test('каждый код контракта имеет свой текст', () {
+      const codes = [
+        'access_denied',
+        'unauthorized_client',
+        'invalid_state',
+        'provider_unavailable',
+        'oauth_not_configured',
+        'server_error',
+      ];
+
+      for (final code in codes) {
+        final notice = LoginNotice.ofOAuthError(code);
+
+        expect(notice.title, isNotEmpty, reason: code);
+        expect(notice.description, isNotEmpty, reason: code);
+        expect(notice.details, code);
+      }
+    });
+
+    test('неизвестный код не оставляет пользователя без объяснения', () {
+      final notice = LoginNotice.ofOAuthError('что-то новое');
+
+      expect(notice.title, 'Не удалось войти');
+      expect(notice.variant, SLBannerVariant.danger);
+    });
+
+    test('401 баннера не порождает: это обычный вход, а не сбой', () {
+      expect(
+        LoginNotice.ofFailure(
+          const ApiFailure(kind: ApiFailureKind.unauthorized),
+        ),
+        isNull,
+      );
+    });
+  });
+}

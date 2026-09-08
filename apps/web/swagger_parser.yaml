@@ -1,0 +1,35 @@
+# Генерация API-клиента из контракта бэкенда.
+#
+# Контракт `docs/api/openapi.json` — единственный источник правды: DTO и клиенты
+# руками не пишутся (CLAUDE.md, п. 9). Перегенерация:
+#
+#     cd apps/web
+#     dart run swagger_parser
+#     dart run build_runner build --delete-conflicting-outputs
+#     dart format lib/core/api/generated
+#
+# Первая команда пишет `lib/core/api/generated/**` по схеме, вторая доводит
+# freezed- и retrofit-части. Результат коммитится: сборка клиента не должна
+# зависеть от того, запустил ли кто-то генератор.
+swagger_parser:
+  schema_path: ../../docs/api/openapi.json
+  output_directory: lib/core/api/generated
+  name: sl_api
+  language: dart
+
+  # Модели — freezed + json_serializable, как договорено в CLAUDE.md.
+  json_serializer: freezed
+  use_freezed3: true
+
+  # Клиенты — retrofit поверх нашего `Dio` из `core/network`: адаптер
+  # с `withCredentials` и разбор ошибок остаются общими для всего приложения.
+  root_client: true
+  root_client_name: SLApiClient
+  put_clients_in_folder: true
+  client_postfix: Client
+  export_file: true
+
+  # Новое значение перечисления с бэкенда не должно ронять клиент.
+  unknown_enum_value: true
+  enums_parent_prefix: true
+  mark_files_as_generated: true

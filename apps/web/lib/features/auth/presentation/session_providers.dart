@@ -1,38 +1,84 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:sl_tracker_web/core/network/api_failure.dart';
+import 'package:sl_tracker_web/core/network/unauthorized_notifier.dart';
+import 'package:sl_tracker_web/features/auth/data/auth_repository.dart';
+import 'package:sl_tracker_web/features/auth/domain/session.dart';
 import 'package:sl_tracker_web/features/auth/domain/session_state.dart';
 
 /// Состояние сессии приложения.
 ///
-/// Пока источник состояния только один — интерсептор HTTP-клиента, который
-/// зовёт [SessionController.expire] на 401. Запрос `GET /api/me`, который
-/// переводит состояние в [SessionState.authenticated], появится, когда будет
-/// зафиксирован контракт `/api/me`: сейчас его в `docs/api/openapi.json` нет.
-final sessionControllerProvider =
-    NotifierProvider<SessionController, SessionState>(SessionController.new);
+/// Единственный владелец ответа `GET /api/me`. Источников смены состояния два:
+/// явная проверка при старте ([SessionController.load]) и сигнал 401
+/// от HTTP-клиента.
+final sessionControllerProvider = NotifierProvider<SessionController, Session>(
+  SessionController.new,
+);
 
 /// Контроллер состояния сессии.
-class SessionController extends Notifier<SessionState> {
+class SessionController extends Notifier<Session> {
   @override
-  SessionState build() => SessionState.unknown;
+  Session build() {
+    // На 401 приложение реагирует одинаково, откуда бы запрос ни пришёл.
+    // Подписка на отдельный сигнал, а не на HTTP-клиент напрямую, разрывает
+    // круг «клиенту нужна сессия — сессии нужен клиент».
+    final unauthorized = ref.watch(unauthorizedNotifierProvider);
+    unauthorized.addListener(_onUnauthorized);
+    ref.onDispose(() => unauthorized.removeListener(_onUnauthorized));
 
-  /// Отмечает, что проверка сессии началась.
-  void startChecking() => state = SessionState.checking;
-
-  /// Пользователь внутри.
-  void authenticated() => state = SessionState.authenticated;
-
-  /// Сервер ответил 401.
-  ///
-  /// Различаем два случая: сессия была и истекла — тогда нужна модалка
-  /// «Войдите снова» поверх экрана; сессии не было вовсе — обычный уход
-  /// на экран входа.
-  void expire() {
-    state = state == SessionState.authenticated
-        ? SessionState.expired
-        : SessionState.anonymous;
+    return const Session.unknown();
   }
 
-  /// Пользователь вышел сам.
-  void signOut() => state = SessionState.anonymous;
+  /// Проверяет сессию запросом `GET /api/me`.
+  ///
+  /// Вызывается при старте приложения и после возврата из Яндекс ID.
+  /// Повторный вызов во время проверки игнорируется: два одинаковых запроса
+  /// на старте не нужны никому.
+  Future<void> load() async {
+    if (state.state == SessionState.checking) return;
+
+    final previousUser = state.user;
+    state = Session(state: SessionState.checking, user: previousUser);
+
+    try {
+      state = Session.authenticated(
+        await ref.read(authRepositoryProvider).me(),
+      );
+    } on ApiFailure catch (failure) {
+      state = switch (failure.kind) {
+        // Честный «сессии нет»: сюда же приходит отзыв доступа (US-09).
+        ApiFailureKind.unauthorized => Session(
+          state: previousUser == null
+              ? SessionState.anonymous
+              : SessionState.expired,
+        ),
+        // Сеть или сервер. Внутрь не пускаем, но и молчать нельзя: причина
+        // доедет до экрана входа и станет баннером, а не пустым экраном.
+        _ => Session.anonymous(failure: failure),
+      };
+    }
+  }
+
+  /// Выход по кнопке.
+  ///
+  /// Ошибку не глотает: экран показывает тост «Не удалось выйти» с повтором.
+  /// Состояние сбрасывается только после успешного ответа сервера — иначе
+  /// интерфейс уверял бы, что человек вышел, когда сессия на сервере жива.
+  Future<void> signOut() async {
+    await ref.read(authRepositoryProvider).logout();
+    state = const Session.anonymous();
+  }
+
+  /// Сервер ответил 401 на любой запрос.
+  ///
+  /// Различаем два случая: сессия была и истекла — на экране входа человека
+  /// встретит баннер «Сессия истекла» (US-02); сессии не было вовсе —
+  /// обычный вход.
+  void _onUnauthorized() {
+    if (state.isSignedOut) return;
+
+    state = Session(
+      state: state.user == null ? SessionState.anonymous : SessionState.expired,
+    );
+  }
 }
