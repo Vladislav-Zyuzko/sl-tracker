@@ -30,6 +30,14 @@ export const envSchema = z.object({
   REDIS_HOST: z.string().min(1).default('localhost'),
   REDIS_PORT: z.coerce.number().int().min(1).max(65535).default(6379),
   REDIS_PASSWORD: z.string().min(1),
+  /** Номер логической базы Redis для рабочего окружения. */
+  REDIS_DB: z.coerce.number().int().min(0).max(15).default(0),
+  /**
+   * Номер логической базы Redis для тестов. Тесты обязаны жить отдельно: иначе прогон
+   * e2e гасит живые сессии рабочего окружения и оставляет в нём мусор
+   * (`sl:session:*`, `sl:ratelimit:*`). Выбирается автоматически при `NODE_ENV=test`.
+   */
+  REDIS_TEST_DB: z.coerce.number().int().min(0).max(15).default(15),
 
   // --- MinIO (S3) -------------------------------------------------------------
   MINIO_HOST: z.string().min(1).default('localhost'),
@@ -37,6 +45,23 @@ export const envSchema = z.object({
   MINIO_ROOT_USER: z.string().min(1),
   MINIO_ROOT_PASSWORD: z.string().min(1),
   MINIO_BUCKET: z.string().min(1),
+  /** Регион в подписи S3. MinIO его не использует, но SDK требует значение. */
+  MINIO_REGION: z.string().min(1).default('us-east-1'),
+  MINIO_USE_SSL: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  /**
+   * Адрес хранилища, по которому к нему пойдёт **браузер**. Подпись ссылки привязана
+   * к хосту, поэтому во внутренней сети (`minio:9000`) подписывать ссылку для браузера
+   * нельзя. Не задан — подписываем внутренним адресом, что верно только локально.
+   */
+  MINIO_PUBLIC_URL: z.preprocess(
+    // Пустая строка в .env означает «не задано», а не «некорректный адрес»:
+    // иначе скопированный шаблон .env.example не дал бы приложению подняться.
+    (value) => (value === '' ? undefined : value),
+    z.url().optional(),
+  ),
 
   // --- Яндекс ID --------------------------------------------------------------
   // Пока поток авторизации не реализован, переменные необязательны: пустой .env

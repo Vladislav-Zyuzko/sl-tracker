@@ -98,20 +98,25 @@ export class AuthService {
       if (params.state) {
         await this.states.consume(params.state);
       }
-      return { outcome: 'error', code: mapProviderError(params.error) };
+      const code = mapProviderError(params.error);
+      this.logger.warn(`Колбэк входа: провайдер вернул ошибку ${params.error}, код ${code}`);
+      return { outcome: 'error', code };
     }
 
     if (!params.state) {
+      this.logger.warn('Колбэк входа: запрос без state, ничего не делаем');
       return { outcome: 'bad-request' };
     }
 
     const stateData = await this.states.consume(params.state);
     if (!stateData) {
+      this.logger.warn('Колбэк входа: state неизвестен, истёк или уже использован');
       return { outcome: 'error', code: 'invalid_state' };
     }
 
     if (!params.code) {
       // `state` был наш, но кода нет: провайдер вернул не то, чего мы ждём.
+      this.logger.warn('Колбэк входа: state наш, но код авторизации не передан');
       return { outcome: 'error', code: 'provider_unavailable' };
     }
 
@@ -123,6 +128,7 @@ export class AuthService {
       const email = profile.email ? normalizeEmail(profile.email) : null;
       if (!email) {
         // Без адреса человек не может пройти список доступа: сравнивать не с чем.
+        this.logger.warn('Колбэк входа: провайдер не отдал email, вход отклонён');
         return { outcome: 'access-denied', ticket: null };
       }
 
@@ -133,6 +139,10 @@ export class AuthService {
 
       if (!allowed) {
         // Ни пользователя, ни сессии: отказ не оставляет следов (US-05).
+        // В лог — только факт: email из списка доступа в логи не пишется (ADR-0006).
+        this.logger.log(
+          `Колбэк входа: отказ по списку доступа${stateData.invite ? ' (приглашение не действует)' : ''}`,
+        );
         return { outcome: 'access-denied', ticket: await this.tickets.issue(email) };
       }
 
@@ -145,7 +155,10 @@ export class AuthService {
       });
 
       const session = await this.sessions.create(user.id, 'cookie');
-      this.logger.log(`Вход выполнен: пользователь ${user.id}`);
+      this.logger.log(
+        `Колбэк входа: успех, пользователь ${user.id}, сессия ${session.id}` +
+          `${stateData.invite ? ', пришёл по приглашению' : ''}`,
+      );
 
       return {
         outcome: 'success',
@@ -155,12 +168,13 @@ export class AuthService {
       };
     } catch (error) {
       if (error instanceof YandexOAuthError) {
-        this.logger.warn(`Вход не удался: ${error.message}`);
+        // Подробности шага, статуса и длительности уже записал клиент провайдера.
+        this.logger.warn(`Колбэк входа: отказ провайдера, код ${error.authCode}`);
         return { outcome: 'error', code: error.authCode };
       }
 
       this.logger.error(
-        'Непредвиденная ошибка при завершении входа',
+        'Колбэк входа: непредвиденная ошибка, код server_error',
         error instanceof Error ? error.stack : String(error),
       );
       return { outcome: 'error', code: 'server_error' };

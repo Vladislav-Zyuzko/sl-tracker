@@ -46,7 +46,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
             };
 
       if (status >= 500) {
-        this.logger.error(`${request.method} ${request.url}`, exception.stack);
+        this.logger.error(
+          `${request.method} ${request.url} [${request.slRequestId ?? '-'}]`,
+          exception.stack,
+        );
       }
 
       void reply.status(status).send(body);
@@ -54,7 +57,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     this.logger.error(
-      `Необработанная ошибка: ${request.method} ${request.url}`,
+      `Необработанная ошибка: ${request.method} ${request.url} [${request.slRequestId ?? '-'}]`,
       exception instanceof Error ? exception.stack : String(exception),
     );
 

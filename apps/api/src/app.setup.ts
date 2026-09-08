@@ -1,8 +1,9 @@
 import fastifyCookie from '@fastify/cookie';
+import fastifyMultipart from '@fastify/multipart';
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, type OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
-import { AllExceptionsFilter } from './common/index.js';
+import { AllExceptionsFilter, REQUEST_ID_HEADER, resolveRequestId } from './common/index.js';
 
 /** Глобальный префикс. Caddy проксирует в API именно `/api/*` (ADR-0001, ADR-0005). */
 export const API_PREFIX = 'api';
@@ -16,6 +17,24 @@ export async function configureApp(app: NestFastifyApplication): Promise<void> {
   // Разбор и установка cookie сессии. Cookie не подписывается: её значение — уже
   // непредсказуемый токен, а проверяется он по HMAC на сервере (см. SessionService).
   await app.register(fastifyCookie);
+
+  // Загрузка файлов: обложка проекта (5 МБ) и в будущем вложения к задачам (25 МБ, D-21).
+  // Здесь стоит общий потолок, а точный предел задаёт маршрут при чтении файла.
+  await app.register(fastifyMultipart, {
+    limits: { fileSize: 25 * 1024 * 1024, files: 1, fields: 10 },
+  });
+
+  // Сквозной идентификатор запроса. Клиент читает заголовок `x-request-id` и показывает
+  // его в сообщении об ошибке, чтобы по нему нашёлся серверный лог.
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .addHook('onRequest', (request, reply, done) => {
+      const requestId = resolveRequestId(request);
+      request.slRequestId = requestId;
+      void reply.header(REQUEST_ID_HEADER, requestId);
+      done();
+    });
 
   app.setGlobalPrefix(API_PREFIX);
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: undefined });

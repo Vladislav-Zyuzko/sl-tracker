@@ -424,6 +424,1002 @@
           "health"
         ]
       }
+    },
+    "/api/projects": {
+      "get": {
+        "description": "Проекты, где пользователь состоит в любой роли, по названию по возрастанию. Чужие проекты в список не попадают, даже если известен их адрес (US-10).",
+        "operationId": "ProjectsController_list",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Размер страницы. Больше максимума не отдаём.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Курсор следующей страницы из поля `nextCursor`",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 256,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный курсор (`invalid_cursor`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Мои проекты",
+        "tags": [
+          "projects"
+        ]
+      },
+      "post": {
+        "description": "Создать проект может любой пользователь, прошедший список доступа; отдельного права нет. Создатель становится администратором и единственным участником (US-11).\n\n**Короткое имя в адресе выдаёт сервер** по названию: кириллица транслитерируется (`и` → `i`, `й` → `y`, `ж` → `zh`, `ч` → `ch`, `ш` → `sh`, `щ` → `sch`, `ю` → `yu`, `я` → `ya`, `ь` и `ъ` пропадают), регистр приводится к нижнему, всё недопустимое заменяется дефисом, повторные дефисы схлопываются, крайние обрезаются, длина ограничена 40 символами. «Сладкий Лимит 2026!» → `sladkiy-limit-2026`. Если допустимых символов не осталось, имя будет вида `project-7`. При коллизии добавляется числовой суффикс (`sladkiy-limit-2`), поэтому предпросмотр на клиенте может разойтись с итогом: окончательное значение всегда в поле `slug` ответа.",
+        "operationId": "ProjectsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Пустое название (`invalid_project_name`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Создать проект",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/{slug}": {
+      "get": {
+        "description": "Работает и для прежних коротких имён проекта: в ответе всегда действующее `slug`, и клиент заменяет им адрес в строке браузера (US-18). Не-участник получает 404 без каких-либо данных проекта.",
+        "operationId": "ProjectsController_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "sladkiy-limit",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "404": {
+            "description": "Проекта нет или пользователь не участник"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Проект по короткому имени",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "description": "Только администратор проекта. Переименование **не меняет** короткое имя в адресе: ранее отправленные ссылки продолжают работать (US-18).",
+        "operationId": "ProjectsController_update",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`project_forbidden`)"
+          },
+          "404": {
+            "description": "Проекта нет или пользователь не участник"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Изменить название и описание",
+        "tags": [
+          "projects"
+        ]
+      },
+      "delete": {
+        "description": "Только администратор (US-17). Удаляются очереди, задачи, комментарии и вложения. Ключи очередей и прежние короткие имена остаются занятыми и повторно не выдаются (D-25, US-18).",
+        "operationId": "ProjectsController_remove",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Проект удалён"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`project_forbidden`)"
+          },
+          "404": {
+            "description": "Проекта нет или пользователь не участник"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Удалить проект",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/{slug}/slug": {
+      "put": {
+        "description": "Только администратор и только явным действием (US-18). Прежнее короткое имя остаётся занятым навсегда и продолжает открывать этот же проект; другому проекту оно достаться не может. Системные адреса приложения (`issues`, `invite`, `projects`, `profile`, `me`, `api`, `login`, `access-denied`, `notifications`, `queues`) отклоняются.",
+        "operationId": "ProjectsController_changeSlug",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectSlugDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Недопустимый вид имени (`invalid_slug`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`project_forbidden`)"
+          },
+          "404": {
+            "description": "Проекта нет или пользователь не участник"
+          },
+          "409": {
+            "description": "Имя занято (`slug_taken`) или зарезервировано приложением (`reserved_slug`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Изменить короткое имя в адресе",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/{slug}/cover": {
+      "put": {
+        "description": "Только администратор. Один файл в поле `file`: PNG, JPEG или WEBP до 5 МБ (US-12). Тип определяется по содержимому файла, а не по заголовку и не по расширению; имя объекта в хранилище генерирует сервер. Загрузка второй обложки заменяет предыдущую. Обложка отдаётся подписанной ссылкой в поле `coverUrl` и по прямой ссылке без подписи недоступна.",
+        "operationId": "ProjectsController_uploadCover",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Файла нет (`cover_file_required`) или тип не поддержан (`cover_unsupported_type`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`project_forbidden`)"
+          },
+          "404": {
+            "description": "Проекта нет или пользователь не участник"
+          },
+          "413": {
+            "description": "Файл больше 5 МБ (`cover_too_large`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Загрузить обложку проекта",
+        "tags": [
+          "projects"
+        ]
+      },
+      "delete": {
+        "description": "Только администратор. В списке и в шапке снова показывается заглушка (US-12).",
+        "operationId": "ProjectsController_removeCover",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`project_forbidden`)"
+          },
+          "404": {
+            "description": "Проекта нет или пользователь не участник"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Удалить обложку проекта",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/{slug}/members": {
+      "get": {
+        "description": "Виден всем участникам проекта, включая читателя (US-14). Порядок: сначала администраторы, дальше по имени.",
+        "operationId": "MembersController_list",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "sladkiy-limit",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Курсор следующей страницы из поля `nextCursor`",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 256,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMemberListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный курсор (`invalid_cursor`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "404": {
+            "description": "Проекта нет или пользователь не участник"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Участники проекта",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/{slug}/members/{userId}": {
+      "patch": {
+        "description": "Только администратор (US-15). Администратор может понизить себя, если он не последний. Понижение последнего администратора — 409.",
+        "operationId": "MembersController_changeRole",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemberRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMemberDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`project_forbidden`)"
+          },
+          "404": {
+            "description": "Проекта нет или пользователь не участник"
+          },
+          "409": {
+            "description": "Последний администратор проекта (`last_project_admin`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Изменить роль участника",
+        "tags": [
+          "projects"
+        ]
+      },
+      "delete": {
+        "description": "Исключить другого может только администратор; выйти самостоятельно может любой участник — для этого в `userId` передаётся собственный идентификатор (US-16). Последний администратор не уходит ни тем, ни другим путём — 409.\n\nЗадачи исключённого остаются, поле «Исполнитель» в них очищается, и на каждую такую задачу пишется запись истории в той же транзакции (D-31).",
+        "operationId": "MembersController_remove",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveMemberResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`project_forbidden`)"
+          },
+          "404": {
+            "description": "Проекта нет или пользователь не участник"
+          },
+          "409": {
+            "description": "Последний администратор проекта (`last_project_admin`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Исключить участника или выйти из проекта",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/{slug}/invitations": {
+      "post": {
+        "description": "Только администратор проекта (US-20). Роль администратора через приглашение выдать нельзя (D-05), срок жизни — 1, 7 или 30 дней (по умолчанию 7); бессрочных приглашений нет. По одной ссылке может вступить любое число людей, пока она действует. Полный адрес ссылки — в поле `url`.",
+        "operationId": "ProjectInvitationsController_create",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "sladkiy-limit",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvitationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`project_forbidden`)"
+          },
+          "404": {
+            "description": "Проекта нет или пользователь не участник"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Создать ссылку-приглашение",
+        "tags": [
+          "invitations"
+        ]
+      },
+      "get": {
+        "description": "Все приглашения проекта, сначала новые: действующие, истёкшие и отозванные с числом вступивших по каждому (US-22).",
+        "operationId": "ProjectInvitationsController_list",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Курсор следующей страницы из поля `nextCursor`",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 256,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный курсор (`invalid_cursor`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`project_forbidden`)"
+          },
+          "404": {
+            "description": "Проекта нет или пользователь не участник"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Приглашения проекта",
+        "tags": [
+          "invitations"
+        ]
+      }
+    },
+    "/api/projects/{slug}/invitations/{id}/revoke": {
+      "post": {
+        "description": "Отозвать может любой администратор проекта, в том числе не тот, кто создавал ссылку. Сразу после отзыва переход по ссылке даёт 410. Уже вступившие остаются участниками (US-22).",
+        "operationId": "ProjectInvitationsController_revoke",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`project_forbidden`)"
+          },
+          "404": {
+            "description": "Приглашения нет (`invitation_not_found`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Отозвать приглашение",
+        "tags": [
+          "invitations"
+        ]
+      }
+    },
+    "/api/invitations/{token}": {
+      "get": {
+        "description": "Данные для экрана подтверждения: название проекта, обложка и роль, которую получит человек. Ни задач, ни очередей, ни участников (US-21). Неизвестный токен — 404, истёкший или отозванный — 410; по сообщению нельзя понять, существует ли такой проект. `alreadyMember: true` означает, что экран показывать не нужно — клиент сразу открывает проект.",
+        "operationId": "InvitationAcceptController_preview",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "description": "Токен из ссылки `/invite/<token>`",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPreviewDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "404": {
+            "description": "Токен неизвестен (`invitation_not_found`)"
+          },
+          "410": {
+            "description": "Истекло или отозвано (`invitation_inactive`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Приглашение по токену",
+        "tags": [
+          "invitations"
+        ]
+      }
+    },
+    "/api/invitations/{token}/accept": {
+      "post": {
+        "description": "Человек становится участником с ролью из приглашения, а его email попадает в список доступа с источником `invitation` — со следующего входа ссылка ему уже не нужна (ADR-0006, п. 3). Тот, кто уже состоит в проекте, просто получает адрес проекта: роль не меняется и не понижается (US-21).",
+        "operationId": "InvitationAcceptController_accept",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptInvitationResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "404": {
+            "description": "Токен неизвестен (`invitation_not_found`)"
+          },
+          "410": {
+            "description": "Истекло или отозвано (`invitation_inactive`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Вступить в проект по приглашению",
+        "tags": [
+          "invitations"
+        ]
+      }
+    },
+    "/api/issues/my-active": {
+      "get": {
+        "description": "Задачи, где текущий пользователь — исполнитель, а категория статуса **не** `done` (US-81). Других условий нет. Задачи собираются из всех проектов, где пользователь состоит. Порядок: приоритет по убыванию, при равенстве — сначала недавно изменённые. Параметр `q` ищет по подстроке в теме и в ключе среди этого же набора; поиск выполняет сервер (D-20).",
+        "operationId": "MyIssuesController_myActive",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Курсор следующей страницы из поля `nextCursor`",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 256,
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Поиск по подстроке в теме и в ключе, без учёта регистра. Ищет только среди активных задач текущего пользователя (D-20).",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 128,
+              "example": "dev-4",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyIssueListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный курсор (`invalid_cursor`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Мои активные задачи",
+        "tags": [
+          "issues"
+        ]
+      }
     }
   },
   "info": {
@@ -754,6 +1750,573 @@
           "uptimeSeconds",
           "postgres",
           "redis"
+        ]
+      },
+      "ProjectMemberPreviewDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Анна Иванова"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "member",
+              "reader"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "avatarUrl",
+          "role"
+        ]
+      },
+      "ProjectDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string",
+            "example": "sladkiy-limit",
+            "description": "Действующее короткое имя в адресе. Если проект запрошен по прежнему короткому имени, здесь всё равно действующее — клиенту следует заменить адрес в строке браузера на него (US-18)."
+          },
+          "name": {
+            "type": "string",
+            "example": "Сладкий лимит",
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Markdown, до 5000 символов"
+          },
+          "coverUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Подписанная ссылка на обложку со сроком жизни 10 минут. Бакет не публичный: ссылка без подписи содержимое не отдаёт. `null` — обложки нет, клиент рисует заглушку."
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "member",
+              "reader"
+            ],
+            "type": "string",
+            "description": "Роль текущего пользователя в этом проекте (permissions.md, 2.1)."
+          },
+          "memberCount": {
+            "type": "number",
+            "description": "Сколько всего участников в проекте"
+          },
+          "members": {
+            "description": "Первые участники для группы аватаров: администраторы, затем по имени.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectMemberPreviewDto"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "description",
+          "coverUrl",
+          "role",
+          "memberCount",
+          "members",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ProjectListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Проекты пользователя, по названию",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Курсор следующей страницы. `null` — проектов больше нет."
+          },
+          "total": {
+            "type": "number",
+            "description": "Всего проектов у пользователя"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "total"
+        ]
+      },
+      "CreateProjectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "example": "Сладкий лимит",
+            "description": "Название проекта. Короткое имя в адресе выдаётся сервером автоматически по названию и отдельно не передаётся (US-11, US-18)."
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000,
+            "description": "Markdown, до 5000 символов. Пустая строка равнозначна отсутствию описания."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateProjectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Новое название. Переименование **не меняет** короткое имя в адресе: ранее отправленные ссылки продолжают работать (US-18)."
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000,
+            "description": "`null` или пустая строка убирают описание."
+          }
+        }
+      },
+      "UpdateProjectSlugDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "example": "sladkiy-limit",
+            "description": "Новое короткое имя: строчные латинские буквы, цифры и одиночные дефисы внутри. Прежнее имя остаётся занятым навсегда и продолжает открывать этот проект (US-18)."
+          }
+        },
+        "required": [
+          "slug"
+        ]
+      },
+      "ProjectMemberDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Идентификатор пользователя"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Анна Иванова"
+          },
+          "email": {
+            "type": "string",
+            "example": "anna@example.com"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "member",
+              "reader"
+            ],
+            "type": "string"
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Когда вступил в проект"
+          },
+          "isSelf": {
+            "type": "boolean",
+            "description": "Это текущий пользователь: в списке помечается «(вы)»"
+          }
+        },
+        "required": [
+          "userId",
+          "displayName",
+          "email",
+          "avatarUrl",
+          "role",
+          "joinedAt",
+          "isSelf"
+        ]
+      },
+      "ProjectMemberListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Сначала администраторы, дальше по имени (design/screens/project.md)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectMemberDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "total": {
+            "type": "number",
+            "description": "Всего участников в проекте"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "total"
+        ]
+      },
+      "UpdateMemberRoleDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "enum": [
+              "admin",
+              "member",
+              "reader"
+            ],
+            "type": "string",
+            "description": "Новая роль. Понизить последнего администратора нельзя — 409 `last_project_admin` (permissions.md, п. 7)."
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "RemoveMemberResultDto": {
+        "type": "object",
+        "properties": {
+          "unassignedIssues": {
+            "type": "number",
+            "description": "Сколько задач осталось без исполнителя: у задач исключённого поле «Исполнитель» очищается, и на каждую пишется запись истории (D-31).",
+            "example": 3
+          }
+        },
+        "required": [
+          "unassignedIssues"
+        ]
+      },
+      "CreateInvitationDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "enum": [
+              "member",
+              "reader"
+            ],
+            "type": "string",
+            "description": "Роль для тех, кто вступит. Роли «администратор» в списке нет (D-05)."
+          },
+          "expiresInDays": {
+            "enum": [
+              1,
+              7,
+              30
+            ],
+            "type": "number",
+            "default": 7,
+            "description": "Срок жизни ссылки в днях. Бессрочных приглашений нет (US-20)."
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "InvitationAuthorDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true,
+            "example": "Анна Иванова"
+          }
+        },
+        "required": [
+          "id",
+          "displayName"
+        ]
+      },
+      "InvitationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "enum": [
+              "member",
+              "reader"
+            ],
+            "type": "string",
+            "description": "Роль, которую получит вступивший. Администратора выдать нельзя (D-05)."
+          },
+          "state": {
+            "enum": [
+              "active",
+              "expired",
+              "revoked"
+            ],
+            "type": "string",
+            "description": "Вычисляется из срока и отметки об отзыве, отдельно не хранится. Истёкшие и отозванные остаются в списке, но повторно активировать их нельзя (US-22)."
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Полная ссылка-приглашение. Заполнена только у действующего приглашения: у истёкшего и отозванного её нет и копировать нечего (US-22)."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "description": "Кто создал приглашение",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InvitationAuthorDto"
+              }
+            ]
+          },
+          "acceptedCount": {
+            "type": "number",
+            "description": "Сколько человек вступило по этой ссылке (US-22)"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "state",
+          "url",
+          "expiresAt",
+          "revokedAt",
+          "createdAt",
+          "createdBy",
+          "acceptedCount"
+        ]
+      },
+      "InvitationListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Сначала новые",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvitationDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "total": {
+            "type": "number",
+            "description": "Всего приглашений у проекта, включая истёкшие и отозванные"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "total"
+        ]
+      },
+      "InvitationPreviewDto": {
+        "type": "object",
+        "properties": {
+          "projectName": {
+            "type": "string",
+            "example": "Сладкий лимит"
+          },
+          "projectSlug": {
+            "type": "string",
+            "example": "sladkiy-limit"
+          },
+          "coverUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Подписанная ссылка на обложку"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "member",
+              "reader"
+            ],
+            "type": "string",
+            "description": "Роль, которую человек получит. Если он уже участник — его текущая роль: приглашение её не меняет и не понижает (US-21)."
+          },
+          "alreadyMember": {
+            "type": "boolean",
+            "description": "Пользователь уже состоит в проекте: экран подтверждения не показывается, клиент сразу открывает проект (US-21)."
+          }
+        },
+        "required": [
+          "projectName",
+          "projectSlug",
+          "coverUrl",
+          "role",
+          "alreadyMember"
+        ]
+      },
+      "AcceptInvitationResultDto": {
+        "type": "object",
+        "properties": {
+          "projectSlug": {
+            "type": "string",
+            "example": "sladkiy-limit",
+            "description": "Куда переходить после вступления"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "member",
+              "reader"
+            ],
+            "type": "string",
+            "description": "Роль пользователя в проекте после приёма"
+          },
+          "alreadyMember": {
+            "type": "boolean",
+            "description": "Пользователь уже был участником; роль не изменилась"
+          }
+        },
+        "required": [
+          "projectSlug",
+          "role",
+          "alreadyMember"
+        ]
+      },
+      "IssueStatusDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "in_progress",
+            "description": "Машинное имя статуса в очереди"
+          },
+          "name": {
+            "type": "string",
+            "example": "В работе",
+            "description": "Название для интерфейса"
+          },
+          "category": {
+            "enum": [
+              "open",
+              "in_progress",
+              "done"
+            ],
+            "type": "string",
+            "description": "Категория статуса. Активной считается задача, у которой категория не `done`; в этом списке `done` не встречается."
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "category"
+        ]
+      },
+      "MyIssueDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "DEV-42",
+            "description": "Публичный ключ задачи, он же адрес"
+          },
+          "title": {
+            "type": "string",
+            "example": "Автоматизация отчёта",
+            "description": "Тема задачи"
+          },
+          "priority": {
+            "type": "number",
+            "example": 50,
+            "description": "Приоритет 0–100 с шагом 10. Список отсортирован по нему по убыванию."
+          },
+          "status": {
+            "$ref": "#/components/schemas/IssueStatusDto"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "priority",
+          "status"
+        ]
+      },
+      "MyIssueListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Приоритет по убыванию, при равенстве — сначала недавно изменённые",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyIssueDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "total": {
+            "type": "number",
+            "description": "Всего активных задач у пользователя, **без учёта поиска**: счётчик у заголовка"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "total"
         ]
       }
     }

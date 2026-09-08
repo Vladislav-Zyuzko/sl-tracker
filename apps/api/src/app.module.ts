@@ -4,7 +4,9 @@ import { AuthModule } from './auth/index.js';
 import { ConfigModule } from './config/index.js';
 import { DatabaseModule } from './database/index.js';
 import { HealthModule } from './health/health.module.js';
+import { InvitationsModule } from './invitations/index.js';
 import { IssuesModule } from './issues/index.js';
+import { ProjectsModule } from './projects/index.js';
 import { RedisModule } from './redis/index.js';
 import { SessionsModule } from './sessions/index.js';
 
@@ -22,6 +24,8 @@ import { SessionsModule } from './sessions/index.js';
     AccessModule,
     AuthModule,
     HealthModule,
+    ProjectsModule,
+    InvitationsModule,
     IssuesModule,
   ],
 })

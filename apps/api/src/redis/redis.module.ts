@@ -1,4 +1,4 @@
-import { Global, Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
+import { Global, Inject, Logger, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { ENV, type Env } from '../config/index.js';
 import { REDIS } from './redis.tokens.js';
@@ -9,11 +9,20 @@ import { REDIS } from './redis.tokens.js';
     {
       provide: REDIS,
       inject: [ENV],
-      useFactory: (env: Env) =>
-        new Redis({
+      useFactory: (env: Env) => {
+        // Тесты работают на отдельной логической базе Redis, как и на отдельной базе
+        // PostgreSQL: иначе прогон e2e гасит живые сессии рабочего окружения
+        // (`destroyAllForUser`) и оставляет в нём свой мусор.
+        const db = env.NODE_ENV === 'test' ? env.REDIS_TEST_DB : env.REDIS_DB;
+        if (env.NODE_ENV === 'test') {
+          Logger.log(`Redis: тестовая логическая база ${db}`, 'RedisModule');
+        }
+
+        return new Redis({
           host: env.REDIS_HOST,
           port: env.REDIS_PORT,
           password: env.REDIS_PASSWORD,
+          db,
           // Ошибку подключения должен видеть вызывающий код, а не бесконечная очередь
           // команд, копящаяся в памяти процесса: после двух неудачных попыток команда
           // отклоняется.
@@ -24,7 +33,8 @@ import { REDIS } from './redis.tokens.js';
           // старта), падает с «Stream isn't writeable», хотя Redis доступен.
           enableOfflineQueue: true,
           lazyConnect: false,
-        }),
+        });
+      },
     },
   ],
   exports: [REDIS],

@@ -40,12 +40,15 @@ export default tseslint.config(
     },
   },
   {
+    // В тестах `response.json()` возвращает `any` по определению: тесты проверяют
+    // ответ как данные, а не как типы. Ослабление касается только этих файлов.
     files: ['test/**/*.ts', 'scripts/**/*.ts', 'drizzle.config.ts'],
     rules: {
       'no-console': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
     },
   },
   prettier,

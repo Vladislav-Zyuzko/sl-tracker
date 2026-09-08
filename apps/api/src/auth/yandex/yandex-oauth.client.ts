@@ -11,13 +11,24 @@ const PROFILE_URL = 'https://login.yandex.ru/info?format=json';
  * Права приложения. Тип приложения и права выбираются один раз при регистрации
  * (CLAUDE.md, решение 7). В документации Яндекса значения перечислены через запятую.
  */
-const SCOPE = ['login:info', 'login:email', 'login:avatar'].join(',');
+// Разделитель — ПРОБЕЛ, а не запятая: «Значения в списке разделяются пробелами»
+// (https://yandex.ru/dev/id/doc/ru/codes/code-url). С запятой Яндекс возвращает
+// invalid_scope — поймано на живом входе, а не в тестах с подделкой провайдера.
+const SCOPE = ['login:info', 'login:email', 'login:avatar'].join(' ');
 
 /** Провайдер не должен уметь подвесить наш запрос: обрываем по таймауту. */
 const REQUEST_TIMEOUT_MS = 10_000;
 
 /** Размер аватара из `default_avatar_id` (документация Яндекс ID). */
 const AVATAR_SIZE = 'islands-200';
+
+/** Шаг обмена — он попадает в лог, чтобы отказ можно было разобрать без отладчика. */
+type Step = 'exchange' | 'profile';
+
+const STEP_NAMES: Readonly<Record<Step, string>> = {
+  exchange: 'обмен кода на токен',
+  profile: 'получение профиля',
+};
 
 interface TokenResponse {
   access_token?: unknown;
@@ -36,12 +47,23 @@ interface ProfileResponse {
   is_avatar_empty?: unknown;
 }
 
+/** Ответ провайдера вместе с тем, что нужно логу: статус и длительность запроса. */
+interface ProviderResponse<T> {
+  payload: T;
+  status: number;
+  durationMs: number;
+}
+
 /**
  * Реальный клиент Яндекс ID.
  *
- * Про логи: пишется только факт обмена и код ошибки провайдера. Ни `client_secret`,
- * ни `code`, ни access-токен, ни тело ответа в лог не попадают — иначе секрет утечёт
- * в первый же собранный лог.
+ * Про логи: **каждый** отказ пишется одной строкой — шаг, HTTP-статус, длительность
+ * и причина. Без этого редирект на `/login?error=provider_unavailable` невозможно
+ * разобрать: снаружи все причины выглядят одинаково.
+ *
+ * Что в лог не попадает никогда: `client_secret`, `code`, access-токен и тело ответа
+ * с токенами. Статус, код ошибки провайдера и `error_description` — попадают: это
+ * ровно то, чем отличается «приложение не прошло модерацию» от «код уже использован».
  *
  * Access-токен Яндекса нигде не сохраняется: после получения профиля он не нужен
  * (ADR-0002, «Последствия»).
@@ -77,33 +99,45 @@ export class YandexOAuthClient implements YandexOAuthPort {
       redirect_uri: this.env.YANDEX_REDIRECT_URI ?? '',
     });
 
-    const payload = await this.request<TokenResponse>(TOKEN_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
-    });
+    const { payload, status, durationMs } = await this.request<TokenResponse>(
+      'exchange',
+      TOKEN_URL,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+      },
+    );
 
     if (typeof payload.error === 'string') {
-      this.logger.warn(`Яндекс ID отказал в обмене кода: ${payload.error}`);
-      throw new YandexOAuthError(
+      const description =
+        typeof payload.error_description === 'string' ? `: ${payload.error_description}` : '';
+      throw this.fail(
+        'exchange',
+        status,
+        durationMs,
+        `провайдер отклонил обмен (${payload.error}${description})`,
         payload.error === 'unauthorized_client' ? 'unauthorized_client' : 'provider_unavailable',
-        `обмен кода отклонён провайдером (${payload.error})`,
       );
     }
 
     if (typeof payload.access_token !== 'string' || payload.access_token.length === 0) {
-      throw new YandexOAuthError('provider_unavailable', 'в ответе провайдера нет access_token');
+      throw this.fail('exchange', status, durationMs, 'в ответе провайдера нет access_token');
     }
 
-    this.logger.log('Код обменян на токен Яндекс ID');
+    // Токен в лог не попадает — только факт удачного обмена.
+    this.logger.log(
+      `Яндекс ID: ${STEP_NAMES.exchange} выполнен, статус ${status}, ${durationMs} мс`,
+    );
     return payload.access_token;
   }
 
   async fetchProfile(accessToken: string): Promise<YandexProfile> {
-    const payload = await this.request<ProfileResponse>(PROFILE_URL, {
-      method: 'GET',
-      headers: { authorization: `OAuth ${accessToken}` },
-    });
+    const { payload, status, durationMs } = await this.request<ProfileResponse>(
+      'profile',
+      PROFILE_URL,
+      { method: 'GET', headers: { authorization: `OAuth ${accessToken}` } },
+    );
 
     // Яндекс отдаёт `id` строкой; число тоже принимаем — приводить объект к строке
     // нельзя, это дало бы бессмысленный идентификатор.
@@ -114,27 +148,46 @@ export class YandexOAuthClient implements YandexOAuthPort {
           ? String(payload.id)
           : '';
     if (!externalId) {
-      throw new YandexOAuthError('provider_unavailable', 'в профиле провайдера нет идентификатора');
+      throw this.fail('profile', status, durationMs, 'в профиле провайдера нет идентификатора');
     }
+
+    const email = pickEmail(payload);
+    // Адрес — персональные данные, в лог он не пишется: только есть он или нет.
+    this.logger.log(
+      `Яндекс ID: ${STEP_NAMES.profile} выполнено, статус ${status}, ${durationMs} мс, ` +
+        `email ${email ? 'получен' : 'не выдан'}`,
+    );
 
     return {
       externalId,
       displayName: pickDisplayName(payload) ?? externalId,
-      email: pickEmail(payload),
+      email,
       avatarUrl: pickAvatarUrl(payload),
     };
   }
 
-  private async request<T>(url: string, init: RequestInit): Promise<T> {
+  private async request<T>(
+    step: Step,
+    url: string,
+    init: RequestInit,
+  ): Promise<ProviderResponse<T>> {
+    const startedAt = Date.now();
+
     let response: Response;
     try {
       response = await fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     } catch (error) {
-      throw new YandexOAuthError(
-        'provider_unavailable',
-        `провайдер недоступен: ${error instanceof Error ? error.name : 'ошибка сети'}`,
+      // Сеть, DNS, TLS, таймаут: HTTP-статуса тут нет, поэтому в лог идёт 0.
+      throw this.fail(
+        step,
+        0,
+        Date.now() - startedAt,
+        `провайдер недоступен (${error instanceof Error ? `${error.name}: ${error.message}` : 'ошибка сети'})`,
       );
     }
+
+    const durationMs = Date.now() - startedAt;
+    const status = response.status;
 
     // 400 на обмене кода несёт полезное тело с `error` — его нужно разобрать,
     // а не превращать в общую ошибку.
@@ -142,20 +195,41 @@ export class YandexOAuthClient implements YandexOAuthPort {
     try {
       payload = await response.json();
     } catch {
-      throw new YandexOAuthError(
-        'provider_unavailable',
-        `провайдер ответил ${response.status} без разбираемого тела`,
-      );
+      throw this.fail(step, status, durationMs, 'тело ответа не разбирается как JSON');
     }
 
-    if (!response.ok && !isRecord(payload)) {
-      throw new YandexOAuthError('provider_unavailable', `провайдер ответил ${response.status}`);
-    }
     if (!isRecord(payload)) {
-      throw new YandexOAuthError('provider_unavailable', 'провайдер ответил не объектом');
+      throw this.fail(step, status, durationMs, 'провайдер ответил не объектом');
     }
 
-    return payload as T;
+    // Ответ с ошибкой разбирает вызывающий код только на обмене: там из кода `error`
+    // получается `unauthorized_client` (приложение не прошло модерацию). На получении
+    // профиля разбирать нечего — это отказ, и он логируется здесь.
+    if (!response.ok && !(step === 'exchange' && typeof payload.error === 'string')) {
+      const code = typeof payload.error === 'string' ? ` (${payload.error})` : '';
+      throw this.fail(step, status, durationMs, `провайдер ответил ошибкой${code}`);
+    }
+
+    return { payload: payload as T, status, durationMs };
+  }
+
+  /**
+   * Единственное место, где рождается отказ провайдера, — и единственное, где он
+   * логируется. Возвращает исключение, а не бросает его сама, чтобы на месте вызова
+   * было видно `throw` и работала проверка недостижимого кода.
+   */
+  private fail(
+    step: Step,
+    status: number,
+    durationMs: number,
+    reason: string,
+    code: 'provider_unavailable' | 'unauthorized_client' = 'provider_unavailable',
+  ): YandexOAuthError {
+    this.logger.warn(
+      `Яндекс ID: ${STEP_NAMES[step]} не удалось, статус ${status}, ${durationMs} мс, ` +
+        `код ${code}, причина: ${reason}`,
+    );
+    return new YandexOAuthError(code, `${STEP_NAMES[step]}: ${reason}`);
   }
 }
 
