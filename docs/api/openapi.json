@@ -1349,6 +1349,316 @@
         ]
       }
     },
+    "/api/projects/{slug}/queues": {
+      "get": {
+        "description": "Виден всем участникам проекта, включая читателя (US-31). Сортировка — по названию по возрастанию. `openIssueCount` — число незавершённых задач, то есть тех, чей статус **не** в категории `done`. Очередей у проекта единицы, поэтому список отдаётся целиком, без курсора.",
+        "operationId": "ProjectQueuesController_list",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "sladkiy-limit",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "404": {
+            "description": "Проекта нет или пользователь не участник"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Очереди проекта",
+        "tags": [
+          "queues"
+        ]
+      },
+      "post": {
+        "description": "Только администратор проекта (US-30). Ключ уникален **на весь трекер**, а не внутри проекта, и после создания не меняется никогда (D-06, ADR-0004). Ключ удалённой очереди повторно не выдаётся (D-25), поэтому 409 возможен и на ключ, которого сейчас ни у кого нет. В каком проекте ключ занят — ответ не сообщает.\n\nВместе с очередью создаются пять статусов по умолчанию (US-60): Открыт, В работе, Ревью, Тестирование, Закрыт. Они возвращаются в поле `statuses`, второй запрос за ними не нужен. Первый из них — статус новой задачи по умолчанию.",
+        "operationId": "ProjectQueuesController_create",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "sladkiy-limit",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQueueDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedQueueDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ключ не по формату (`invalid_queue_key`) или пустое название"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`project_forbidden`)"
+          },
+          "404": {
+            "description": "Проекта нет или пользователь не участник"
+          },
+          "409": {
+            "description": "Ключ занят (`queue_key_taken`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Создать очередь",
+        "tags": [
+          "queues"
+        ]
+      }
+    },
+    "/api/queues/{key}": {
+      "get": {
+        "description": "Видна всем участникам проекта, включая читателя. Ключ регистронезависим. В ответе есть короткое имя и название проекта — для хлебных крошек, без второго запроса.",
+        "operationId": "QueueController_get",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "404": {
+            "description": "Очереди нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Очередь по ключу",
+        "tags": [
+          "queues"
+        ]
+      },
+      "patch": {
+        "description": "Только администратор проекта (US-33). Меняются название и описание; **ключ не меняется никогда** (D-06) и в теле запроса не принимается. Ключи существующих задач переименование не затрагивает.",
+        "operationId": "QueueController_update",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateQueueDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Пустое название (`invalid_queue_name`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`project_forbidden`)"
+          },
+          "404": {
+            "description": "Очереди нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Переименовать очередь",
+        "tags": [
+          "queues"
+        ]
+      },
+      "delete": {
+        "description": "Только администратор проекта и **только пустую**: при наличии хотя бы одной задачи в любом статусе — 409 (US-34, D-24). Каскадного удаления задач нет.\n\nКлюч удалённой очереди остаётся занятым навсегда и другой очереди не достанется (D-25): иначе старая ссылка `DEV-42` открыла бы совсем другую задачу.",
+        "operationId": "QueueController_remove",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Очередь удалена"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`project_forbidden`)"
+          },
+          "404": {
+            "description": "Очереди нет или пользователь не участник проекта"
+          },
+          "409": {
+            "description": "В очереди есть задачи (`queue_not_empty`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Удалить очередь",
+        "tags": [
+          "queues"
+        ]
+      }
+    },
+    "/api/queues/{key}/statuses": {
+      "get": {
+        "description": "Пять статусов очереди в фиксированном порядке (US-60). Статусы — данные, а не enum: у каждой очереди свой набор, и клиент обязан брать его отсюда, а не хардкодить (ADR-0003). Нужен для выпадающего списка на задаче и для фильтра в списке задач. Редактора статусов в MVP нет: список только читается.",
+        "operationId": "QueueController_statuses",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueStatusListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "404": {
+            "description": "Очереди нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Статусы очереди",
+        "tags": [
+          "queues"
+        ]
+      }
+    },
     "/api/issues/my-active": {
       "get": {
         "description": "Задачи, где текущий пользователь — исполнитель, а категория статуса **не** `done` (US-81). Других условий нет. Задачи собираются из всех проектов, где пользователь состоит. Порядок: приоритет по убыванию, при равенстве — сначала недавно изменённые. Параметр `q` ищет по подстроке в теме и в ключе среди этого же набора; поиск выполняет сервер (D-20).",
@@ -1416,6 +1726,576 @@
           }
         ],
         "summary": "Мои активные задачи",
+        "tags": [
+          "issues"
+        ]
+      }
+    },
+    "/api/queues/{key}/issues": {
+      "get": {
+        "description": "Список для плотной таблицы с виртуализацией (US-32). Отдаются **только поля строки списка**: ключ, название, статус, приоритет, сложность и исполнитель — описания, ссылок и автора здесь нет, иначе прокрутка на 1000 задач возит лишние килобайты.\n\nПорядок по умолчанию — приоритет по убыванию, при равенстве номер по убыванию (D-28); `sort=newest` — только по номеру. Пагинация курсорная: `nextCursor` подставляется как есть, разбирать его не нужно. `limit` по умолчанию 50, жёсткий максимум 100 — большее значение молча ограничивается.\n\nФильтр `status` принимает **ключи** статусов через запятую. Фильтры по исполнителю, автору и приоритету в MVP-экране не используются (D-28), но контрактом поддержаны. `total` считается с теми же фильтрами — это счётчик «Показано N».",
+        "operationId": "QueueIssuesController_list",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "description": "Ключ очереди, регистронезависим",
+            "schema": {
+              "example": "DEV",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Курсор следующей порции из поля `nextCursor`",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 256,
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "description": "`priority` — приоритет по убыванию, при равенстве номер по убыванию (по умолчанию, D-28). `newest` — только по номеру по убыванию, «сначала новые».",
+            "schema": {
+              "default": "priority",
+              "type": "string",
+              "enum": [
+                "priority",
+                "newest"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Ключи статусов через запятую (не идентификаторы): фильтр читаем в адресе страницы и его можно скопировать (US-32). Статус, которого нет в этой очереди, просто не совпадёт ни с чем; если не совпал ни один — вернётся пустая страница, не ошибка.",
+            "schema": {
+              "example": "in_progress,review",
+              "type": "string"
+            }
+          },
+          {
+            "name": "assignee",
+            "required": false,
+            "in": "query",
+            "description": "Идентификатор исполнителя либо `none` — только задачи без исполнителя. Вне объёма MVP-экрана (D-28), но контракт его поддерживает.",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "author",
+            "required": false,
+            "in": "query",
+            "description": "Идентификатор автора задачи",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "priorityMin",
+            "required": false,
+            "in": "query",
+            "description": "Приоритет не ниже указанного",
+            "schema": {
+              "type": "number",
+              "enum": [
+                0,
+                10,
+                20,
+                30,
+                40,
+                50,
+                60,
+                70,
+                80,
+                90,
+                100
+              ]
+            }
+          },
+          {
+            "name": "priorityMax",
+            "required": false,
+            "in": "query",
+            "description": "Приоритет не выше указанного",
+            "schema": {
+              "type": "number",
+              "enum": [
+                0,
+                10,
+                20,
+                30,
+                40,
+                50,
+                60,
+                70,
+                80,
+                90,
+                100
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный курсор (`invalid_cursor`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "404": {
+            "description": "Очереди нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Задачи очереди",
+        "tags": [
+          "issues"
+        ]
+      },
+      "post": {
+        "description": "Администратор и участник проекта; читатель — 403 (US-40). Обязательное поле одно — `title`.\n\nКлюч выдаётся автоматически: `<КЛЮЧ_ОЧЕРЕДИ>-<НОМЕР>`, номер — следующий по возрастанию в этой очереди. Номера не повторяются никогда, в том числе после удаления задач; пропуски допустимы (D-07). Параллельные создания получают разные номера — счётчик инкрементируется в той же транзакции, что и вставка (ADR-0004).\n\nУмолчания: статус — первый статус очереди («Открыт»), приоритет — 50, сложность — не задана, автор — создатель, исполнитель — не назначен. В историю сразу пишется запись о создании с реальным создателем (D-13).",
+        "operationId": "QueueIssuesController_create",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateIssueDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Пустое название (`invalid_issue_title`), статус не из этой очереди (`invalid_status`), недопустимый приоритет (`invalid_priority`) или сложность (`invalid_story_points`), автор или исполнитель не участник проекта (`author_not_member`, `assignee_not_member`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Читатель не создаёт задачи (`issue_forbidden`)"
+          },
+          "404": {
+            "description": "Очереди нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Создать задачу",
+        "tags": [
+          "issues"
+        ]
+      }
+    },
+    "/api/issues/{key}": {
+      "get": {
+        "description": "Видна всем участникам проекта, включая читателя, — целиком, но без контролов изменения (US-41). Поле `permissions` говорит, что запросившему разрешено.\n\nПоля «Создатель» в ответе нет намеренно: в интерфейсе задачи это слово не используется, реальный создатель виден только в первой записи истории (D-13).",
+        "operationId": "IssueController_get",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "description": "Ключ задачи, регистронезависим",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Задача по ключу",
+        "tags": [
+          "issues"
+        ]
+      },
+      "patch": {
+        "description": "Администратор и участник проекта, **в том числе у чужой задачи** (D-11); читатель — 403. Меняются название, описание, статус, приоритет, сложность, автор и исполнитель. Поля, которых нет в теле, не трогаются.\n\nПереходы статусов свободные: из любого статуса очереди в любой другой, включая возврат назад и закрытие из любого состояния (D-10). Статус чужой очереди отклоняется — 400.\n\nКаждое изменившееся поле пишется в историю **в той же транзакции**, что и само изменение; все поля одного запроса попадают в одну группу истории (US-90). Поле, значение которого не изменилось, записи не создаёт (US-91). Смена автора логируется отдельно и создателя задачи не меняет (D-13).\n\nКонфликт одновременного редактирования не решается: побеждает последняя запись (D-27).",
+        "operationId": "IssueController_update",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateIssueDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Пустое название (`invalid_issue_title`), статус не из этой очереди (`invalid_status`), недопустимый приоритет (`invalid_priority`) или сложность (`invalid_story_points`), автор или исполнитель не участник проекта (`author_not_member`, `assignee_not_member`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Читатель ничего не меняет (`issue_forbidden`)"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Изменить поля задачи",
+        "tags": [
+          "issues"
+        ]
+      },
+      "delete": {
+        "description": "Только администратор проекта (D-12): участник не удаляет задачи, даже свои. Комментарии, вложения, ссылки и история удаляются вместе с задачей, действие необратимо (US-44). Номер удалённой задачи повторно не выдаётся, и ссылка на неё навсегда отвечает 404.",
+        "operationId": "IssueController_remove",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Задача удалена"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Не администратор проекта (`issue_forbidden`)"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Удалить задачу",
+        "tags": [
+          "issues"
+        ]
+      }
+    },
+    "/api/issues/{key}/history": {
+      "get": {
+        "description": "Доступна всем участникам проекта, включая читателя (US-90). Порядок — сначала новые; самая ранняя запись всегда `issue_created` с реальным создателем (D-13).\n\nСтраница считается **по группам**: одно действие пользователя, изменившее несколько полей, — одна группа с общим временем и автором, и границей страницы она не разрывается. `actor: null` означает системное изменение.\n\nИстория не редактируется и не удаляется никем, включая администратора, поэтому методов записи у неё нет.",
+        "operationId": "IssueController_listHistory",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Курсор следующей порции из поля `nextCursor`",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 256,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueHistoryListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный курсор (`invalid_cursor`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "История изменений задачи",
+        "tags": [
+          "issues"
+        ]
+      }
+    },
+    "/api/issues/{key}/links": {
+      "post": {
+        "description": "Администратор и участник проекта; читатель — 403 (US-47). Принимаются только адреса со схемой `http` или `https`. Это **не** связь между задачами трекера — связей в MVP нет. Добавление попадает в историю задачи. В ответе — задача целиком с обновлённым списком ссылок.",
+        "operationId": "IssueController_addLink",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateIssueLinkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Недопустимая схема адреса (`invalid_link_url`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Читатель не добавляет ссылки (`issue_forbidden`)"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Добавить внешнюю ссылку",
+        "tags": [
+          "issues"
+        ]
+      }
+    },
+    "/api/issues/{key}/links/{linkId}": {
+      "delete": {
+        "description": "Администратор и любой участник проекта — в том числе чужую ссылку (US-47). Удаление попадает в историю задачи.",
+        "operationId": "IssueController_removeLink",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "DEV-42",
+              "type": "string"
+            }
+          },
+          {
+            "name": "linkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ссылки нет у этой задачи (`link_not_found`)"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Читатель не удаляет ссылки (`issue_forbidden`)"
+          },
+          "404": {
+            "description": "Задачи нет или пользователь не участник проекта"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Удалить внешнюю ссылку",
         "tags": [
           "issues"
         ]
@@ -2236,6 +3116,257 @@
           "alreadyMember"
         ]
       },
+      "QueueDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "DEV",
+            "description": "Ключ очереди. Уникален на весь трекер, неизменяем"
+          },
+          "name": {
+            "type": "string",
+            "example": "Разработка"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Markdown, до 1000 символов"
+          },
+          "projectSlug": {
+            "type": "string",
+            "example": "sladkiy-limit",
+            "description": "Короткое имя проекта в адресе"
+          },
+          "projectName": {
+            "type": "string",
+            "example": "Сладкий Лимит",
+            "description": "Название проекта для хлебных крошек"
+          },
+          "openIssueCount": {
+            "type": "number",
+            "example": 12,
+            "description": "Незавершённые задачи: те, чей статус не в категории `done` (US-31)"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "member",
+              "reader"
+            ],
+            "type": "string",
+            "description": "Роль запросившего в проекте, которому принадлежит очередь. Права на очередь наследуются от проекта: прав уровня очереди в MVP нет (permissions.md, п. 3)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "description",
+          "projectSlug",
+          "projectName",
+          "openIssueCount",
+          "role",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "QueueListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "По названию по возрастанию (US-31)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QueueDto"
+            }
+          },
+          "total": {
+            "type": "number",
+            "description": "Очередей у проекта единицы, поэтому список отдаётся целиком, без курсора"
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "CreateQueueDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "DEV",
+            "description": "Ключ очереди: 2–10 латинских букв и цифр, первый символ — буква. Приводится к верхнему регистру. Уникален **на весь трекер**, а не внутри проекта, и не меняется после создания (ADR-0004)."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "example": "Разработка"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 0,
+            "maxLength": 1000,
+            "description": "Markdown. Исполняемое содержимое недопустимо (D-22)."
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ]
+      },
+      "QueueStatusDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Идентификатор статуса: его кладут в задачу"
+          },
+          "key": {
+            "type": "string",
+            "example": "in_progress",
+            "description": "Машинное имя статуса внутри очереди"
+          },
+          "name": {
+            "type": "string",
+            "example": "В работе",
+            "description": "Название для интерфейса"
+          },
+          "category": {
+            "enum": [
+              "open",
+              "in_progress",
+              "done"
+            ],
+            "type": "string",
+            "description": "Категория статуса. Задача считается незавершённой, пока категория не `done`. Опираться нужно на категорию, а не на `key` и не на порядок (ADR-0003)."
+          },
+          "position": {
+            "type": "number",
+            "example": 2,
+            "description": "Порядок отображения, начиная с 1"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "category",
+          "position"
+        ]
+      },
+      "CreatedQueueDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "DEV",
+            "description": "Ключ очереди. Уникален на весь трекер, неизменяем"
+          },
+          "name": {
+            "type": "string",
+            "example": "Разработка"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Markdown, до 1000 символов"
+          },
+          "projectSlug": {
+            "type": "string",
+            "example": "sladkiy-limit",
+            "description": "Короткое имя проекта в адресе"
+          },
+          "projectName": {
+            "type": "string",
+            "example": "Сладкий Лимит",
+            "description": "Название проекта для хлебных крошек"
+          },
+          "openIssueCount": {
+            "type": "number",
+            "example": 12,
+            "description": "Незавершённые задачи: те, чей статус не в категории `done` (US-31)"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "member",
+              "reader"
+            ],
+            "type": "string",
+            "description": "Роль запросившего в проекте, которому принадлежит очередь. Права на очередь наследуются от проекта: прав уровня очереди в MVP нет (permissions.md, п. 3)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "statuses": {
+            "description": "Пять статусов по умолчанию, созданных вместе с очередью (US-60)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QueueStatusDto"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "description",
+          "projectSlug",
+          "projectName",
+          "openIssueCount",
+          "role",
+          "createdAt",
+          "updatedAt",
+          "statuses"
+        ]
+      },
+      "QueueStatusListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "В фиксированном порядке отображения",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QueueStatusDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "UpdateQueueDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 0,
+            "maxLength": 1000,
+            "description": "Markdown. `null` или пустая строка очищают описание."
+          }
+        }
+      },
       "IssueStatusDto": {
         "type": "object",
         "properties": {
@@ -2317,6 +3448,648 @@
           "items",
           "nextCursor",
           "total"
+        ]
+      },
+      "IssueRowStatusDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string",
+            "example": "in_progress"
+          },
+          "name": {
+            "type": "string",
+            "example": "В работе"
+          },
+          "category": {
+            "enum": [
+              "open",
+              "in_progress",
+              "done"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "category"
+        ]
+      },
+      "IssueUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Анна Иванова"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "avatarUrl"
+        ]
+      },
+      "IssueRowDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "DEV-42"
+          },
+          "title": {
+            "type": "string",
+            "example": "Починить экспорт CSV"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IssueRowStatusDto"
+          },
+          "priority": {
+            "type": "number",
+            "example": 80
+          },
+          "storyPoints": {
+            "type": "number",
+            "nullable": true,
+            "description": "`null` — «не оценено»"
+          },
+          "assignee": {
+            "nullable": true,
+            "description": "`null` — «Не назначен»",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IssueUserDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "status",
+          "priority",
+          "storyPoints",
+          "assignee"
+        ]
+      },
+      "IssueListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IssueRowDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Курсор следующей порции. `null` — задачи кончились."
+          },
+          "total": {
+            "type": "number",
+            "description": "Сколько задач подходит под текущие фильтры — счётчик «Показано N»."
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "member",
+              "reader"
+            ],
+            "type": "string",
+            "description": "Роль запросившего в проекте очереди: по ней прячется кнопка «Создать задачу»."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "total"
+        ]
+      },
+      "CreateIssueDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "example": "Починить экспорт CSV на больших выгрузках",
+            "description": "Единственное обязательное поле (US-40)"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 0,
+            "maxLength": 100000,
+            "description": "Markdown, хранится как текст и рендерится клиентом. Сервер разметку не обрабатывает и не санитизирует: исполняемое содержимое (сырой HTML, скрипты, схемы ссылок кроме `http`, `https`, `mailto`) в трекере недопустимо, и не исполнять его — обязанность клиента при рендере (D-22, US-43)."
+          },
+          "statusId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Статус из набора этой очереди. По умолчанию — первый статус очереди («Открыт»)."
+          },
+          "priority": {
+            "type": "number",
+            "enum": [
+              0,
+              10,
+              20,
+              30,
+              40,
+              50,
+              60,
+              70,
+              80,
+              90,
+              100
+            ],
+            "default": 50,
+            "description": "0–100 с шагом 10. По умолчанию 50. `null` недопустим (D-15)."
+          },
+          "storyPoints": {
+            "type": "number",
+            "nullable": true,
+            "enum": [
+              1,
+              2,
+              3,
+              5,
+              8,
+              13
+            ],
+            "description": "Шкала Фибоначчи. `null` или отсутствие поля — «не оценено» (D-16)."
+          },
+          "authorId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Автор задачи. По умолчанию — создатель. Только участник проекта (US-53)."
+          },
+          "assigneeId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "Исполнитель. `null` — «Не назначен». Только участник проекта (US-52)."
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "IssueStatusFullDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string",
+            "example": "in_progress"
+          },
+          "name": {
+            "type": "string",
+            "example": "В работе"
+          },
+          "category": {
+            "enum": [
+              "open",
+              "in_progress",
+              "done"
+            ],
+            "type": "string"
+          },
+          "position": {
+            "type": "number",
+            "example": 2
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "category",
+          "position"
+        ]
+      },
+      "IssueQueueRefDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "DEV"
+          },
+          "name": {
+            "type": "string",
+            "example": "Разработка"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ]
+      },
+      "IssueProjectRefDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "example": "sladkiy-limit"
+          },
+          "name": {
+            "type": "string",
+            "example": "Сладкий Лимит"
+          }
+        },
+        "required": [
+          "slug",
+          "name"
+        ]
+      },
+      "IssueLinkDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://example.com/spec"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "description": "Подпись. Пусто — интерфейс показывает сам адрес (US-47)."
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/IssueUserDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "title",
+          "createdBy",
+          "createdAt"
+        ]
+      },
+      "IssuePermissionsDto": {
+        "type": "object",
+        "properties": {
+          "canEdit": {
+            "type": "boolean",
+            "description": "Менять поля, название, описание и ссылки. Участник может менять **любую** задачу проекта, а не только свою (D-11). У читателя — `false`."
+          },
+          "canDelete": {
+            "type": "boolean",
+            "description": "Удалить задачу. Только у администратора проекта (D-12)."
+          }
+        },
+        "required": [
+          "canEdit",
+          "canDelete"
+        ]
+      },
+      "IssueDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "DEV-42",
+            "description": "Публичный ключ задачи, он же адрес"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "example": "Починить экспорт CSV"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Описание в Markdown. Хранится как текст и рендерится клиентом. **Сервер разметку не санитизирует**: клиент обязан рендерить её без исполнения содержимого — сырой HTML и скрипты не исполняются, ссылки со схемами кроме `http`, `https`, `mailto` не становятся кликабельными (D-22, US-43)."
+          },
+          "status": {
+            "$ref": "#/components/schemas/IssueStatusFullDto"
+          },
+          "priority": {
+            "type": "number",
+            "enum": [
+              0,
+              10,
+              20,
+              30,
+              40,
+              50,
+              60,
+              70,
+              80,
+              90,
+              100
+            ],
+            "example": 50,
+            "description": "Приоритет: 11 значений от 0 до 100 с шагом 10, больше — важнее. Пустым **не бывает никогда**: состояния «не задан» у поля нет, 0 — это «Низкий» (D-15)."
+          },
+          "storyPoints": {
+            "type": "number",
+            "nullable": true,
+            "enum": [
+              1,
+              2,
+              3,
+              5,
+              8,
+              13
+            ],
+            "description": "Сложность по шкале Фибоначчи. `null` — «не оценено» (D-16)."
+          },
+          "author": {
+            "description": "Автор задачи. Редактируется, пустым не бывает.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IssueUserDto"
+              }
+            ]
+          },
+          "assignee": {
+            "nullable": true,
+            "description": "Исполнитель. `null` — «Не назначен».",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IssueUserDto"
+              }
+            ]
+          },
+          "queue": {
+            "$ref": "#/components/schemas/IssueQueueRefDto"
+          },
+          "project": {
+            "$ref": "#/components/schemas/IssueProjectRefDto"
+          },
+          "links": {
+            "description": "Внешние ссылки задачи (US-47)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IssueLinkDto"
+            }
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "member",
+              "reader"
+            ],
+            "type": "string",
+            "description": "Роль запросившего в проекте задачи"
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/IssuePermissionsDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "description",
+          "status",
+          "priority",
+          "storyPoints",
+          "author",
+          "assignee",
+          "queue",
+          "project",
+          "links",
+          "role",
+          "permissions",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "UpdateIssueDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 0,
+            "maxLength": 100000,
+            "description": "Markdown, хранится как текст и рендерится клиентом. Сервер разметку не обрабатывает и не санитизирует: исполняемое содержимое (сырой HTML, скрипты, схемы ссылок кроме `http`, `https`, `mailto`) в трекере недопустимо, и не исполнять его — обязанность клиента при рендере (D-22, US-43). `null` или пустая строка очищают описание."
+          },
+          "statusId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Новый статус. Переход разрешён из любого статуса очереди в любой другой, включая возврат назад и закрытие из любого состояния (D-10). Статус чужой очереди отклоняется."
+          },
+          "priority": {
+            "type": "number",
+            "enum": [
+              0,
+              10,
+              20,
+              30,
+              40,
+              50,
+              60,
+              70,
+              80,
+              90,
+              100
+            ]
+          },
+          "storyPoints": {
+            "type": "number",
+            "nullable": true,
+            "enum": [
+              1,
+              2,
+              3,
+              5,
+              8,
+              13
+            ],
+            "description": "`null` снимает оценку и возвращает «не оценено» (US-51)."
+          },
+          "authorId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Новый автор — любой участник проекта. Очистить поле нельзя. Смена автора логируется отдельной записью истории; создатель задачи при этом не меняется (D-13)."
+          },
+          "assigneeId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "`null` снимает исполнителя и возвращает «Не назначен»."
+          }
+        }
+      },
+      "IssueHistoryChangeDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "issue_created",
+              "title_changed",
+              "description_changed",
+              "status_changed",
+              "priority_changed",
+              "story_points_changed",
+              "author_changed",
+              "assignee_changed",
+              "attachment_added",
+              "attachment_removed",
+              "link_added",
+              "link_removed",
+              "comment_deleted"
+            ],
+            "type": "string",
+            "description": "Что изменилось. `issue_created` — создание задачи; эта запись всегда самая ранняя и показывает **реального создателя**, даже если поле «Автор» потом меняли (D-13). У `description_changed` значений нет: фиксируется только факт изменения, старый текст не хранится (US-91)."
+          },
+          "oldValue": {
+            "type": "string",
+            "nullable": true,
+            "description": "Читаемое старое значение на момент изменения — имя человека, название статуса, число. `null` означает «пусто»: «не назначен» у исполнителя, «не оценено» у сложности (US-91)."
+          },
+          "newValue": {
+            "type": "string",
+            "nullable": true,
+            "description": "Читаемое новое значение"
+          },
+          "oldRefId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "Идентификатор прежнего объекта (пользователя или статуса) — для аватара и ссылки"
+          },
+          "newRefId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "oldValue",
+          "newValue",
+          "oldRefId",
+          "newRefId"
+        ]
+      },
+      "IssueHistoryGroupDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Идентификатор группы изменений"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor": {
+            "nullable": true,
+            "description": "`null` — изменение системное, а не человеческое (например, очистка исполнителя при исключении участника из проекта). Интерфейс показывает его как «Система», а не приписывает случайному пользователю (US-91).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IssueUserDto"
+              }
+            ]
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IssueHistoryChangeDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "createdAt",
+          "actor",
+          "changes"
+        ]
+      },
+      "IssueHistoryListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Сначала новые (US-90). Страница считается по группам, а не по отдельным записям: одно действие никогда не разрывается границей страницы.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IssueHistoryGroupDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "total": {
+            "type": "number",
+            "description": "Всего действий по задаче. Минимум одно есть всегда — «Задача создана»."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "total"
+        ]
+      },
+      "CreateIssueLinkDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "example": "https://example.com/spec",
+            "description": "Только схемы `http` и `https` (US-47)"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 0,
+            "maxLength": 100,
+            "description": "Подпись. Пусто — интерфейс показывает сам адрес."
+          }
+        },
+        "required": [
+          "url"
         ]
       }
     }

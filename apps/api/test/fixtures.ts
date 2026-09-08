@@ -2,17 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import * as schema from '../src/database/schema/index.js';
+import { DEFAULT_STATUSES } from '../src/queues/default-statuses.js';
 
 type Db = NodePgDatabase<typeof schema>;
-
-/** Пять статусов по умолчанию (glossary.md, раздел 5). Пока создаются тестом. */
-const DEFAULT_STATUSES = [
-  { key: 'open', name: 'Открыт', category: 'open' as const, position: 1 },
-  { key: 'in_progress', name: 'В работе', category: 'in_progress' as const, position: 2 },
-  { key: 'review', name: 'Ревью', category: 'in_progress' as const, position: 3 },
-  { key: 'testing', name: 'Тестирование', category: 'in_progress' as const, position: 4 },
-  { key: 'closed', name: 'Закрыт', category: 'done' as const, position: 5 },
-];
 
 export interface QueueFixture {
   userId: string;

@@ -2,8 +2,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, ilike, ne, or, sql } from 'drizzle-orm';
 import { DB, type Database } from '../database/index.js';
 import { issues, projectMembers, projects, queues, statuses } from '../database/schema/index.js';
+import type { StatusCategory } from '../queues/status-category.js';
 
-export type StatusCategory = 'open' | 'in_progress' | 'done';
+export type { StatusCategory };
 
 /** Строка сайдбара: ключ, тема, приоритет, статус (US-81). */
 export interface MyIssueRow {

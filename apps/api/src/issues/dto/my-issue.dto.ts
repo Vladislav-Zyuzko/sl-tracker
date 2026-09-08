@@ -1,10 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Length, Max, Min } from 'class-validator';
-import type { MyIssueRow, StatusCategory } from '../my-issues.repository.js';
+import { STATUS_CATEGORIES } from '../../queues/status-category.js';
+import type { StatusCategory } from '../../queues/status-category.js';
+import type { MyIssueRow } from '../my-issues.repository.js';
 import { MY_ISSUES_MAX_LIMIT } from '../my-issues.service.js';
 
-export const STATUS_CATEGORIES = ['open', 'in_progress', 'done'] as const;
+export { STATUS_CATEGORIES };
 
 /** Статус задачи — данные, а не enum в коде (ADR-0003): клиенту нужны все три поля. */
 export class IssueStatusDto {

@@ -7,6 +7,7 @@ import { HealthModule } from './health/health.module.js';
 import { InvitationsModule } from './invitations/index.js';
 import { IssuesModule } from './issues/index.js';
 import { ProjectsModule } from './projects/index.js';
+import { QueuesModule } from './queues/index.js';
 import { RedisModule } from './redis/index.js';
 import { SessionsModule } from './sessions/index.js';
 
@@ -26,6 +27,7 @@ import { SessionsModule } from './sessions/index.js';
     HealthModule,
     ProjectsModule,
     InvitationsModule,
+    QueuesModule,
     IssuesModule,
   ],
 })

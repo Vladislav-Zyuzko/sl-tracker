@@ -18,4 +18,4 @@ export {
   transliterate,
   validateSlug,
 } from './project-slug.js';
-export { ProjectDto, ProjectListDto } from './dto/project.dto.js';
+export { PROJECT_ROLES, ProjectDto, ProjectListDto } from './dto/project.dto.js';
