@@ -9,6 +9,10 @@ import type { AuthenticatedUser } from '../auth/index.js';
 import { clampLimit, decodeCursor, encodeCursor } from '../common/index.js';
 import { IssueAccessService } from '../issues/index.js';
 import type { IssueContext } from '../issues/index.js';
+// Конкретные файлы, а не бочка realtime: та тянет gateway, который сам зависит
+// от домена задач, — получился бы цикл модулей.
+import { issueTopic } from '../realtime/realtime.events.js';
+import { RealtimePublisher } from '../realtime/realtime.publisher.js';
 import {
   ATTACHMENT_MAX_BYTES,
   ObjectStorageService,
@@ -63,6 +67,7 @@ export class AttachmentsService {
     private readonly repository: AttachmentsRepository,
     private readonly access: IssueAccessService,
     private readonly storage: ObjectStorageService,
+    private readonly realtime: RealtimePublisher,
   ) {}
 
   /** Список вложений. Видят все участники проекта, включая читателя (US-41, US-46). */
@@ -139,6 +144,7 @@ export class AttachmentsService {
       uploadedByUserId: actor.id,
     });
 
+    await this.announce(context, actor.id);
     return this.view(row, context, actor);
   }
 
@@ -168,6 +174,26 @@ export class AttachmentsService {
 
     // Файл — не источник правды: его исчезновение не должно валить удаление записи.
     await this.storage.remove(deleted.objectKey).catch(() => undefined);
+    await this.announce(context, actor.id);
+  }
+
+  /**
+   * Живое обновление задачи: список вложений и история изменились (US-46, US-91, D-26).
+   *
+   * Отдельного события у вложений нет намеренно — экран задачи перечитывает их тем же
+   * запросом, что и остальные поля, а лишний тип события пришлось бы отдельно
+   * поддерживать на клиенте.
+   */
+  private async announce(context: IssueContext, actorId: string): Promise<void> {
+    await this.realtime.publish([
+      {
+        topic: issueTopic(context.detail.issue.id),
+        event: 'issue.updated',
+        projectId: context.detail.projectId,
+        actorId,
+        data: { key: context.detail.issue.key, changedFields: ['attachments'] },
+      },
+    ]);
   }
 
   private async view(

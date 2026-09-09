@@ -6,6 +6,7 @@ const { Pool } = pg;
 import { ENV, type Env } from '../config/index.js';
 import { DB, PG_POOL } from './database.tokens.js';
 import * as schema from './schema/index.js';
+import { UnitOfWork } from './unit-of-work.js';
 
 @Global()
 @Module({
@@ -32,8 +33,9 @@ import * as schema from './schema/index.js';
       inject: [PG_POOL],
       useFactory: (pool: pg.Pool) => drizzle(pool, { schema, casing: 'snake_case' }),
     },
+    UnitOfWork,
   ],
-  exports: [DB, PG_POOL],
+  exports: [DB, PG_POOL, UnitOfWork],
 })
 export class DatabaseModule implements OnApplicationShutdown {
   constructor(@Inject(PG_POOL) private readonly pool: pg.Pool) {}

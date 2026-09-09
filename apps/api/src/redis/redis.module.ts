@@ -1,7 +1,7 @@
 import { Global, Inject, Logger, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { ENV, type Env } from '../config/index.js';
-import { REDIS } from './redis.tokens.js';
+import { REDIS, REDIS_SUBSCRIBER } from './redis.tokens.js';
 
 @Global()
 @Module({
@@ -36,13 +36,23 @@ import { REDIS } from './redis.tokens.js';
         });
       },
     },
+    {
+      // Подписчик живёт рядом с основным клиентом и наследует его настройки.
+      // Разделять их обязывает протокол: см. комментарий к `REDIS_SUBSCRIBER`.
+      provide: REDIS_SUBSCRIBER,
+      inject: [REDIS],
+      useFactory: (redis: Redis) => redis.duplicate(),
+    },
   ],
-  exports: [REDIS],
+  exports: [REDIS, REDIS_SUBSCRIBER],
 })
 export class RedisModule implements OnApplicationShutdown {
-  constructor(@Inject(REDIS) private readonly redis: Redis) {}
+  constructor(
+    @Inject(REDIS) private readonly redis: Redis,
+    @Inject(REDIS_SUBSCRIBER) private readonly subscriber: Redis,
+  ) {}
 
   async onApplicationShutdown(): Promise<void> {
-    await this.redis.quit();
+    await Promise.allSettled([this.subscriber.quit(), this.redis.quit()]);
   }
 }

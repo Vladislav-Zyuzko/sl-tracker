@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { IssuesModule } from '../issues/index.js';
+import { RealtimeModule } from '../realtime/realtime.module.js';
 import { StorageModule } from '../storage/index.js';
 import { AttachmentsController } from './attachments.controller.js';
 import { AttachmentsRepository } from './attachments.repository.js';
@@ -10,7 +11,7 @@ import { AttachmentsService } from './attachments.service.js';
  * проекта: второй S3-клиент в приложении не нужен.
  */
 @Module({
-  imports: [IssuesModule, StorageModule],
+  imports: [IssuesModule, StorageModule, RealtimeModule],
   controllers: [AttachmentsController],
   providers: [AttachmentsRepository, AttachmentsService],
   exports: [AttachmentsService],

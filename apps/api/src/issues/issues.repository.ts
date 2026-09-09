@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { DB, type Database, type Executor } from '../database/index.js';
+import { DB, UnitOfWork, type Database, type Executor } from '../database/index.js';
 import {
   issueHistory,
   issueLinks,
@@ -25,6 +25,7 @@ import { IssueKeyService } from './issue-key.service.js';
 import {
   type IssuePatch,
   type IssueSnapshot,
+  changedApiFields,
   diffIssue,
   effectiveChanges,
   labelLookups,
@@ -119,6 +120,15 @@ export interface IssueListOptions extends IssueListFilters {
   after?: { priority: number; number: number };
 }
 
+/** Результат изменения задачи: сама задача, объём истории и имена изменившихся полей. */
+export interface IssueUpdateResult {
+  issue: IssueRow;
+  /** Сколько записей истории породило изменение (US-90). */
+  changed: number;
+  /** Имена полей так, как их зовёт API: их получает живое обновление (D-26). */
+  changedFields: string[];
+}
+
 export interface IssueLinkRow {
   id: string;
   issueId: string;
@@ -162,6 +172,7 @@ const linkAuthors = alias(users, 'link_authors');
 export class IssuesRepository {
   constructor(
     @Inject(DB) private readonly db: Database,
+    private readonly uow: UnitOfWork,
     private readonly keys: IssueKeyService,
     private readonly mentions: MentionsRepository,
     private readonly events: NotificationEventsService,
@@ -189,7 +200,7 @@ export class IssuesRepository {
     assigneeId: string | null;
     createdByUserId: string;
   }): Promise<IssueRow> {
-    return this.db.transaction(async (tx) => {
+    return this.uow.transaction(async (tx) => {
       const allocated = await this.keys.allocate(tx, input.queueId);
 
       const [created] = await tx
@@ -370,8 +381,8 @@ export class IssuesRepository {
     patch: IssuePatch,
     actorId: string,
     projectId: string,
-  ): Promise<{ issue: IssueRow; changed: number } | null> {
-    return this.db.transaction(async (tx) => {
+  ): Promise<IssueUpdateResult | null> {
+    return this.uow.transaction(async (tx) => {
       const [before] = await tx
         .select(ISSUE_COLUMNS)
         .from(issues)
@@ -395,7 +406,7 @@ export class IssuesRepository {
 
       const changes = effectiveChanges(snapshot, patch);
       if (Object.keys(changes).length === 0) {
-        return { issue: before, changed: 0 };
+        return { issue: before, changed: 0, changedFields: [] };
       }
 
       const labels = await this.readLabels(tx, snapshot, changes);
@@ -427,7 +438,7 @@ export class IssuesRepository {
         statusNames: labels.statusNames,
       });
 
-      return { issue: updated!, changed: entries.length };
+      return { issue: updated!, changed: entries.length, changedFields: changedApiFields(changes) };
     });
   }
 
@@ -580,7 +591,7 @@ export class IssuesRepository {
     title: string | null;
     actorId: string;
   }): Promise<IssueLinkRow> {
-    return this.db.transaction(async (tx) => {
+    return this.uow.transaction(async (tx) => {
       const [created] = await tx
         .insert(issueLinks)
         .values({
@@ -621,7 +632,7 @@ export class IssuesRepository {
 
   /** Удаление ссылки вместе с записью истории — в одной транзакции. */
   async removeLink(issueId: string, linkId: string, actorId: string): Promise<boolean> {
-    return this.db.transaction(async (tx) => {
+    return this.uow.transaction(async (tx) => {
       const deleted = await tx
         .delete(issueLinks)
         .where(and(eq(issueLinks.id, linkId), eq(issueLinks.issueId, issueId)))

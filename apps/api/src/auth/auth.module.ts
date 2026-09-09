@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AccessModule } from '../access/index.js';
+import { RealtimeModule } from '../realtime/realtime.module.js';
 import { SessionsModule } from '../sessions/index.js';
 import { AccessDeniedTicketStore } from './access-denied-ticket.store.js';
 import { AuthController } from './auth.controller.js';
@@ -24,7 +25,7 @@ import { YANDEX_OAUTH } from './yandex/yandex-oauth.port.js';
  * подделку и проверяют поток целиком, не имея боевых `client_id`/`client_secret`.
  */
 @Module({
-  imports: [SessionsModule, AccessModule],
+  imports: [SessionsModule, AccessModule, RealtimeModule],
   controllers: [AuthController, MeController],
   providers: [
     AuthService,

@@ -2,6 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 import {
   type HistoryLabels,
   type IssueSnapshot,
+  changedApiFields,
   diffIssue,
   effectiveChanges,
   labelLookups,
@@ -171,5 +172,35 @@ describe('Сбор идентификаторов для подписи запи
       statusIds: [],
       userIds: [],
     });
+  });
+});
+
+/**
+ * Имена полей в живом обновлении обязаны совпадать с именами полей в ответе REST:
+ * клиент по ним решает, что перечитывать, и разошедшиеся имена он молча пропустит.
+ */
+describe('changedApiFields', () => {
+  it('переводит внутренние имена полей в имена ответа API', () => {
+    expect(
+      changedApiFields({
+        statusId: IN_PROGRESS,
+        assigneeId: BORIS,
+        authorId: ANNA,
+        title: 'Другое',
+        description: null,
+        priority: 80,
+        storyPoints: 5,
+      }).sort(),
+    ).toEqual(
+      ['status', 'assignee', 'author', 'title', 'description', 'priority', 'storyPoints'].sort(),
+    );
+  });
+
+  it('пустое изменение не даёт ни одного поля: событию неоткуда взяться', () => {
+    expect(changedApiFields({})).toEqual([]);
+  });
+
+  it('снятый исполнитель — это изменение поля `assignee`, а не его отсутствие', () => {
+    expect(changedApiFields({ assigneeId: null })).toEqual(['assignee']);
   });
 });

@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/index.js';
 import { clampLimit, decodeCursor, encodeCursor } from '../common/index.js';
+// Конкретные файлы, а не бочка realtime: см. комментарий в notification-events.service.
+import { userTopic } from '../realtime/realtime.events.js';
+import { RealtimePublisher } from '../realtime/realtime.publisher.js';
 import {
   NOTIFICATION_TYPES,
   type NotificationChannel,
@@ -33,7 +36,10 @@ export interface NotificationsPage {
  */
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly repository: NotificationsRepository) {}
+  constructor(
+    private readonly repository: NotificationsRepository,
+    private readonly realtime: RealtimePublisher,
+  ) {}
 
   async list(
     actor: AuthenticatedUser,
@@ -80,11 +86,34 @@ export class NotificationsService {
         message: 'Уведомление не найдено',
       });
     }
+    await this.announceCount(actor.id);
     return readAt;
   }
 
-  markAllRead(actor: AuthenticatedUser): Promise<number> {
-    return this.repository.markAllRead(actor.id);
+  async markAllRead(actor: AuthenticatedUser): Promise<number> {
+    const updated = await this.repository.markAllRead(actor.id);
+    if (updated > 0) {
+      await this.announceCount(actor.id);
+    }
+    return updated;
+  }
+
+  /**
+   * Счётчик изменился — сказать об этом остальным вкладкам и устройствам того же
+   * человека: прочитанное на телефоне не должно продолжать светиться в браузере.
+   *
+   * Транзакции здесь нет — запись уже зафиксирована, откладывать нечего.
+   */
+  private async announceCount(userId: string): Promise<void> {
+    await this.realtime.publish([
+      {
+        topic: userTopic(userId),
+        event: 'notification.read',
+        projectId: null,
+        actorId: userId,
+        data: { unreadCount: await this.repository.unreadCount(userId) },
+      },
+    ]);
   }
 
   /**

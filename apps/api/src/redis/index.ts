@@ -1,5 +1,5 @@
 export { RedisModule } from './redis.module.js';
-export { REDIS } from './redis.tokens.js';
+export { REDIS, REDIS_SUBSCRIBER } from './redis.tokens.js';
 export {
   ACCESS_DENIED_TICKET_TTL_SECONDS,
   OAUTH_STATE_TTL_SECONDS,

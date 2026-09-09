@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { StorageModule } from '../storage/index.js';
+import { RealtimeModule } from '../realtime/realtime.module.js';
 import { MembersController } from './members.controller.js';
 import { MembersRepository } from './members.repository.js';
 import { MembersService } from './members.service.js';
@@ -17,7 +18,7 @@ import { ProjectsService } from './projects.service.js';
  * собственную проверку членства.
  */
 @Module({
-  imports: [StorageModule],
+  imports: [StorageModule, RealtimeModule],
   controllers: [ProjectsController, MembersController],
   providers: [
     ProjectsRepository,

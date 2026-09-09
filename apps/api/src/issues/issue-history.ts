@@ -173,6 +173,29 @@ export function effectiveChanges(before: IssueSnapshot, patch: IssuePatch): Issu
   return changes;
 }
 
+/**
+ * Имена изменившихся полей **так, как их зовёт API**.
+ *
+ * Внутри домена поле называется `statusId`, а в ответе `GET /api/issues/{key}` —
+ * `status`. Живое обновление обязано называть его так же, как REST: разошедшиеся
+ * имена одного и того же — вечный источник багов на клиенте.
+ */
+const API_FIELD_NAMES: Record<keyof IssueSnapshot, string> = {
+  title: 'title',
+  description: 'description',
+  statusId: 'status',
+  priority: 'priority',
+  storyPoints: 'storyPoints',
+  authorId: 'author',
+  assigneeId: 'assignee',
+};
+
+export function changedApiFields(changes: IssuePatch): string[] {
+  return (Object.keys(changes) as (keyof IssueSnapshot)[])
+    .filter((field) => changes[field] !== undefined)
+    .map((field) => API_FIELD_NAMES[field]);
+}
+
 function plain(
   kind: IssueHistoryKind,
   oldValue: string | null,

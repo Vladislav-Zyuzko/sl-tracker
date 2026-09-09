@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import type { Executor } from '../database/index.js';
+import { type Executor, afterCommit } from '../database/index.js';
+// Импорт из конкретных файлов, а не из бочки `realtime/index.js`: та тянет
+// и gateway, который сам зависит от домена задач, — получился бы цикл модулей.
+import { userTopic } from '../realtime/realtime.events.js';
+import { RealtimePublisher } from '../realtime/realtime.publisher.js';
 import { notificationExcerpt } from './notification-excerpt.js';
-import { NotificationsRepositoryPort } from './notifications.port.js';
+import { type CreatedNotification, NotificationsRepositoryPort } from './notifications.port.js';
 import {
   type NotificationDraft,
   type NotificationRow,
@@ -32,7 +36,10 @@ export interface IssueEventRef {
  */
 @Injectable()
 export class NotificationEventsService {
-  constructor(private readonly repository: NotificationsRepositoryPort) {}
+  constructor(
+    private readonly repository: NotificationsRepositoryPort,
+    private readonly realtime: RealtimePublisher,
+  ) {}
 
   /**
    * События по задаче, вызванные одним действием пользователя.
@@ -77,7 +84,46 @@ export class NotificationEventsService {
       })),
     );
 
-    await this.repository.insertMany(tx, rows);
+    const created = await this.repository.insertMany(tx, rows);
+    this.announce(tx, context.actorId, created);
+  }
+
+  /**
+   * Живое обновление центра уведомлений и счётчика (US-102, US-103, D-26).
+   *
+   * Публикуется **после фиксации** транзакции: событие, ушедшее изнутри неё,
+   * обгоняет собственные данные — клиент придёт за уведомлением, которого ещё нет,
+   * а при откате получит сигнал о том, чего не случилось. Баг при этом плавающий.
+   *
+   * Счётчик считается там же, после коммита: он обязан совпадать с тем, что вернёт
+   * `/api/notifications/unread-count`, иначе цифра в шапке разъедется с экраном.
+   */
+  private announce(tx: Executor, actorId: string, created: readonly CreatedNotification[]): void {
+    if (created.length === 0) {
+      return;
+    }
+
+    afterCommit(tx, async () => {
+      const counts = await this.repository.unreadCountsOf([
+        ...new Set(created.map((row) => row.recipientId)),
+      ]);
+
+      await this.realtime.publish(
+        created.map((row) => ({
+          topic: userTopic(row.recipientId),
+          event: 'notification.created' as const,
+          // Своё уведомление человек получает независимо от проектов: проверять
+          // при рассылке нечего, тема и так принадлежит только ему.
+          projectId: null,
+          actorId,
+          data: {
+            id: row.id,
+            type: row.type,
+            unreadCount: counts.get(row.recipientId) ?? 0,
+          },
+        })),
+      );
+    });
   }
 
   /** Подписчики задачи (D-17), уже пересечённые с участниками проекта. */

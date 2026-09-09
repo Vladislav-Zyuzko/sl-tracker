@@ -172,7 +172,7 @@ export class CommentsService {
 
     const deleted = await this.repository.delete({
       commentId,
-      issueId: context.detail.issue.id,
+      issue: issueRefOf(context),
       actorId: actor.id,
     });
 

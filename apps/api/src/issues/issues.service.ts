@@ -3,6 +3,10 @@ import type { AuthenticatedUser } from '../auth/index.js';
 import { clampLimit, decodeCursor, encodeCursor } from '../common/index.js';
 import { QueueAccessService, QueuesRepository } from '../queues/index.js';
 import type { QueueContext } from '../queues/index.js';
+// Конкретные файлы, а не бочка realtime: та тянет gateway, который сам зависит
+// от домена задач, — получился бы цикл модулей.
+import { issueTopic } from '../realtime/realtime.events.js';
+import { RealtimePublisher } from '../realtime/realtime.publisher.js';
 import { type IssueContext, IssueAccessService, issueNotFound } from './issue-access.service.js';
 import {
   ISSUE_PRIORITY_DEFAULT,
@@ -73,6 +77,7 @@ export class IssuesService {
     private readonly access: IssueAccessService,
     private readonly queues: QueueAccessService,
     private readonly queueData: QueuesRepository,
+    private readonly realtime: RealtimePublisher,
   ) {}
 
   /**
@@ -220,6 +225,12 @@ export class IssuesService {
       throw issueNotFound();
     }
 
+    if (updated.changedFields.length > 0) {
+      await this.announce(context, actor.id, 'issue.updated', {
+        changedFields: updated.changedFields,
+      });
+    }
+
     return this.viewOfKey(updated.issue.key, actor);
   }
 
@@ -230,6 +241,8 @@ export class IssuesService {
     if (!deleted) {
       throw issueNotFound();
     }
+
+    await this.announce(context, actor.id, 'issue.deleted');
   }
 
   /**
@@ -335,6 +348,7 @@ export class IssuesService {
       actorId: actor.id,
     });
 
+    await this.announce(context, actor.id, 'issue.updated', { changedFields: ['links'] });
     return this.viewOfKey(context.detail.issue.key, actor);
   }
 
@@ -345,7 +359,37 @@ export class IssuesService {
     if (!removed) {
       throw new BadRequestException({ code: 'link_not_found', message: 'Ссылка не найдена' });
     }
+
+    await this.announce(context, actor.id, 'issue.updated', { changedFields: ['links'] });
     return this.viewOfKey(context.detail.issue.key, actor);
+  }
+
+  /**
+   * Живое обновление экрана задачи (D-26).
+   *
+   * Публикуется **после** того, как репозиторий вернул управление, то есть после
+   * фиксации транзакции: иначе клиент придёт за данными, которых ещё нет.
+   *
+   * Уходит сигнал, а не состояние задачи: `changedFields` названы так же, как поля
+   * ответа `GET /api/issues/{key}`, и клиент перечитывает то, что изменилось.
+   * Отдавать здесь готовый `IssueDto` нельзя — он собирается под конкретного
+   * запросившего (его роль и права), а у подписчиков они разные.
+   */
+  private async announce(
+    context: IssueContext,
+    actorId: string,
+    event: 'issue.updated' | 'issue.deleted',
+    data: Record<string, unknown> = {},
+  ): Promise<void> {
+    await this.realtime.publish([
+      {
+        topic: issueTopic(context.detail.issue.id),
+        event,
+        projectId: context.detail.projectId,
+        actorId,
+        data: { key: context.detail.issue.key, ...data },
+      },
+    ]);
   }
 
   /**

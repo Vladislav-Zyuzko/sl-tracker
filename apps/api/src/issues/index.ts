@@ -15,7 +15,7 @@ export type { IssueContext, IssuePermissions } from './issue-access.service.js';
 export { IssueHistoryService } from './issue-history.service.js';
 export { IssueHistoryRepository } from './issue-history.repository.js';
 export type { HistoryGroupRow } from './issue-history.repository.js';
-export { diffIssue, effectiveChanges, labelLookups } from './issue-history.js';
+export { changedApiFields, diffIssue, effectiveChanges, labelLookups } from './issue-history.js';
 export type { IssueHistoryKind, IssuePatch, IssueSnapshot } from './issue-history.js';
 export {
   ISSUE_DESCRIPTION_MAX_LENGTH,

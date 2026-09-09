@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from '@jest/globals';
 import type { AccessListService } from '../access/index.js';
+import type { RealtimePublisher } from '../realtime/realtime.publisher.js';
 import type { IssuedSession, SessionService } from '../sessions/index.js';
 import type { AccessDeniedTicketStore } from './access-denied-ticket.store.js';
 import type { AuthRepository, ProviderProfile } from './auth.repository.js';
@@ -128,6 +129,12 @@ class FakeAuthRepository {
 
 class FakeSessions {
   readonly created: string[] = [];
+  readonly destroyed: string[] = [];
+
+  destroy(sessionId: string): Promise<void> {
+    this.destroyed.push(sessionId);
+    return Promise.resolve();
+  }
 
   create(userId: string): Promise<IssuedSession> {
     this.created.push(userId);
@@ -139,6 +146,16 @@ class FakeSessions {
   }
 }
 
+/** Выход закрывает не только сессию, но и открытый под ней сокет. */
+class FakeRealtime {
+  readonly closedSessions: string[] = [];
+
+  revokeSession(sessionId: string): Promise<void> {
+    this.closedSessions.push(sessionId);
+    return Promise.resolve();
+  }
+}
+
 describe('AuthService: поток входа через Яндекс ID', () => {
   let yandex: FakeYandex;
   let states: FakeStateStore;
@@ -146,6 +163,7 @@ describe('AuthService: поток входа через Яндекс ID', () => 
   let accessList: FakeAccessList;
   let repository: FakeAuthRepository;
   let sessions: FakeSessions;
+  let realtime: FakeRealtime;
   let service: AuthService;
 
   beforeEach(() => {
@@ -155,6 +173,7 @@ describe('AuthService: поток входа через Яндекс ID', () => 
     accessList = new FakeAccessList();
     repository = new FakeAuthRepository();
     sessions = new FakeSessions();
+    realtime = new FakeRealtime();
     service = new AuthService(
       yandex,
       states as unknown as OauthStateStore,
@@ -162,6 +181,7 @@ describe('AuthService: поток входа через Яндекс ID', () => 
       repository as unknown as AuthRepository,
       accessList as unknown as AccessListService,
       sessions as unknown as SessionService,
+      realtime as unknown as RealtimePublisher,
     );
   });
 
@@ -302,6 +322,12 @@ describe('AuthService: поток входа через Яндекс ID', () => 
     yandex.configured = false;
     const started = await service.start({});
     expect(started).toEqual({ error: 'oauth_not_configured' });
+  });
+
+  it('выход гасит сессию на сервере и закрывает открытый под ней сокет (US-03)', async () => {
+    await service.logout('session-1');
+    expect(sessions.destroyed).toEqual(['session-1']);
+    expect(realtime.closedSessions).toEqual(['session-1']);
   });
 });
 

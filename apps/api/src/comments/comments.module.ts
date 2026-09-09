@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { IssuesModule } from '../issues/index.js';
 import { MentionsModule } from '../mentions/index.js';
 import { NotificationsModule } from '../notifications/index.js';
+import { RealtimeModule } from '../realtime/realtime.module.js';
 import { CommentsController } from './comments.controller.js';
 import { CommentsRepository } from './comments.repository.js';
 import { CommentsService } from './comments.service.js';
@@ -13,7 +14,7 @@ import { CommentsService } from './comments.service.js';
  * отдельно от неё, и права на него выводятся из роли в проекте задачи.
  */
 @Module({
-  imports: [IssuesModule, MentionsModule, NotificationsModule],
+  imports: [IssuesModule, MentionsModule, NotificationsModule, RealtimeModule],
   controllers: [CommentsController],
   providers: [CommentsRepository, CommentsService],
   exports: [CommentsService],

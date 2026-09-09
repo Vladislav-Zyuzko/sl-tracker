@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/index.js';
 import { clampLimit, decodeCursor, encodeCursor } from '../common/index.js';
+// Конкретные файлы, а не бочка realtime: та тянет gateway, который сам зависит
+// от домена проектов, — получился бы цикл модулей.
+import { projectTopic } from '../realtime/realtime.events.js';
+import { RealtimePublisher } from '../realtime/realtime.publisher.js';
 import { type MemberRow, MembersRepository } from './members.repository.js';
 import { ProjectAccessService } from './project-access.service.js';
 import type { ProjectRole } from './projects.repository.js';
@@ -33,6 +37,7 @@ export class MembersService {
   constructor(
     private readonly repository: MembersRepository,
     private readonly access: ProjectAccessService,
+    private readonly realtime: RealtimePublisher,
   ) {}
 
   /** Список участников виден всем участникам проекта, включая читателя (US-14). */
@@ -96,6 +101,7 @@ export class MembersService {
       throw new NotFoundException({ code: 'member_not_found', message: 'Участник не найден' });
     }
 
+    await this.announce(context.project.id, 'project.member_updated', actor.id, { userId, role });
     return { ...member, role };
   }
 
@@ -130,7 +136,29 @@ export class MembersService {
       throw new NotFoundException({ code: 'member_not_found', message: 'Участник не найден' });
     }
 
+    await this.announce(context.project.id, 'project.member_removed', actor.id, { userId });
     return { unassignedIssues: result.unassignedIssues };
+  }
+
+  /**
+   * Живое обновление списка участников (US-15, US-16).
+   *
+   * Публикуется после того, как репозиторий вернул управление, — то есть после
+   * фиксации транзакции. Имена полей те же, что в `ProjectMemberDto`: `userId`, `role`.
+   *
+   * Самому исключённому это событие не придёт, и не должно: право проверяется ещё раз
+   * при рассылке, а он уже не участник. О том, что его исключили, он узнаёт обычным
+   * запросом — тот вернёт 404 на проект.
+   */
+  private async announce(
+    projectId: string,
+    event: 'project.member_updated' | 'project.member_removed',
+    actorId: string,
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    await this.realtime.publish([
+      { topic: projectTopic(projectId), event, projectId, actorId, data },
+    ]);
   }
 
   private async requireMember(projectId: string, userId: string): Promise<MemberRow> {

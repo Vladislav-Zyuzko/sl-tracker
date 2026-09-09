@@ -171,6 +171,18 @@ export class SessionService {
     }
   }
 
+  /**
+   * Жива ли сессия. Проверка по идентификатору, без секрета.
+   *
+   * Нужна долгоживущим соединениям: WebSocket открыт часами, а сессию за это время
+   * могли погасить выходом или отзывом доступа. HTTP-запросы такой проверки не
+   * требуют — они предъявляют секрет каждый раз.
+   */
+  async isActive(sessionId: string): Promise<boolean> {
+    const cached = await this.load(sessionId);
+    return cached !== null && Number(cached.expiresAt) > Date.now();
+  }
+
   /** Завершает одну сессию — выход пользователя (US-03). */
   async destroy(sessionId: string): Promise<void> {
     const [row] = await this.db

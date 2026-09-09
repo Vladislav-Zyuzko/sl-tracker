@@ -18,6 +18,7 @@ import {
   type NotificationRow,
   type NotificationType,
 } from './notification-types.js';
+import type { CreatedNotification } from './notifications.port.js';
 
 /** Строка ленты уведомлений вместе с инициатором события. */
 export interface NotificationListRow {
@@ -130,11 +131,48 @@ export class NotificationsRepository {
   }
 
   /** Запись событий. Всегда в транзакции того изменения, которое их породило. */
-  async insertMany(tx: Executor, rows: NotificationRow[]): Promise<void> {
+  async insertMany(tx: Executor, rows: NotificationRow[]): Promise<CreatedNotification[]> {
     if (rows.length === 0) {
-      return;
+      return [];
     }
-    await tx.insert(notifications).values(rows);
+    // Идентификаторы возвращаются не «на всякий случай»: по ним живое обновление
+    // называет клиенту конкретное уведомление, а не просто «что-то пришло».
+    return tx
+      .insert(notifications)
+      .values(rows)
+      .returning({
+        id: notifications.id,
+        recipientId: notifications.recipientId,
+        type: sql<NotificationType>`${notifications.type}`,
+      });
+  }
+
+  /**
+   * Счётчики непрочитанных сразу для нескольких получателей — одним запросом
+   * по тому же частичному индексу, что и одиночный счётчик.
+   *
+   * Нужен рассылке: одно действие создаёт уведомления нескольким людям, и звать
+   * `unreadCount` в цикле означало бы запрос на каждого.
+   */
+  async unreadCountsOf(userIds: string[]): Promise<Map<string, number>> {
+    if (userIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.db
+      .select({
+        recipientId: notifications.recipientId,
+        value: sql<number>`count(*)::int`,
+      })
+      .from(notifications)
+      .where(and(inArray(notifications.recipientId, userIds), isNull(notifications.readAt)))
+      .groupBy(notifications.recipientId);
+
+    const counts = new Map<string, number>(userIds.map((userId) => [userId, 0]));
+    for (const row of rows) {
+      counts.set(row.recipientId, row.value);
+    }
+    return counts;
   }
 
   /**

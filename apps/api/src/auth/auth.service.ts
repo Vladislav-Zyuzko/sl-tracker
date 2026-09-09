@@ -1,6 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AccessListService } from '../access/index.js';
 import { normalizeEmail } from '../common/index.js';
+// Конкретный файл, а не бочка realtime: та тянет gateway, который сам зависит
+// от AuthModule, — получился бы цикл модулей.
+import { RealtimePublisher } from '../realtime/realtime.publisher.js';
 import { type IssuedSession, SessionService } from '../sessions/index.js';
 import { AccessDeniedTicketStore } from './access-denied-ticket.store.js';
 import { type AuthErrorCode, DEFAULT_AFTER_LOGIN_PATH, YANDEX_PROVIDER } from './auth.constants.js';
@@ -55,6 +58,7 @@ export class AuthService {
     private readonly repository: AuthRepository,
     private readonly accessList: AccessListService,
     private readonly sessions: SessionService,
+    private readonly realtime: RealtimePublisher,
   ) {}
 
   /**
@@ -189,9 +193,15 @@ export class AuthService {
     return this.tickets.consume(ticket);
   }
 
-  /** Выход: сессия уничтожается на сервере, а не только очищается cookie (US-03). */
+  /**
+   * Выход: сессия уничтожается на сервере, а не только очищается cookie (US-03).
+   *
+   * Вместе с сессией закрывается и открытый под ней WebSocket: иначе вышедшая
+   * вкладка продолжала бы получать живые обновления, пока её не перезагрузят.
+   */
   async logout(sessionId: string): Promise<void> {
     await this.sessions.destroy(sessionId);
+    await this.realtime.revokeSession(sessionId);
   }
 }
 

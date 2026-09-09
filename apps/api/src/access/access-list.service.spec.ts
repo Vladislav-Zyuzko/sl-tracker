@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it } from '@jest/globals';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import type { RealtimePublisher } from '../realtime/realtime.publisher.js';
 import type { SessionService } from '../sessions/index.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import type {
@@ -105,17 +106,30 @@ class FakeSessions {
   }
 }
 
+/** Отзыв доступа обязан закрыть и уже открытые сокеты, а не только сессии (US-09). */
+class FakeRealtime {
+  readonly closedFor: string[] = [];
+
+  revokeUser(userId: string): Promise<void> {
+    this.closedFor.push(userId);
+    return Promise.resolve();
+  }
+}
+
 describe('AccessListService', () => {
   let repository: FakeRepository;
   let sessions: FakeSessions;
+  let realtime: FakeRealtime;
   let service: AccessListService;
 
   beforeEach(() => {
     repository = new FakeRepository();
     sessions = new FakeSessions();
+    realtime = new FakeRealtime();
     service = new AccessListService(
       repository as unknown as AccessListRepository,
       sessions as unknown as SessionService,
+      realtime as unknown as RealtimePublisher,
     );
   });
 
@@ -154,6 +168,15 @@ describe('AccessListService', () => {
       expect(repository.rows).toHaveLength(1);
     });
 
+    it('закрывает и открытые WebSocket: погашенная сессия сама сокет не роняет', async () => {
+      const row = entry({ userId: 'user-9' });
+      repository.rows = [row, entry({ email: 'anna@example.com', isInstanceOwner: true })];
+
+      await service.remove(row.id, OWNER);
+
+      expect(realtime.closedFor).toEqual(['user-9']);
+    });
+
     it('свою запись удалить нельзя — 409, даже если регистр адреса другой', async () => {
       const own = entry({ email: 'anna@example.com' });
       repository.rows = [own];
@@ -161,6 +184,7 @@ describe('AccessListService', () => {
       await expect(service.remove(own.id, OWNER)).rejects.toBeInstanceOf(ConflictException);
       expect(repository.rows).toHaveLength(1);
       expect(sessions.revokedFor).toHaveLength(0);
+      expect(realtime.closedFor).toHaveLength(0);
     });
 
     it('свою запись, связанную по пользователю, тоже удалить нельзя', async () => {

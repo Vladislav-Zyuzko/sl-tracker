@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MentionsModule } from '../mentions/index.js';
 import { NotificationsModule } from '../notifications/index.js';
 import { QueuesModule } from '../queues/index.js';
+import { RealtimeModule } from '../realtime/realtime.module.js';
 import { IssueAccessService } from './issue-access.service.js';
 import { IssueHistoryRepository } from './issue-history.repository.js';
 import { IssueHistoryService } from './issue-history.service.js';
@@ -28,7 +29,7 @@ import { MyIssuesService } from './my-issues.service.js';
  * а они пишутся в **той же транзакции**, что и само изменение.
  */
 @Module({
-  imports: [QueuesModule, MentionsModule, NotificationsModule],
+  imports: [QueuesModule, MentionsModule, NotificationsModule, RealtimeModule],
   controllers: [
     MyIssuesController,
     QueueIssuesController,

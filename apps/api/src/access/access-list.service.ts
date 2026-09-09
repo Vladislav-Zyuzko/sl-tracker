@@ -6,6 +6,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { normalizeEmail, toStorableEmail } from '../common/index.js';
+// Конкретный файл, а не бочка realtime: та тянет gateway, который сам зависит
+// от доменов, — получился бы цикл модулей.
+import { RealtimePublisher } from '../realtime/realtime.publisher.js';
 import { SessionService } from '../sessions/index.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { type AccessEntryRow, AccessListRepository } from './access-list.repository.js';
@@ -42,6 +45,7 @@ export class AccessListService {
   constructor(
     private readonly repository: AccessListRepository,
     private readonly sessions: SessionService,
+    private readonly realtime: RealtimePublisher,
   ) {}
 
   /** Пускать ли этот адрес в трекер. Приглашение проверяется отдельно и в обход списка. */
@@ -126,6 +130,11 @@ export class AccessListService {
     let revokedSessions = 0;
     for (const userId of userIds) {
       revokedSessions += await this.sessions.destroyAllForUser(userId);
+      // Погашенная сессия закрывает будущие HTTP-запросы, но не уже открытый сокет:
+      // он живёт часами и проверку сессии больше не проходит. Поэтому сокеты гасятся
+      // тем же действием — иначе исключённый продолжал бы видеть живые обновления
+      // до перезагрузки вкладки (US-09, ADR-0006).
+      await this.realtime.revokeUser(userId);
     }
 
     // В лог — только счётчики: email из списка доступа в логи не попадает.

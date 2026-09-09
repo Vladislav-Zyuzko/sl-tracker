@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/index.js';
 import { ProjectsModule } from '../projects/index.js';
+import { RealtimeModule } from '../realtime/realtime.module.js';
 import { StorageModule } from '../storage/index.js';
 import {
   InvitationAcceptController,
@@ -18,7 +19,7 @@ import { InvitationsService } from './invitations.service.js';
  * оно пишется в той же транзакции, что и само вступление.
  */
 @Module({
-  imports: [ProjectsModule, StorageModule, NotificationsModule],
+  imports: [ProjectsModule, StorageModule, NotificationsModule, RealtimeModule],
   controllers: [ProjectInvitationsController, InvitationAcceptController],
   providers: [InvitationsRepository, InvitationsService],
   exports: [InvitationsService],

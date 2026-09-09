@@ -12,6 +12,7 @@ import { MentionsModule } from './mentions/index.js';
 import { NotificationsModule } from './notifications/index.js';
 import { ProjectsModule } from './projects/index.js';
 import { QueuesModule } from './queues/index.js';
+import { RealtimeGatewayModule } from './realtime/index.js';
 import { RedisModule } from './redis/index.js';
 import { SessionsModule } from './sessions/index.js';
 
@@ -37,6 +38,7 @@ import { SessionsModule } from './sessions/index.js';
     CommentsModule,
     AttachmentsModule,
     NotificationsModule,
+    RealtimeGatewayModule,
   ],
 })
 export class AppModule {}

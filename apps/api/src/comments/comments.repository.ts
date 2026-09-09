@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
-import { DB, type Database, type Executor } from '../database/index.js';
+import { DB, UnitOfWork, type Database, type Executor } from '../database/index.js';
 import { comments, issueHistory, users } from '../database/schema/index.js';
 import type { UserRef } from '../issues/index.js';
 import { MentionsRepository } from '../mentions/index.js';
 import { NotificationEventsService, type IssueEventRef } from '../notifications/index.js';
+// Конкретные файлы, а не бочка realtime: та тянет gateway, который сам зависит
+// от домена задач, — получился бы цикл модулей.
+import { issueTopic } from '../realtime/realtime.events.js';
+import { RealtimePublisher } from '../realtime/realtime.publisher.js';
 
 export interface CommentRow {
   id: string;
@@ -40,8 +44,10 @@ export interface CommentPageOptions {
 export class CommentsRepository {
   constructor(
     @Inject(DB) private readonly db: Database,
+    private readonly uow: UnitOfWork,
     private readonly mentions: MentionsRepository,
     private readonly events: NotificationEventsService,
+    private readonly realtime: RealtimePublisher,
   ) {}
 
   /**
@@ -60,7 +66,7 @@ export class CommentsRepository {
     authorId: string;
     body: string;
   }): Promise<CommentRow> {
-    return this.db.transaction(async (tx) => {
+    return this.uow.transaction(async (tx) => {
       const [created] = await tx
         .insert(comments)
         .values({ issueId: input.issue.id, authorId: input.authorId, body: input.body })
@@ -95,6 +101,8 @@ export class CommentsRepository {
 
       const author = await readUser(tx, input.authorId);
 
+      this.announce(tx, input.issue, 'comment.created', created!.id, input.authorId);
+
       return {
         ...created!,
         author,
@@ -116,7 +124,7 @@ export class CommentsRepository {
     actorId: string;
     body: string;
   }): Promise<CommentRow | null> {
-    return this.db.transaction(async (tx) => {
+    return this.uow.transaction(async (tx) => {
       const [updated] = await tx
         .update(comments)
         .set({ body: input.body, editedAt: new Date() })
@@ -151,6 +159,8 @@ export class CommentsRepository {
 
       const author = await readUser(tx, updated.authorId);
 
+      this.announce(tx, input.issue, 'comment.updated', updated.id, input.actorId);
+
       return {
         id: updated.id,
         issueId: updated.issueId,
@@ -171,11 +181,15 @@ export class CommentsRepository {
    * на комментарий, остаются в центре, но теряют ссылку (`comment_id` → NULL,
    * внешний ключ `on delete set null`) — US-102.
    */
-  async delete(input: { commentId: string; issueId: string; actorId: string }): Promise<boolean> {
-    return this.db.transaction(async (tx) => {
+  async delete(input: {
+    commentId: string;
+    issue: IssueEventRef;
+    actorId: string;
+  }): Promise<boolean> {
+    return this.uow.transaction(async (tx) => {
       const deleted = await tx
         .delete(comments)
-        .where(and(eq(comments.id, input.commentId), eq(comments.issueId, input.issueId)))
+        .where(and(eq(comments.id, input.commentId), eq(comments.issueId, input.issue.id)))
         .returning({ authorId: comments.authorId });
 
       if (deleted.length === 0) {
@@ -185,7 +199,7 @@ export class CommentsRepository {
       const author = await readUser(tx, deleted[0]!.authorId);
 
       await tx.insert(issueHistory).values({
-        issueId: input.issueId,
+        issueId: input.issue.id,
         actorId: input.actorId,
         kind: 'comment_deleted',
         groupId: randomUUID(),
@@ -196,8 +210,37 @@ export class CommentsRepository {
         newRefId: null,
       });
 
+      this.announce(tx, input.issue, 'comment.deleted', input.commentId, input.actorId);
       return true;
     });
+  }
+
+  /**
+   * Живое обновление ленты комментариев (D-26).
+   *
+   * Уходит **после фиксации** транзакции: событие, опубликованное изнутри неё,
+   * обгоняет собственные данные, и клиент приходит за комментарием, которого ещё нет.
+   *
+   * В событии — сигнал и идентификатор комментария, а не его текст: тело комментария
+   * клиент забирает тем же запросом, что и всегда, и получает ровно тот же формат,
+   * что отдаёт REST.
+   */
+  private announce(
+    tx: Executor,
+    issue: IssueEventRef,
+    event: 'comment.created' | 'comment.updated' | 'comment.deleted',
+    commentId: string,
+    actorId: string,
+  ): void {
+    this.realtime.after(tx, [
+      {
+        topic: issueTopic(issue.id),
+        event,
+        projectId: issue.projectId,
+        actorId,
+        data: { id: commentId, issueKey: issue.key },
+      },
+    ]);
   }
 
   /** Комментарий вместе с автором — нужен проверке прав перед правкой и удалением. */

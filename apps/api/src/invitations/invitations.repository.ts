@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
-import { DB, type Database, type Transaction } from '../database/index.js';
+import { DB, UnitOfWork, type Database, type Transaction } from '../database/index.js';
 import {
   accessEntries,
   invitations,
@@ -11,6 +11,10 @@ import {
 } from '../database/schema/index.js';
 import { NotificationEventsService } from '../notifications/index.js';
 import type { ProjectRole } from '../projects/index.js';
+// Конкретные файлы, а не бочка realtime: та тянет gateway, который сам зависит
+// от доменов, — получился бы цикл модулей.
+import { projectTopic } from '../realtime/realtime.events.js';
+import { RealtimePublisher } from '../realtime/realtime.publisher.js';
 import { isUsable } from './invitation-state.js';
 
 /** Роль по приглашению: администратора через ссылку выдать нельзя (D-05). */
@@ -69,7 +73,9 @@ const SELECTION = {
 export class InvitationsRepository {
   constructor(
     @Inject(DB) private readonly db: Database,
+    private readonly uow: UnitOfWork,
     private readonly events: NotificationEventsService,
+    private readonly realtime: RealtimePublisher,
   ) {}
 
   async create(input: {
@@ -208,7 +214,7 @@ export class InvitationsRepository {
    * иначе при следующем входе человека не пустят.
    */
   async accept(input: { token: string; userId: string; email: string }): Promise<AcceptOutcome> {
-    return this.db.transaction(async (tx) => {
+    return this.uow.transaction(async (tx) => {
       const [row] = await tx
         .select({
           id: invitations.id,
@@ -274,6 +280,18 @@ export class InvitationsRepository {
           await this.events.projectAdmins(tx, row.projectId),
           { displayName: profile?.displayName ?? '' },
         ),
+      ]);
+
+      // Живое обновление списка участников (US-21) — после фиксации транзакции:
+      // иначе открытый экран проекта пойдёт за участником, которого ещё нет.
+      this.realtime.after(tx, [
+        {
+          topic: projectTopic(row.projectId),
+          event: 'project.member_joined',
+          projectId: row.projectId,
+          actorId: input.userId,
+          data: { userId: input.userId, role: row.role },
+        },
       ]);
 
       return {
