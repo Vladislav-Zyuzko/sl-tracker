@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
+import { containsPattern } from '../common/index.js';
 import { DB, type Database } from '../database/index.js';
 import { issueHistory, issues, projectMembers, queues, users } from '../database/schema/index.js';
 import type { ProjectRole } from './projects.repository.js';
@@ -30,6 +31,17 @@ export interface MemberRemoval {
 /** Порядок вкладки «Участники»: администраторы первыми, дальше по имени. */
 const roleRankSql = sql<number>`case when ${projectMembers.role} = 'admin' then 0 else 1 end`;
 
+/**
+ * Поиск по составу проекта: подстрока в имени или в email, без учёта регистра.
+ *
+ * Выборка и без того ограничена участниками одного проекта, поэтому email здесь
+ * ищется наравне с именем: на вкладке «Участники» он и так виден каждому участнику.
+ */
+function searchCondition(term: string): SQL {
+  const pattern = containsPattern(term);
+  return sql`(${users.displayName} ilike ${pattern} escape '\\' or ${users.email} ilike ${pattern} escape '\\')`;
+}
+
 @Injectable()
 export class MembersRepository {
   constructor(@Inject(DB) private readonly db: Database) {}
@@ -38,8 +50,12 @@ export class MembersRepository {
     projectId: string;
     limit: number;
     after?: MemberCursor;
+    search?: string;
   }): Promise<MemberRow[]> {
     const conditions = [eq(projectMembers.projectId, options.projectId)];
+    if (options.search) {
+      conditions.push(searchCondition(options.search));
+    }
     if (options.after) {
       conditions.push(
         sql`(case when project_members.role = 'admin' then 0 else 1 end, users.display_name, users.id)
@@ -63,11 +79,23 @@ export class MembersRepository {
       .limit(options.limit);
   }
 
-  async count(projectId: string): Promise<number> {
-    const [row] = await this.db
-      .select({ value: sql<number>`count(*)::int` })
-      .from(projectMembers)
-      .where(eq(projectMembers.projectId, projectId));
+  /**
+   * Сколько всего строк в списке. С поиском считаются совпадения, а не весь состав:
+   * иначе счётчик под полем поиска показывал бы не то, что видно в списке.
+   * Присоединение к `users` нужно только поиску — без него это счёт по одной таблице.
+   */
+  async count(projectId: string, search?: string): Promise<number> {
+    const value = sql<number>`count(*)::int`;
+    const [row] = search
+      ? await this.db
+          .select({ value })
+          .from(projectMembers)
+          .innerJoin(users, eq(users.id, projectMembers.userId))
+          .where(and(eq(projectMembers.projectId, projectId), searchCondition(search)))
+      : await this.db
+          .select({ value })
+          .from(projectMembers)
+          .where(eq(projectMembers.projectId, projectId));
     return row?.value ?? 0;
   }
 

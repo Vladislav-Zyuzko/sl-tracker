@@ -5,6 +5,7 @@
   "compilerOptions": {
     "deleteOutDir": true,
     "tsConfigPath": "tsconfig.build.json",
+    "assets": [{ "include": "database/migrations/**/*", "outDir": "dist" }],
     "plugins": [
       {
         "name": "@nestjs/swagger",

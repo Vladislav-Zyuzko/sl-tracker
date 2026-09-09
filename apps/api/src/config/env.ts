@@ -7,8 +7,12 @@ import { type Env, envSchema } from './env.schema.js';
  * Файлы `.env` ищутся от текущей рабочей директории вверх: локально API запускается
  * из `apps/api`, а `.env` лежит в корне репозитория. В контейнере переменные приходят
  * из окружения, и ни один файл не находится — это нормальный путь, а не ошибка.
+ *
+ * Экспортируется ради применителя миграций: тот запускается отдельным процессом
+ * и валидирует не всё окружение приложения, а только доступ к PostgreSQL, но искать
+ * `.env` обязан там же, где его ищет API.
  */
-function loadDotenvFiles(): void {
+export function loadDotenvFiles(): void {
   const candidates = [
     path.resolve(process.cwd(), '.env'),
     path.resolve(process.cwd(), '..', '..', '.env'),

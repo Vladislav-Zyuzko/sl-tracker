@@ -80,8 +80,11 @@ describe('Проекты, участники и обложки', () => {
   });
 
   /** Сессия через bearer: небезопасные методы по cookie требуют ещё и проверки Origin. */
-  async function signIn(displayName: string): Promise<{ id: string; headers: Headers }> {
-    const user = await seedUser(db, displayName);
+  async function signIn(
+    displayName: string,
+    email?: string,
+  ): Promise<{ id: string; headers: Headers }> {
+    const user = await seedUser(db, displayName, email);
     const session = await sessions.create(user.id, 'bearer');
     return { id: user.id, headers: { authorization: `Bearer ${session.token}` } };
   }
@@ -594,6 +597,128 @@ describe('Проекты, участники и обложки', () => {
 
       const response = await get(`/api/projects/${created.json().slug}/members`, stranger.headers);
       expect(response.statusCode).toBe(404);
+    });
+
+    describe('поиск по составу проекта', () => {
+      /** Проект с четырьмя участниками: имена и адреса заданы, чтобы искать по ним. */
+      async function seedSearchable(): Promise<{ headers: Headers; slug: string }> {
+        const admin = await signIn('Анна Иванова', 'anna@example.com');
+        const created = await post('/api/projects', admin.headers, { name: 'Проект' });
+        const projectId = created.json().id;
+
+        for (const [name, email, role] of [
+          ['Борис Петров', 'boris@example.com', 'member'],
+          ['Вера Иванова', 'vera@corp.example.com', 'reader'],
+          ['Гриша Сидоров', 'grisha@example.com', 'member'],
+        ] as const) {
+          const user = await seedUser(db, name, email);
+          await addProjectMember(db, projectId, user.id, role);
+        }
+
+        return { headers: admin.headers, slug: created.json().slug };
+      }
+
+      it('ищет по имени без учёта регистра', async () => {
+        const project = await seedSearchable();
+
+        const response = await get(
+          `/api/projects/${project.slug}/members?q=${encodeURIComponent('ИВАНОВА')}`,
+          project.headers,
+        );
+
+        expect(response.statusCode).toBe(200);
+        expect(
+          response.json().items.map((item: { displayName: string }) => item.displayName),
+        ).toEqual(['Анна Иванова', 'Вера Иванова']);
+        // Счётчик показывает длину отфильтрованного списка, а не весь состав проекта.
+        expect(response.json().total).toBe(2);
+      });
+
+      it('ищет по email', async () => {
+        const project = await seedSearchable();
+
+        const response = await get(
+          `/api/projects/${project.slug}/members?q=${encodeURIComponent('corp.example')}`,
+          project.headers,
+        );
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json().items).toHaveLength(1);
+        expect(response.json().items[0].email).toBe('vera@corp.example.com');
+      });
+
+      it('пустой запрос равнозначен отсутствию поиска', async () => {
+        const project = await seedSearchable();
+
+        const response = await get(
+          `/api/projects/${project.slug}/members?q=%20%20`,
+          project.headers,
+        );
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json().total).toBe(4);
+        // Порядок прежний: администратор первым, дальше по имени.
+        expect(response.json().items[0].role).toBe('admin');
+      });
+
+      it('подстановочные знаки LIKE ищутся как обычный текст', async () => {
+        const project = await seedSearchable();
+
+        const response = await get(`/api/projects/${project.slug}/members?q=_`, project.headers);
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json().items).toHaveLength(0);
+        expect(response.json().total).toBe(0);
+      });
+
+      it('поиск сохраняется при переходе по курсору', async () => {
+        const project = await seedSearchable();
+        const query = `q=${encodeURIComponent('иванова')}&limit=1`;
+
+        const first = await get(`/api/projects/${project.slug}/members?${query}`, project.headers);
+        expect(first.json().items[0].displayName).toBe('Анна Иванова');
+        expect(first.json().nextCursor).toBeTruthy();
+
+        const second = await get(
+          `/api/projects/${project.slug}/members?${query}&cursor=${encodeURIComponent(
+            first.json().nextCursor,
+          )}`,
+          project.headers,
+        );
+
+        expect(
+          second.json().items.map((item: { displayName: string }) => item.displayName),
+        ).toEqual(['Вера Иванова']);
+        expect(second.json().nextCursor).toBeNull();
+      });
+
+      it('посторонний не ищет по чужому составу', async () => {
+        const project = await seedSearchable();
+        const stranger = await signIn('Посторонний');
+
+        const response = await get(
+          `/api/projects/${project.slug}/members?q=${encodeURIComponent('иванова')}`,
+          stranger.headers,
+        );
+
+        expect(response.statusCode).toBe(404);
+      });
+
+      it('читателю поиск по составу доступен', async () => {
+        const project = await seedSearchable();
+        const reader = await signIn('Читатель');
+        const created = await get(`/api/projects/${project.slug}`, project.headers);
+        await addProjectMember(db, created.json().id, reader.id, 'reader');
+
+        const response = await get(
+          `/api/projects/${project.slug}/members?q=${encodeURIComponent('борис')}`,
+          reader.headers,
+        );
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json().items).toHaveLength(1);
+        expect(response.json().items[0].displayName).toBe('Борис Петров');
+      });
     });
 
     it('администратор меняет роль участника', async () => {

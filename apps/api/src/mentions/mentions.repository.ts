@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { containsPattern, normalizeSearchTerm } from '../common/index.js';
 import { DB, type Database, type Executor } from '../database/index.js';
 import { mentions, projectMembers, users } from '../database/schema/index.js';
 import type { UserRef } from '../issues/index.js';
@@ -158,11 +159,10 @@ export class MentionsRepository {
   }): Promise<{ id: string; displayName: string; email: string; avatarUrl: string | null }[]> {
     const conditions = [eq(projectMembers.projectId, options.projectId)];
 
-    const query = options.query?.trim();
+    const query = normalizeSearchTerm(options.query);
     if (query) {
-      // Экранируем спецсимволы LIKE: `%` и `_` от пользователя не должны становиться
-      // подстановочными знаками.
-      const pattern = `%${query.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+      // Экранирование `%` и `_` — общее правило подстрочного поиска, см. common/search.
+      const pattern = containsPattern(query);
       conditions.push(
         sql`(${users.displayName} ilike ${pattern} escape '\\' or ${users.email} ilike ${pattern} escape '\\')`,
       );

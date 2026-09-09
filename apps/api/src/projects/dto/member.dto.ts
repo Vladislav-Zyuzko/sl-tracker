@@ -51,7 +51,11 @@ export class ProjectMemberListDto {
   @ApiProperty({ type: String, nullable: true })
   nextCursor!: string | null;
 
-  @ApiProperty({ description: 'Всего участников в проекте' })
+  @ApiProperty({
+    description:
+      'Всего участников в проекте, а при поиске (`q`) — сколько участников ему ' +
+      'соответствует, то есть длина всего отфильтрованного списка, а не страницы.',
+  })
   total!: number;
 }
 
@@ -77,6 +81,19 @@ export class RemoveMemberResultDto {
 }
 
 export class ListMembersQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Поиск по составу проекта: подстрока в имени или в email, без учёта регистра. ' +
+      'Пустая строка и пробелы равнозначны отсутствию параметра. Порядок и курсор ' +
+      'те же, что и без поиска, поэтому при переходе на следующую страницу `q` ' +
+      'нужно передавать вместе с `cursor`.',
+    example: 'ан',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(0, 100)
+  q?: string;
+
   @ApiPropertyOptional({ minimum: 1, maximum: MEMBERS_MAX_LIMIT, default: 50 })
   @IsOptional()
   @Type(() => Number)

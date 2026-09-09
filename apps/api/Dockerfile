@@ -9,6 +9,8 @@ FROM node:24-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# `nest build` кладёт в dist и скомпилированный код, и SQL миграций
+# (nest-cli.json, раздел assets) — применителю они нужны в рантайме.
 RUN npm run build
 
 FROM node:24-alpine AS runtime
@@ -17,10 +19,12 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
-# Миграции применяются отдельной командой на деплое, поэтому SQL нужен в образе.
-COPY --from=build /app/src/database/migrations ./src/database/migrations
-COPY --from=build /app/drizzle.config.ts ./drizzle.config.ts
 
 USER node
 EXPOSE 3000
+
+# Миграции применяются отдельным одноразовым контейнером из этого же образа
+# с командой `node dist/database/migrate.js` — до старта API.
+# `drizzle-kit` здесь намеренно отсутствует: он dev-зависимость и его конфигурация
+# написана на TypeScript, исполнять который в рантайме нечем.
 CMD ["node", "dist/main.js"]

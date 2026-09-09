@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/index.js';
-import { clampLimit, decodeCursor, encodeCursor } from '../common/index.js';
+import { clampLimit, decodeCursor, encodeCursor, normalizeSearchTerm } from '../common/index.js';
 // Конкретные файлы, а не бочка realtime: та тянет gateway, который сам зависит
 // от домена проектов, — получился бы цикл модулей.
 import { projectTopic } from '../realtime/realtime.events.js';
@@ -40,14 +40,23 @@ export class MembersService {
     private readonly realtime: RealtimePublisher,
   ) {}
 
-  /** Список участников виден всем участникам проекта, включая читателя (US-14). */
+  /**
+   * Список участников виден всем участникам проекта, включая читателя (US-14).
+   *
+   * Необязательный `q` фильтрует по имени и email на сервере: селекторы автора
+   * и исполнителя показывают тот же состав, что и вкладка «Участники», и им незачем
+   * выкачивать его целиком. Ограничения частоты здесь нет намеренно — поиск идёт
+   * по составу одного проекта, который спрашивающему и так виден полностью,
+   * так что перебором отсюда нельзя узнать ничего нового.
+   */
   async list(
     slug: string,
     actor: AuthenticatedUser,
-    options: { limit?: number; cursor?: string },
+    options: { limit?: number; cursor?: string; q?: string },
   ): Promise<MembersPage> {
     const context = await this.access.require(slug, actor);
     const limit = clampLimit(options.limit, MEMBERS_DEFAULT_LIMIT, MEMBERS_MAX_LIMIT);
+    const search = normalizeSearchTerm(options.q);
     const after = options.cursor ? parseCursor(options.cursor) : null;
     if (options.cursor && !after) {
       throw new BadRequestException({ code: 'invalid_cursor', message: 'Некорректный курсор' });
@@ -57,6 +66,7 @@ export class MembersService {
       projectId: context.project.id,
       limit: limit + 1,
       after: after ?? undefined,
+      search,
     });
     const hasMore = rows.length > limit;
     const items = hasMore ? rows.slice(0, limit) : rows;
@@ -68,7 +78,7 @@ export class MembersService {
         hasMore && last
           ? encodeCursor([String(last.role === 'admin' ? 0 : 1), last.userId, last.displayName])
           : null,
-      total: await this.repository.count(context.project.id),
+      total: await this.repository.count(context.project.id, search),
     };
   }
 
