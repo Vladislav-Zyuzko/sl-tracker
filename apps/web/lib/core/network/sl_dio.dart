@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:sl_tracker_web/app/app_config.dart';
 import 'package:sl_tracker_web/core/network/adapter/session_http_adapter.dart';
 import 'package:sl_tracker_web/core/network/empty_body_interceptor.dart';
+import 'package:sl_tracker_web/core/network/partial_update_interceptor.dart';
 import 'package:sl_tracker_web/core/network/session_interceptor.dart';
 
 /// Собирает HTTP-клиент приложения.
@@ -35,7 +36,10 @@ Dio createDio({required void Function() onUnauthorized}) {
   )..httpClientAdapter = createSessionHttpAdapter();
 
   dio.interceptors.addAll([
-    // Порядок важен: заголовки правим до отправки, ошибки разбираем после.
+    // Порядок важен: тело чистим и заголовки правим до отправки, ошибки
+    // разбираем после. `PartialUpdateInterceptor` идёт первым: он может
+    // оставить тело пустым, и `EmptyBodyInterceptor` должен это увидеть.
+    PartialUpdateInterceptor(),
     EmptyBodyInterceptor(),
     SessionInterceptor(onUnauthorized: onUnauthorized),
   ]);

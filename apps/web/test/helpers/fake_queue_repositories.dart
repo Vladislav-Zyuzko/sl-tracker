@@ -302,13 +302,33 @@ class FakeIssuesRepository implements IssuesRepository {
 
   @override
   Future<IssueDto> changeStatus(String issueKey, String statusId) async {
-    final failure = changeStatusFailure;
+    patches.add('status');
+
+    final failure = changeStatusFailure ?? patchFailure;
     if (failure != null) throw failure;
 
     final status = fakeStatuses().firstWhere(
       (item) => item.id == statusId,
       orElse: () => fakeStatuses().first,
     );
+
+    final current = issue;
+    if (current != null) {
+      return issue = current.copyWith(
+        status: IssueStatusFullDto(
+          id: status.id!,
+          key: status.key,
+          name: status.name,
+          category: switch (status.category) {
+            IssueStatusCategory.open => IssueStatusFullDtoCategory.open,
+            IssueStatusCategory.inProgress =>
+              IssueStatusFullDtoCategory.inProgress,
+            IssueStatusCategory.done => IssueStatusFullDtoCategory.done,
+          },
+          position: current.status.position,
+        ),
+      );
+    }
 
     return _issue(key: issueKey, title: 'Задача $issueKey', status: status);
   }
@@ -348,6 +368,173 @@ class FakeIssuesRepository implements IssuesRepository {
     permissions: const IssuePermissionsDto(canEdit: true, canDelete: true),
     createdAt: DateTime.utc(2026, 2, 12),
     updatedAt: DateTime.utc(2026, 2, 12),
+  );
+
+  /// Задача, которую отдаёт `byKey` и правки полей.
+  ///
+  /// Правки применяются к этому объекту: экран задачи проверяет
+  /// оптимистичное изменение и откат, а значит подставной репозиторий обязан
+  /// вести себя как сервер, а не отдавать всегда одно и то же.
+  IssueDto? issue;
+
+  /// Чем упадёт загрузка задачи.
+  ApiFailure? issueFailure;
+
+  /// Чем упадёт любая правка поля.
+  ApiFailure? patchFailure;
+
+  /// Группы истории.
+  List<IssueHistoryGroupDto> historyGroups = [];
+
+  /// Курсор следующей порции истории.
+  String? historyCursor;
+
+  /// Чем упадёт загрузка истории.
+  ApiFailure? historyFailure;
+
+  /// Сколько раз запрашивали задачу.
+  int byKeyCalls = 0;
+
+  /// Тела правок, дошедшие до «сервера»: по ним видно, что ушло на сервер,
+  /// а что осталось оптимистичным.
+  final patches = <String>[];
+
+  IssueDto get _current =>
+      issue ??
+      _issue(
+        key: 'DEV-42',
+        title: 'Задача DEV-42',
+        status: fakeStatuses().first,
+      );
+
+  Future<IssueDto> _patch(String label, IssueDto Function(IssueDto) apply) {
+    patches.add(label);
+
+    final failure = patchFailure;
+    if (failure != null) throw failure;
+
+    return Future.value(issue = apply(_current));
+  }
+
+  @override
+  Future<IssueDto> byKey(String issueKey) async {
+    byKeyCalls++;
+    await gate?.future;
+
+    final failure = issueFailure;
+    if (failure != null) throw failure;
+
+    return _current;
+  }
+
+  @override
+  Future<IssueDto> changeTitle(String issueKey, String title) =>
+      _patch('title', (current) => current.copyWith(title: title));
+
+  @override
+  Future<IssueDto> changeDescription(String issueKey, String description) =>
+      _patch(
+        'description',
+        (current) => current.copyWith(description: description),
+      );
+
+  @override
+  Future<IssueDto> changePriority(String issueKey, int priority) => _patch(
+    'priority',
+    (current) => current.copyWith(priority: IssueDtoPriority.fromJson(priority)),
+  );
+
+  @override
+  Future<IssueDto> changeStoryPoints(String issueKey, int? storyPoints) =>
+      _patch(
+        'storyPoints',
+        (current) => current.copyWith(
+          storyPoints: storyPoints == null
+              ? null
+              : IssueDtoStoryPoints.fromJson(storyPoints),
+        ),
+      );
+
+  @override
+  Future<IssueDto> changeAuthor(String issueKey, String authorId) => _patch(
+    'author',
+    (current) => current.copyWith(
+      author: IssueUserDto(
+        id: authorId,
+        displayName: 'Автор $authorId',
+        avatarUrl: null,
+      ),
+    ),
+  );
+
+  @override
+  Future<IssueDto> changeAssignee(String issueKey, String? assigneeId) =>
+      _patch(
+        'assignee',
+        (current) => current.copyWith(
+          assignee: assigneeId == null
+              ? null
+              : IssueUserDto(
+                  id: assigneeId,
+                  displayName: 'Исполнитель $assigneeId',
+                  avatarUrl: null,
+                ),
+        ),
+      );
+
+  @override
+  Future<void> remove(String issueKey) async {
+    final failure = patchFailure;
+    if (failure != null) throw failure;
+
+    patches.add('remove');
+  }
+
+  @override
+  Future<IssueHistoryListDto> history(
+    String issueKey, {
+    String? cursor,
+  }) async {
+    final failure = historyFailure;
+    if (failure != null) throw failure;
+
+    return IssueHistoryListDto(
+      items: historyGroups,
+      nextCursor: cursor == null ? historyCursor : null,
+      total: historyGroups.length,
+    );
+  }
+
+  @override
+  Future<IssueDto> addLink(
+    String issueKey, {
+    required String url,
+    String? title,
+  }) => _patch(
+    'addLink',
+    (current) => current.copyWith(
+      links: [
+        ...current.links,
+        IssueLinkDto(
+          id: 'link-${current.links.length + 1}',
+          url: url,
+          title: title,
+          createdBy: current.author,
+          createdAt: DateTime.utc(2026, 2, 12),
+        ),
+      ],
+    ),
+  );
+
+  @override
+  Future<IssueDto> removeLink(String issueKey, String linkId) => _patch(
+    'removeLink',
+    (current) => current.copyWith(
+      links: [
+        for (final link in current.links)
+          if (link.id != linkId) link,
+      ],
+    ),
   );
 
   @override

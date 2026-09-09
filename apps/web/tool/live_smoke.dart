@@ -17,6 +17,7 @@ import 'package:dio/dio.dart';
 import 'package:sl_tracker_web/core/api/generated/export.dart';
 import 'package:sl_tracker_web/core/network/api_failure.dart';
 import 'package:sl_tracker_web/core/network/empty_body_interceptor.dart';
+import 'package:sl_tracker_web/core/network/partial_update_interceptor.dart';
 
 Future<void> main(List<String> args) async {
   final origin = args.isEmpty ? 'http://localhost:8081' : args.first;
@@ -31,6 +32,7 @@ Future<void> main(List<String> args) async {
       responseType: ResponseType.json,
     ),
   );
+  dio.interceptors.add(PartialUpdateInterceptor());
   dio.interceptors.add(EmptyBodyInterceptor());
   var lastRequestUri = '';
   dio.interceptors.add(
@@ -434,6 +436,212 @@ Future<void> main(List<String> args) async {
       final failure = ApiFailure.of(error);
       assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
     }
+  });
+
+  // Экран задачи: комментарии, вложения, упоминания и ссылки. Раздел
+  // добавлен вместе с самим экраном — до него этих маршрутов в контракте
+  // не было.
+  await check('GET комментариев задачи собирает курсор и размер', () async {
+    try {
+      await client.comments.commentsControllerList(
+        key: 'DEV-1',
+        cursor: 'cursor-1',
+        limit: 50,
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+      assert(
+        lastRequestUri.contains('/api/issues/DEV-1/comments'),
+        'путь собран неверно: $lastRequestUri',
+      );
+      assert(
+        lastRequestUri.contains('cursor=cursor-1'),
+        'курсор более ранних не доехал: $lastRequestUri',
+      );
+    }
+  });
+
+  await check('POST комментария без сессии — 401, а не 400', () async {
+    try {
+      await client.comments.commentsControllerCreate(
+        key: 'DEV-1',
+        body: const CreateCommentDto(body: 'Проверка связи'),
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.statusCode != 400, 'тело не принято: $failure');
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('PATCH комментария без сессии — 401', () async {
+    try {
+      await client.comments.commentsControllerUpdate(
+        key: 'DEV-1',
+        commentId: '00000000-0000-0000-0000-000000000000',
+        body: const UpdateCommentDto(body: 'Правка'),
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.statusCode != 400, 'тело не принято: $failure');
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('DELETE комментария без сессии — 401', () async {
+    try {
+      await client.comments.commentsControllerRemove(
+        key: 'DEV-1',
+        commentId: '00000000-0000-0000-0000-000000000000',
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('GET вложений задачи без сессии — 401', () async {
+    try {
+      await client.attachments.attachmentsControllerList(key: 'DEV-1');
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  // Загрузка вложения — тот же `multipart`, что и обложка проекта:
+  // проверяем, что тело собирается и доезжает до авторизации.
+  await check('multipart-вложение уходит на сервер и получает 401', () async {
+    try {
+      await client.attachments.attachmentsControllerUpload(
+        key: 'DEV-1',
+        file: MultipartFile.fromBytes(
+          const [137, 80, 78, 71, 13, 10, 26, 10],
+          filename: 'screenshot.png',
+          contentType: DioMediaType.parse('image/png'),
+        ),
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('DELETE вложения без сессии — 401', () async {
+    try {
+      await client.attachments.attachmentsControllerRemove(
+        key: 'DEV-1',
+        attachmentId: '00000000-0000-0000-0000-000000000000',
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('GET подсказки упоминаний передаёт строку поиска', () async {
+    try {
+      await client.mentions.mentionSuggestionsControllerSuggest(
+        key: 'DEV-1',
+        query: 'ан',
+        limit: 10,
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+      assert(
+        lastRequestUri.contains('/api/issues/DEV-1/mention-suggestions'),
+        'путь собран неверно: $lastRequestUri',
+      );
+      assert(
+        lastRequestUri.contains('query='),
+        'строка поиска не доехала: $lastRequestUri',
+      );
+    }
+  });
+
+  await check('POST внешней ссылки без сессии — 401, а не 400', () async {
+    try {
+      await client.issues.issueControllerAddLink(
+        key: 'DEV-1',
+        body: const CreateIssueLinkDto(url: 'https://example.com/spec'),
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.statusCode != 400, 'тело не принято: $failure');
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('DELETE внешней ссылки без сессии — 401', () async {
+    try {
+      await client.issues.issueControllerRemoveLink(
+        key: 'DEV-1',
+        linkId: '00000000-0000-0000-0000-000000000000',
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('DELETE задачи без сессии — 401', () async {
+    try {
+      await client.issues.issueControllerRemove(key: 'DEV-1');
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  // Частичное обновление: `PATCH` с одним полем обязан отправлять **одно
+  // поле**. Сгенерированная модель кладёт в JSON все ключи со значением
+  // `null`, а по контракту `assigneeId: null` снимает исполнителя,
+  // `description: null` очищает описание — то есть смена статуса заодно
+  // стирала бы половину задачи. Проверка сторожит `PartialUpdateInterceptor`.
+  await check('PATCH задачи отправляет только заданные поля', () async {
+    final probe = Dio(BaseOptions(baseUrl: origin))
+      ..interceptors.add(PartialUpdateInterceptor());
+    Object? sent;
+    probe.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          sent = options.data;
+          handler.reject(
+            DioException.requestCancelled(
+              requestOptions: options,
+              reason: 'проверка тела',
+            ),
+          );
+        },
+      ),
+    );
+
+    try {
+      await SlApiClient(probe).issues.issueControllerUpdate(
+        key: 'DEV-1',
+        body: UpdateIssueDto(statusId: 'status-1'),
+      );
+    } on DioException catch (_) {
+      // До сети запрос не доходит намеренно: интересует ровно тело.
+    }
+
+    final body = sent! as Map<String, dynamic>;
+    assert(body.keys.length == 1, 'лишние поля в теле: $body');
+    assert(body['statusId'] == 'status-1', 'тело собрано неверно: $body');
+    probe.close();
   });
 
   stdout.writeln(

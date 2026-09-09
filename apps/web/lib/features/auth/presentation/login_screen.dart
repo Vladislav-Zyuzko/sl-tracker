@@ -5,7 +5,7 @@ import 'package:sl_tracker_web/app/app_config.dart';
 import 'package:sl_tracker_web/core/platform/browser_navigator.dart';
 import 'package:sl_tracker_web/features/auth/presentation/login_notice.dart';
 import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
-import 'package:sl_tracker_web/shared/uikit/buttons/sl_button.dart';
+import 'package:sl_tracker_web/shared/uikit/buttons/yandex_id_button.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
@@ -137,10 +137,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           if (isResolving)
             const _CompletingSignIn()
           else
-            SLButton(
-              label: 'Войти через Яндекс',
-              size: SLButtonSize.lg,
-              expand: true,
+            YandexIdButton(
               isLoading: _redirecting,
               // Единственный код, при котором повтор заведомо бессмыслен,
               // — `oauth_not_configured`. Пояснение под кнопкой остаётся.

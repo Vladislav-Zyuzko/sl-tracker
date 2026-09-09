@@ -69,7 +69,21 @@ void main() {
       final screen = tester.widget<IssueScreen>(find.byType(IssueScreen));
 
       expect(screen.issueKey, 'SL-123');
+      expect(screen.anchorCommentId, isNull);
       expect(find.byType(AppShell), findsOneWidget);
+    });
+
+    testWidgets('ссылка на комментарий доносит якорь до экрана', (
+      tester,
+    ) async {
+      // Так выглядит переход из уведомления об упоминании (US-102, US-104):
+      // задача плюс идентификатор комментария в адресе.
+      await pumpAt(tester, '/issues/SL-123?comment=c-42');
+
+      final screen = tester.widget<IssueScreen>(find.byType(IssueScreen));
+
+      expect(screen.issueKey, 'SL-123');
+      expect(screen.anchorCommentId, 'c-42');
     });
 
     testWidgets('ключ задачи не по формату ведёт на «не найдено»', (

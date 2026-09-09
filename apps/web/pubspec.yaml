@@ -24,6 +24,14 @@ dependencies:
   # Роутинг, path-стратегия URL (ADR-0005).
   go_router: ^18.0.1
   json_annotation: ^4.12.0
+  # Рендер Markdown в описании и комментариях (docs/design/components.md, 18).
+  # Оригинальный flutter_markdown от Google закрыт; flutter_markdown_plus —
+  # его официальное продолжение от Foresight Mobile, проверено на pub.dev
+  # перед подключением, а не по памяти.
+  flutter_markdown_plus: ^1.0.12
+  # Разбор Markdown: нужен напрямую, чтобы задать собственный набор
+  # синтаксисов — без встроенного HTML — и добавить синтаксис упоминаний.
+  markdown: ^7.3.0
   # Локальное хранение настроек оболочки (свёрнут ли сайдбар).
   shared_preferences: ^2.5.5
   retrofit: ^4.10.0
@@ -42,6 +50,12 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    # Кнопочный знак Яндекс ID. Единственное задокументированное исключение
+    # из дизайн-системы (system.md 3.4.1): содержимое, цвет и скругление
+    # знака заданы Яндексом и не меняются.
+    - assets/brand/
 
   # Шрифты подключаются файлами, а не пакетом google_fonts: пакет тянет шрифт
   # по сети при первом кадре — мигание текста и лишний round-trip

@@ -7,7 +7,7 @@ import 'package:sl_tracker_web/features/auth/data/auth_repository.dart';
 import 'package:sl_tracker_web/features/auth/presentation/login_notice.dart';
 import 'package:sl_tracker_web/features/auth/presentation/login_screen.dart';
 import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
-import 'package:sl_tracker_web/shared/uikit/buttons/sl_button.dart';
+import 'package:sl_tracker_web/shared/uikit/buttons/yandex_id_button.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_error_state.dart';
 
 import '../../helpers/fake_platform.dart';
@@ -55,7 +55,7 @@ void main() {
 
       await pumpLogin(tester, const LoginScreen(), navigator: navigator);
 
-      await tester.tap(find.text('Войти через Яндекс'));
+      await tester.tap(find.text(YandexIdButton.label));
       await tester.pump();
 
       expect(navigator.urls, ['/api/auth/yandex/start']);
@@ -72,7 +72,7 @@ void main() {
         navigator: navigator,
       );
 
-      await tester.tap(find.text('Войти через Яндекс'));
+      await tester.tap(find.text(YandexIdButton.label));
       await tester.pump();
 
       expect(
@@ -88,7 +88,7 @@ void main() {
 
       await pumpLogin(tester, const LoginScreen(), navigator: navigator);
 
-      await tester.tap(find.text('Войти через Яндекс'));
+      await tester.tap(find.text(YandexIdButton.label));
       await tester.pump();
       await tester.tap(find.byType(LoginScreen));
       await tester.pump();
@@ -150,8 +150,8 @@ void main() {
         SLBannerVariant.warning,
       );
 
-      final button = tester.widget<SLButton>(
-        find.widgetWithText(SLButton, 'Войти через Яндекс'),
+      final button = tester.widget<YandexIdButton>(
+        find.byType(YandexIdButton),
       );
       expect(button.onPressed, isNull);
     });
@@ -164,7 +164,7 @@ void main() {
         navigator: navigator,
       );
 
-      await tester.tap(find.text('Войти через Яндекс'));
+      await tester.tap(find.text(YandexIdButton.label));
       await tester.pump();
 
       expect(navigator.urls, hasLength(1));
@@ -210,7 +210,7 @@ void main() {
       await pumpWithProviders(tester, const LoginScreen());
 
       expect(find.text('Завершаем вход…'), findsOneWidget);
-      expect(find.text('Войти через Яндекс'), findsNothing);
+      expect(find.text(YandexIdButton.label), findsNothing);
     });
   });
 

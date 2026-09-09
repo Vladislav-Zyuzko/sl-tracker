@@ -217,9 +217,16 @@ final _routes = <RouteBase>[
 
           // Ключ, не подходящий под формат, — это опечатка в адресной строке,
           // а не отсутствующая задача: к API за ним не ходим.
-          return RouteParams.issueKey.hasMatch(key)
-              ? IssueScreen(issueKey: key)
-              : const _IssueNotFoundScreen();
+          if (!RouteParams.issueKey.hasMatch(key)) {
+            return const _IssueNotFoundScreen();
+          }
+
+          // Якорь на комментарий: по нему приходят из уведомления
+          // об упоминании (US-102, US-104).
+          return IssueScreen(
+            issueKey: key,
+            anchorCommentId: state.uri.queryParameters['comment'],
+          );
         },
       ),
       GoRoute(
