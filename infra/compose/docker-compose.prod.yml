@@ -1,0 +1,158 @@
+# Боевое окружение SL Tracker.
+#
+# Запускается на сервере из корня репозитория:
+#   docker compose -f infra/compose/docker-compose.prod.yml --env-file .env up -d
+#
+# Подробная инструкция — infra/DEPLOY.md. Обновление — infra/scripts/deploy.sh.
+#
+# Наружу торчит только Caddy (80 и 443). База, Redis и MinIO портов на хост
+# не публикуют: до них дотягивается только сеть compose. Это не паранойя —
+# открытый в интернет Postgres выносят автоматическими сканерами за часы.
+
+name: sl-tracker
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER не задан}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD не задан}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB не задан}
+    volumes:
+      # В postgres:18 данные лежат в /var/lib/postgresql/18/docker, а VOLUME
+      # объявлен на /var/lib/postgresql — монтировать надо сюда. Привычный
+      # по PG 16 путь /var/lib/postgresql/data увёл бы данные в анонимный том.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD не задан}
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD не задан}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER не задан}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD не задан}
+      # Адрес, по которому к хранилищу идёт БРАУЗЕР. Подпись S3 привязана
+      # к хосту: подписав внутренним minio:9000, мы выдадим ссылку,
+      # которая у пользователя не откроется.
+      MINIO_BROWSER_REDIRECT_URL: ${MINIO_PUBLIC_URL:?MINIO_PUBLIC_URL не задан}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  # Одноразовый прогон миграций. Не поднимается сам — вызывается деплоем:
+  #   docker compose -f ... run --rm migrate
+  # Отдельным сервисом, а не в старте API: при нескольких экземплярах API
+  # они начали бы мигрировать базу одновременно.
+  migrate:
+    build:
+      context: ../../apps/api
+    restart: "no"
+    profiles: ["tools"]
+    environment:
+      NODE_ENV: production
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    command: ["node", "dist/migrate.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ../../apps/api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_PORT: 3000
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB:-0}
+      MINIO_HOST: minio
+      MINIO_PORT: 9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-sl-attachments}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      MINIO_USE_SSL: "false"
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:?MINIO_PUBLIC_URL не задан}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET не задан}
+      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL не задан}
+      YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:?YANDEX_CLIENT_ID не задан}
+      YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:?YANDEX_CLIENT_SECRET не задан}
+      YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI:?YANDEX_REDIRECT_URI не задан}
+      ACCESS_LIST_BOOTSTRAP_EMAILS: ${ACCESS_LIST_BOOTSTRAP_EMAILS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  caddy:
+    build:
+      context: ../../apps/web
+      dockerfile: ../../infra/docker/web.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SL_DOMAIN: ${SL_DOMAIN:?SL_DOMAIN не задан}
+      SL_S3_DOMAIN: ${SL_S3_DOMAIN:?SL_S3_DOMAIN не задан}
+      SL_ACME_EMAIL: ${SL_ACME_EMAIL:?SL_ACME_EMAIL не задан}
+    volumes:
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Сертификаты. Терять этот том нельзя: Let's Encrypt ограничивает
+      # частоту выдачи, и после нескольких пересозданий выдача упрётся в лимит.
+      - caddy-data:/data
+      - caddy-config:/config
+      - caddy-logs:/var/log/caddy
+    depends_on:
+      - api
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  caddy-data:
+  caddy-config:
+  caddy-logs:

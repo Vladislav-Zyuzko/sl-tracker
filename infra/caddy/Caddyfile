@@ -1,14 +1,15 @@
 # Боевой обратный прокси SL Tracker.
-# Фронт и API на одном домене — см. docs/adr/0001-single-domain-first-party-session.md
+# Фронт и API на одном домене — docs/adr/0001-single-domain-first-party-session.md
 #
-# Домен и почта для Let's Encrypt приходят из переменных окружения контейнера:
-#   SL_DOMAIN=tracker.example.com
-#   SL_ACME_EMAIL=admin@example.com
-
+# Переменные приходят из окружения контейнера (см. docker-compose.prod.yml):
+#   SL_DOMAIN      — адрес приложения, например tracker.185-12-34-56.sslip.io
+#   SL_S3_DOMAIN   — адрес хранилища,  например s3.185-12-34-56.sslip.io
+#   SL_ACME_EMAIL  — почта для Let's Encrypt
 {
 	email {$SL_ACME_EMAIL}
 }
 
+# --- Приложение -----------------------------------------------------------
 {$SL_DOMAIN} {
 	encode zstd gzip
 
@@ -20,9 +21,7 @@
 		format json
 	}
 
-	# --- Безопасность -------------------------------------------------------
 	header {
-		# Не даём встраивать приложение в чужие фреймы (защита от кликджекинга).
 		X-Frame-Options "DENY"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
@@ -30,7 +29,9 @@
 		-Server
 	}
 
-	# --- API ----------------------------------------------------------------
+	# API и WebSocket. Upgrade Caddy пропускает сам, отдельной директивы
+	# не нужно — проверено на локальном стенде: рукопожатие /api/ws
+	# доходит до NestJS и без сессии отбивается 401.
 	handle /api/* {
 		reverse_proxy api:3000 {
 			health_uri /api/health
@@ -38,17 +39,12 @@
 		}
 	}
 
-	# WebSocket для живых обновлений.
-	handle /ws* {
-		reverse_proxy api:3000
-	}
-
-	# --- Статика Flutter ----------------------------------------------------
+	# --- Статика Flutter ---
 	handle {
 		root * /srv/web
 
-		# index.html и service worker не кэшируем: иначе пользователь застрянет
-		# на старой сборке после деплоя.
+		# index.html и service worker не кэшируем: иначе после выката
+		# пользователь останется на старой сборке.
 		@nocache path /index.html /flutter_service_worker.js /version.json
 		header @nocache Cache-Control "no-cache, no-store, must-revalidate"
 
@@ -59,17 +55,36 @@
 	}
 }
 
+# --- Хранилище вложений ---------------------------------------------------
+# Отдельным именем, а не путём внутри основного домена: подпись S3 считается
+# от хоста и пути, и префикс вида /s3 ломает проверку подписи на стороне MinIO.
+# Сюда ходит только браузер по заранее подписанным ссылкам со сроком 10 минут;
+# без подписи MinIO отвечает 403 сам.
+{$SL_S3_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# Консоль MinIO наружу не отдаём: она админская и ей в интернете нечего делать.
+	# Понадобится — пробрасывается по SSH: ssh -L 9001:localhost:9001
+	handle /minio/ui/* {
+		respond 404
+	}
+
+	reverse_proxy minio:9000
+}
+
 # ПРИМЕЧАНИЕ про многопоточный рендеринг Flutter Web.
 #
-# Skwasm использует несколько потоков только при cross-origin isolation, а она
-# требует заголовков:
-#     Cross-Origin-Opener-Policy: same-origin
-#     Cross-Origin-Embedder-Policy: require-corp
+# Skwasm использует несколько потоков только при cross-origin isolation,
+# а она требует заголовков Cross-Origin-Opener-Policy: same-origin и
+# Cross-Origin-Embedder-Policy: require-corp.
 #
-# Мы их НЕ включаем, и это осознанно: require-corp блокирует загрузку любых
-# сторонних ресурсов без заголовка CORP — в том числе аватарок пользователей
-# с серверов Яндекса. Без изоляции Skwasm работает в один поток, что для
-# интерфейса трекера приемлемо.
-#
-# Если однажды понадобится изоляция, аватарки придётся проксировать через свой
-# домен либо кэшировать в MinIO. Решать это надо вместе, а не включением заголовков.
+# Мы их НЕ включаем осознанно: require-corp заблокирует загрузку сторонних
+# ресурсов без заголовка CORP — в том числе аватарок пользователей с серверов
+# Яндекса и вложений с домена хранилища. Без изоляции Skwasm работает
+# в один поток, что для интерфейса трекера приемлемо.
