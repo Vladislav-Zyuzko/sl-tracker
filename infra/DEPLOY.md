@@ -5,7 +5,8 @@
 
 Первое развёртывание — 30–40 минут, половина из них уходит на сборку клиента.
 
-Дальше в тексте IP обозначен как `185.12.34.56` — подставляй свой.
+Адреса в тексте — реальные, сервера пользователя (`72.56.41.79`). Проверено: оба
+имени резолвятся в этот адрес. При смене сервера заменить их по всему файлу.
 
 ---
 
@@ -58,12 +59,12 @@ free -h
 
 ## 3. Адреса без покупки домена
 
-`sslip.io` — публичный DNS: имя вида `что-угодно.185-12-34-56.sslip.io`
-резолвится в `185.12.34.56`. Для Let's Encrypt это обычное доменное имя.
+`sslip.io` — публичный DNS: имя вида `что-угодно.72-56-41-79.sslip.io`
+резолвится в `72.56.41.79`. Для Let's Encrypt это обычное доменное имя.
 
 ```bash
-getent hosts tracker.185-12-34-56.sslip.io
-getent hosts s3.185-12-34-56.sslip.io
+getent hosts tracker.72-56-41-79.sslip.io
+getent hosts s3.72-56-41-79.sslip.io
 ```
 
 Обе команды должны вывести твой IP.
@@ -95,7 +96,7 @@ cd /opt/sl-tracker && git checkout develop
 (локальный не удаляй, он нужен для разработки):
 
 ```
-https://tracker.185-12-34-56.sslip.io:8443/api/auth/yandex/callback
+https://tracker.72-56-41-79.sslip.io:8443/api/auth/yandex/callback
 ```
 
 Порт в адресе — часть адреса, и совпадать он должен символ в символ.
@@ -123,13 +124,13 @@ SESSION_SECRET=<из вывода>
 HTTP_PORT=80
 HTTPS_PORT=8443
 
-SL_DOMAIN=tracker.185-12-34-56.sslip.io
-SL_S3_DOMAIN=s3.185-12-34-56.sslip.io
+SL_DOMAIN=tracker.72-56-41-79.sslip.io
+SL_S3_DOMAIN=s3.72-56-41-79.sslip.io
 SL_ACME_EMAIL=твоя@почта
 
-APP_BASE_URL=https://tracker.185-12-34-56.sslip.io:8443
-MINIO_PUBLIC_URL=https://s3.185-12-34-56.sslip.io:8443
-YANDEX_REDIRECT_URI=https://tracker.185-12-34-56.sslip.io:8443/api/auth/yandex/callback
+APP_BASE_URL=https://tracker.72-56-41-79.sslip.io:8443
+MINIO_PUBLIC_URL=https://s3.72-56-41-79.sslip.io:8443
+YANDEX_REDIRECT_URI=https://tracker.72-56-41-79.sslip.io:8443/api/auth/yandex/callback
 
 YANDEX_CLIENT_ID=<из кабинета Яндекса>
 YANDEX_CLIENT_SECRET=<из кабинета Яндекса>
@@ -178,7 +179,7 @@ docker compose -f infra/compose/docker-compose.prod.yml --env-file .env logs api
 ## 8. Проверка
 
 ```bash
-curl -sS https://tracker.185-12-34-56.sslip.io:8443/api/health
+curl -sS https://tracker.72-56-41-79.sslip.io:8443/api/health
 ```
 
 Ожидаемо: `{"status":"ok","postgres":{"status":"up"...`.
@@ -192,7 +193,7 @@ docker compose -f infra/compose/docker-compose.prod.yml --env-file .env logs --t
 Частые причины: закрыт 80-й порт извне (проверь фаервол хостинга, не только
 `ufw`), имя не резолвится, исчерпан лимит Let's Encrypt после неудачных попыток.
 
-Дальше открой `https://tracker.185-12-34-56.sslip.io:8443` и войди через Яндекс ID.
+Дальше открой `https://tracker.72-56-41-79.sslip.io:8443` и войди через Яндекс ID.
 Отказ во входе означает, что твоего адреса нет в `ACCESS_LIST_BOOTSTRAP_EMAILS` —
 проверка идёт до создания сессии, это защита, а не поломка.
 
