@@ -127,6 +127,12 @@ class CommentsController extends AsyncNotifier<CommentsPage> {
 
   var _nextLocalId = 0;
 
+  /// Догружались ли более ранние комментарии.
+  ///
+  /// От этого зависит, чей курсор «более ранних» правильный после
+  /// перечитывания: свой, уже уехавший вглубь ленты, или свежий из ответа.
+  var _pagedBack = false;
+
   @override
   Future<CommentsPage> build() async {
     final page = await ref
@@ -169,6 +175,7 @@ class CommentsController extends AsyncNotifier<CommentsPage> {
 
       if (!ref.mounted) return;
 
+      _pagedBack = true;
       final latest = state.value ?? current;
       state = AsyncData(
         latest.copyWith(
@@ -196,6 +203,69 @@ class CommentsController extends AsyncNotifier<CommentsPage> {
 
     state = AsyncData(current.copyWith(loadEarlierFailed: false));
     await loadEarlier();
+  }
+
+  /// Перечитывает свежую часть ленты.
+  ///
+  /// Вызывается по живому событию и после восстановления связи. Именно
+  /// перечитывает и **сливает**, а не пересоздаёт ленту: догруженные ранее
+  /// порции остаются на месте, а неотправленные комментарии — тем более
+  /// (US-71, набранный текст не теряется ни при каких обстоятельствах).
+  Future<void> reload() async {
+    if (state.value == null) return;
+
+    final CommentListDto page;
+    try {
+      page = await ref.read(commentsRepositoryProvider).list(issueKey);
+    } on Object {
+      // Живое обновление — не повод показывать ошибку: на экране остаётся
+      // то, что уже загружено.
+      return;
+    }
+
+    final latest = state.value;
+    if (!ref.mounted || latest == null) return;
+
+    final freshIds = {for (final item in page.items) item.id};
+    final freshOldest = page.items.isEmpty ? null : page.items.first.createdAt;
+    final kept = [
+      for (final item in latest.items)
+        if (!freshIds.contains(item.id) &&
+            (freshOldest == null || item.createdAt.isBefore(freshOldest)))
+          item,
+    ];
+
+    state = AsyncData(
+      latest.copyWith(
+        items: [...kept, ...page.items],
+        total: page.total.toInt(),
+        // Курсор «более ранних» свежего ответа указывает на границу первой
+        // порции. Если человек уже догрузил ленту вглубь, эта граница
+        // осталась позади, и подменять ею свой курсор нельзя.
+        earlierCursor: _pagedBack ? latest.earlierCursor : page.nextCursor,
+        clearEarlierCursor:
+            !_pagedBack && page.nextCursor == null,
+      ),
+    );
+  }
+
+  /// Убирает комментарий, удалённый другим пользователем.
+  ///
+  /// Точечно, а не перечитыванием: удалённый комментарий мог лежать далеко
+  /// вверху ленты, куда свежая порция не достаёт.
+  void removeLocally(String commentId) {
+    final current = state.value;
+    if (current == null) return;
+
+    final index = current.items.indexWhere((item) => item.id == commentId);
+    if (index < 0) return;
+
+    state = AsyncData(
+      current.copyWith(
+        items: [...current.items]..removeAt(index),
+        total: current.total - 1,
+      ),
+    );
   }
 
   /// Отправляет комментарий.

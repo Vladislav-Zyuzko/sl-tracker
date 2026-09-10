@@ -606,6 +606,163 @@ Future<void> main(List<String> args) async {
     }
   });
 
+  // Уведомления: раздел, ради которого написан этот заход. Проверяется
+  // и сборка адресов, и то, что POST без тела не разваливается о 400.
+  await check('GET ленты уведомлений собирает порцию и курсор', () async {
+    try {
+      await client.notifications.notificationsControllerList(
+        cursor: 'eyJpZCI6MX0',
+        limit: 30,
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+      assert(
+        lastRequestUri.contains('/api/notifications'),
+        'путь собран неверно: $lastRequestUri',
+      );
+      assert(
+        lastRequestUri.contains('limit=30'),
+        'размер порции не доехал: $lastRequestUri',
+      );
+      assert(
+        lastRequestUri.contains('cursor=eyJpZCI6MX0'),
+        'курсор не доехал: $lastRequestUri',
+      );
+    }
+  });
+
+  await check('GET счётчика непрочитанных без сессии — 401', () async {
+    try {
+      await client.notifications.notificationsControllerUnreadCount();
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  // Пометка прочитанным — POST **без тела**. Тот же класс ошибки, на котором
+  // Fastify раньше отвечал 400 из-за `Content-Type: application/json`
+  // у пустого запроса.
+  await check('POST пометки прочитанным без тела не ломается о 400', () async {
+    try {
+      await client.notifications.notificationsControllerMarkRead(
+        id: '00000000-0000-0000-0000-000000000000',
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.statusCode != 400, 'пустой POST снова отвергнут: $failure');
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('POST «отметить все» без тела не ломается о 400', () async {
+    try {
+      await client.notifications.notificationsControllerMarkAllRead();
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.statusCode != 400, 'пустой POST снова отвергнут: $failure');
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  await check('GET настроек подписки без сессии — 401', () async {
+    try {
+      await client.notifications.notificationsControllerSettings();
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  // Экран профиля меняет ровно один тип за раз: одновременное переключение
+  // двух тумблеров иначе затирало бы друг друга.
+  await check('PUT настроек отправляет один тип и доезжает до 401', () async {
+    try {
+      await client.notifications.notificationsControllerUpdateSettings(
+        body: const UpdateNotificationSettingsDto(
+          items: [
+            UpdateNotificationSettingDto(
+              type: UpdateNotificationSettingDtoType.issueCommented,
+              enabled: false,
+            ),
+          ],
+        ),
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.statusCode != 400, 'тело не принято: $failure');
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+    }
+  });
+
+  // Поиск по участникам проекта: маршрут появился под селекторы автора
+  // и исполнителя. Здесь проверяется только сборка адреса — экраны на него
+  // ещё не переведены.
+  await check('GET участников проекта принимает поиск и курсор', () async {
+    try {
+      await client.projects.membersControllerList(
+        slug: 'sweet-limit',
+        q: 'иван',
+        cursor: 'eyJpZCI6MX0',
+        limit: 50,
+      );
+      throw StateError('ожидался 401');
+    } on DioException catch (error) {
+      final failure = ApiFailure.of(error);
+      assert(failure.kind == ApiFailureKind.unauthorized, '$failure');
+      assert(
+        lastRequestUri.contains('q=%D0%B8%D0%B2%D0%B0%D0%BD') ||
+            lastRequestUri.contains('q=иван'),
+        'поиск не доехал: $lastRequestUri',
+      );
+      assert(
+        lastRequestUri.contains('cursor=eyJpZCI6MX0'),
+        'курсор не доехал вместе с поиском: $lastRequestUri',
+      );
+    }
+  });
+
+  // Живые обновления. Открыть настоящий WebSocket отсюда нечем — в VM нет
+  // браузерного клиента и нет cookie, — но рукопожатие это и есть обычный
+  // HTTP-запрос с `Upgrade`, и проверить его код ответа можно. Без сессии
+  // сервер обязан ответить 401 **до** открытия сокета (`websocket.md`, 2).
+  await check('рукопожатие WebSocket без сессии — 401, сокет не открывается', () async {
+    final uri = Uri.parse('$origin/api/ws');
+    final httpClient = HttpClient();
+
+    try {
+      final request = await httpClient.openUrl('GET', uri);
+      request.headers
+        ..set(HttpHeaders.connectionHeader, 'Upgrade')
+        ..set('Upgrade', 'websocket')
+        ..set('Sec-WebSocket-Version', '13')
+        // Ключ произвольный: до проверки протокола запрос не доживёт.
+        ..set('Sec-WebSocket-Key', 'dGhlIHNhbXBsZSBub25jZQ==')
+        ..set('Origin', origin);
+
+      final response = await request.close();
+      await response.drain<void>();
+
+      assert(
+        response.statusCode == HttpStatus.unauthorized,
+        'ожидался 401, пришёл ${response.statusCode}',
+      );
+      assert(
+        response.statusCode != HttpStatus.switchingProtocols,
+        'сокет открылся без сессии — это дыра, а не обновление',
+      );
+    } finally {
+      httpClient.close(force: true);
+    }
+  });
+
   // Частичное обновление: `PATCH` с одним полем обязан отправлять **одно
   // поле**. Сгенерированная модель кладёт в JSON все ключи со значением
   // `null`, а по контракту `assigneeId: null` снимает исполнителя,

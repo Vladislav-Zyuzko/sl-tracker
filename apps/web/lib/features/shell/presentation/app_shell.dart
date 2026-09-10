@@ -5,13 +5,17 @@ import 'package:go_router/go_router.dart';
 
 import 'package:sl_tracker_web/app/router/app_routes.dart';
 import 'package:sl_tracker_web/core/platform/browser_navigator.dart';
+import 'package:sl_tracker_web/core/realtime/realtime_client.dart';
 import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
+import 'package:sl_tracker_web/features/notifications/presentation/notifications_providers.dart';
+import 'package:sl_tracker_web/features/realtime/presentation/realtime_providers.dart';
 import 'package:sl_tracker_web/features/shell/presentation/active_issues_providers.dart';
 import 'package:sl_tracker_web/features/shell/presentation/shell_header.dart';
 import 'package:sl_tracker_web/features/shell/presentation/shell_shortcuts.dart';
 import 'package:sl_tracker_web/features/shell/presentation/shell_sidebar.dart';
 import 'package:sl_tracker_web/features/shell/presentation/sidebar_providers.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
+import 'package:sl_tracker_web/shared/uikit/feedback/sl_offline_bar.dart';
 import 'package:sl_tracker_web/shared/uikit/feedback/sl_toast.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
@@ -150,6 +154,22 @@ class _AppShellState extends ConsumerState<AppShell> {
     final collapsed =
         breakpoint.isTablet || ref.watch(sidebarCollapsedProvider);
 
+    // Счётчик уведомлений живой: `user:me` приносит его вместе с событием,
+    // и отдельный запрос ради колокольчика не нужен.
+    final unreadCount = ref.watch(unreadCountProvider).value;
+    final connection = ref.watch(realtimeStatusProvider);
+
+    // Возвращение связи подтверждается тостом, а полоса офлайна пропадает
+    // сама (`components.md`, 17.4).
+    ref.listen(realtimeStatusProvider, (previous, next) {
+      if (previous == RealtimeStatus.offline &&
+          next == RealtimeStatus.online) {
+        ref
+            .read(toastControllerProvider.notifier)
+            .success('Соединение восстановлено');
+      }
+    });
+
     final activeIssues = ref.watch(activeIssuesProvider);
     final searchQuery = ref.watch(activeIssuesSearchProvider);
     final page = activeIssues.value;
@@ -225,10 +245,14 @@ class _AppShellState extends ConsumerState<AppShell> {
               // `GET /api/me`: клиент не вычисляет право сам.
               canManageAccessList: user?.canManageAccessList ?? false,
               onSignOut: _signOut,
+              unreadCount: unreadCount,
               onMenuTap: breakpoint.isPhone
                   ? () => _scaffoldKey.currentState?.openDrawer()
                   : null,
             ),
+            // Полоса офлайна живёт под шапкой и над содержимым: она про всё
+            // приложение сразу, а не про один экран.
+            SLOfflineBar(visible: connection == RealtimeStatus.offline),
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,

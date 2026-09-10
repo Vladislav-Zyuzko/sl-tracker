@@ -48,6 +48,26 @@ sealed class SLDateFormat {
         : '${local.day} $month ${local.year}';
   }
 
+  /// «14:32» сегодня, «вчера» вчера, дальше — «12 фев».
+  ///
+  /// Лента уведомлений читается сверху вниз и в основном за сегодня: точное
+  /// время у свежего события полезнее даты, а у позавчерашнего — наоборот
+  /// (`docs/design/screens/notifications.md`).
+  static String timeOrDay(DateTime date, {DateTime? now}) {
+    final local = date.toLocal();
+    final today = (now ?? DateTime.now()).toLocal();
+    final startOfToday = DateTime(today.year, today.month, today.day);
+
+    if (!local.isBefore(startOfToday)) {
+      return '${_twoDigits(local.hour)}:${_twoDigits(local.minute)}';
+    }
+    if (!local.isBefore(startOfToday.subtract(const Duration(days: 1)))) {
+      return 'вчера';
+    }
+
+    return short(local, now: today);
+  }
+
   /// «12.02» — компактный вид для узкой колонки.
   static String numeric(DateTime date) {
     final local = date.toLocal();

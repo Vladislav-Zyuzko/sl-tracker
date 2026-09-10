@@ -260,13 +260,15 @@ class _ProjectsClient implements ProjectsClient {
   @override
   Future<ProjectMemberListDto> membersControllerList({
     required String slug,
-    String? cursor,
     num? limit = 50,
+    String? q,
+    String? cursor,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
-      r'cursor': cursor,
       r'limit': limit,
+      r'q': q,
+      r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

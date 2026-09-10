@@ -49,10 +49,26 @@ enum ProjectTab {
 /// (US-13, `permissions.md`, п. 5).
 class ProjectScreen extends ConsumerStatefulWidget {
   /// @nodoc
-  const ProjectScreen({required this.slug, super.key});
+  const ProjectScreen({required this.slug, this.initialTab, super.key});
 
   /// Короткое имя из адреса. Может быть прежним, а не действующим.
   final String slug;
+
+  /// Вкладка из адреса (`?tab=members`). По ней приходят из уведомления
+  /// о новом участнике (US-23). Дальше вкладка живёт состоянием экрана
+  /// и адрес не переписывает: переключение вкладок — не навигация,
+  /// и засорять им историю браузера незачем.
+  final String? initialTab;
+
+  /// Разбирает вкладку из адреса. Незнакомое значение — не ошибка, а опечатка
+  /// в ссылке: открывается вкладка по умолчанию.
+  static ProjectTab? tabOf(String? value) => switch (value) {
+    'queues' => ProjectTab.queues,
+    'members' => ProjectTab.members,
+    'invitations' => ProjectTab.invitations,
+    'settings' => ProjectTab.settings,
+    _ => null,
+  };
 
   /// Ширина контента.
   static const contentWidth = 1200.0;
@@ -64,7 +80,7 @@ class ProjectScreen extends ConsumerStatefulWidget {
 class _ProjectScreenState extends ConsumerState<ProjectScreen> {
   final _headerFocusNode = FocusNode(debugLabel: 'project-header');
 
-  var _tab = ProjectTab.queues;
+  late var _tab = ProjectScreen.tabOf(widget.initialTab) ?? ProjectTab.queues;
 
   @override
   void initState() {

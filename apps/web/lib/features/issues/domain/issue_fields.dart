@@ -63,3 +63,39 @@ IssueUserDto issueUserOf(MentionSuggestionDto suggestion) => IssueUserDto(
   displayName: suggestion.displayName,
   avatarUrl: suggestion.avatarUrl,
 );
+
+/// Имена полей задачи так, как они приходят в `changedFields` события
+/// `issue.updated` и называются в ответе `GET /api/issues/{key}`.
+///
+/// Строками, а не перечислением: сервер вправе прислать поле, о котором
+/// клиент ещё не знает, и падать на этом нельзя. Собраны в одном месте,
+/// потому что опечатка в такой строке не видна ниоткуда — подсветка просто
+/// не загорится.
+sealed class IssueFieldNames {
+  /// @nodoc
+  static const title = 'title';
+
+  /// @nodoc
+  static const description = 'description';
+
+  /// @nodoc
+  static const status = 'status';
+
+  /// @nodoc
+  static const priority = 'priority';
+
+  /// @nodoc
+  static const storyPoints = 'storyPoints';
+
+  /// @nodoc
+  static const author = 'author';
+
+  /// @nodoc
+  static const assignee = 'assignee';
+
+  /// Внешние ссылки.
+  static const links = 'links';
+
+  /// Вложения.
+  static const attachments = 'attachments';
+}

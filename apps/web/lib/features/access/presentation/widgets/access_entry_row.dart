@@ -7,6 +7,7 @@ import 'package:sl_tracker_web/features/access/presentation/widgets/access_sourc
 import 'package:sl_tracker_web/shared/uikit/buttons/sl_icon_button.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
 import 'package:sl_tracker_web/shared/uikit/focus/sl_focus_ring.dart';
+import 'package:sl_tracker_web/shared/uikit/indicators/sl_owner_badge.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_motion.dart';
 import 'package:sl_tracker_web/shared/uikit/text/sl_middle_ellipsis_text.dart';
@@ -292,47 +293,9 @@ class _EmailCell extends StatelessWidget {
         ],
         if (entry.isInstanceOwner) ...[
           const SizedBox(width: SLSpacing.space2),
-          const _OwnerBadge(),
+          const SLOwnerBadge(),
         ],
       ],
-    );
-  }
-}
-
-/// Пометка «Владелец трекера».
-///
-/// Владелец — единственная глобальная роль: она даёт право вести список
-/// доступа и не даёт никаких прав внутри проектов.
-class _OwnerBadge extends StatelessWidget {
-  const _OwnerBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SLColorScheme.of(context);
-    final text = SLTextScheme.of(context);
-
-    return Container(
-      height: AccessSourceBadge.height,
-      padding: const EdgeInsets.symmetric(horizontal: SLSpacing.space2),
-      decoration: BoxDecoration(
-        borderRadius: SLRadii.smAll,
-        border: Border.all(color: colors.border, width: SLBorders.hairline),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.key_rounded,
-            size: SLIconSizes.icon12,
-            color: colors.iconMuted,
-          ),
-          const SizedBox(width: SLSpacing.space1),
-          Text(
-            'Владелец',
-            style: text.caption.copyWith(color: colors.textSecondary),
-          ),
-        ],
-      ),
     );
   }
 }

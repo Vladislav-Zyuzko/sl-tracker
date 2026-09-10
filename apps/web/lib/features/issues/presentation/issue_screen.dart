@@ -10,11 +10,13 @@ import 'package:sl_tracker_web/core/network/api_failure.dart';
 import 'package:sl_tracker_web/core/platform/browser_navigator.dart';
 import 'package:sl_tracker_web/core/platform/file_drop.dart';
 import 'package:sl_tracker_web/core/platform/file_picker.dart';
+import 'package:sl_tracker_web/core/realtime/realtime_client.dart';
 import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
 import 'package:sl_tracker_web/features/issues/presentation/issue_attachments_providers.dart';
 import 'package:sl_tracker_web/features/issues/presentation/issue_comments_providers.dart';
 import 'package:sl_tracker_web/features/issues/presentation/issue_history_providers.dart';
 import 'package:sl_tracker_web/features/issues/presentation/issue_providers.dart';
+import 'package:sl_tracker_web/features/issues/presentation/issue_realtime.dart';
 import 'package:sl_tracker_web/features/issues/presentation/widgets/comment_composer.dart';
 import 'package:sl_tracker_web/features/issues/presentation/widgets/comment_item.dart';
 import 'package:sl_tracker_web/features/issues/presentation/widgets/comments_sliver.dart';
@@ -27,12 +29,14 @@ import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_header
 import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_links.dart';
 import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_skeletons.dart';
 import 'package:sl_tracker_web/features/queues/presentation/queue_providers.dart';
+import 'package:sl_tracker_web/features/realtime/presentation/realtime_providers.dart';
 import 'package:sl_tracker_web/shared/uikit/buttons/sl_button.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
 import 'package:sl_tracker_web/shared/uikit/feedback/sl_toast.dart';
 import 'package:sl_tracker_web/shared/uikit/navigation/sl_tabs.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
+import 'package:sl_tracker_web/shared/uikit/sl_motion.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_error_state.dart';
 import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
 
@@ -77,6 +81,9 @@ class IssueScreen extends ConsumerStatefulWidget {
   /// прежде чем признать его недостижимым.
   static const anchorLookupPages = 3;
 
+  /// Насколько близко к концу ленты человек считается «внизу».
+  static const atBottomThreshold = 48.0;
+
   @override
   ConsumerState<IssueScreen> createState() => _IssueScreenState();
 }
@@ -108,12 +115,71 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
     super.initState();
     _highlightedCommentId = widget.anchorCommentId;
     _attachDropTarget();
+    _scrollController.addListener(_onScroll);
+  }
+
+  /// Человек доехал до конца ленты — плашка «Новых комментариев» больше
+  /// не нужна: он их и так видит.
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.extentAfter >
+        IssueScreen.atBottomThreshold) {
+      return;
+    }
+
+    ref
+        .read(issueRealtimeProvider(widget.issueKey).notifier)
+        .clearNewComments();
+  }
+
+  /// Прокручивает ленту вниз по нажатию на плашку.
+  Future<void> _scrollToNewComments() async {
+    ref
+        .read(issueRealtimeProvider(widget.issueKey).notifier)
+        .clearNewComments();
+
+    if (!_scrollController.hasClients) return;
+
+    await _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: SLMotion.durationOf(context, SLMotion.base),
+      curve: SLMotion.baseInCurve,
+    );
+  }
+
+  /// Перечитывает всё, что показывает экран.
+  ///
+  /// Кнопка «Обновить» в баннере устаревших данных и восстановление связи
+  /// делают ровно это: данные едут обычными запросами, а не «доигрываются»
+  /// из пропущенных событий (`websocket.md`, 1).
+  void _refreshAll() {
+    _issueNotifier.refresh();
+    _commentsNotifier.reload();
+    ref.read(issueHistoryProvider(widget.issueKey).notifier).refresh();
+  }
+
+  /// Задачу удалил другой пользователь.
+  ///
+  /// Экран закрывается сразу, а не «при следующем действии»: сидеть
+  /// на карточке того, чего уже нет, — худшее из состояний.
+  void _onDeletedElsewhere() {
+    if (!mounted) return;
+
+    final queueKey = _issue?.queue.key;
+    ref
+        .read(toastControllerProvider.notifier)
+        .show('Задачу удалили', variant: SLToastVariant.info);
+    context.go(
+      queueKey == null ? AppRoutes.projects : AppRoutes.queuePath(queueKey),
+    );
   }
 
   @override
   void dispose() {
     _detachDrop?.call();
-    _scrollController.dispose();
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
     _composerFocus.dispose();
     _descriptionController.dispose();
     _commentController.dispose();
@@ -303,7 +369,6 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
   }
 
   Future<void> _saveDescription() async {
-    final before = _issue?.description ?? '';
     setState(() => _savingDescription = true);
 
     try {
@@ -314,17 +379,13 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
         _editingDescription = false;
         _savingDescription = false;
       });
-    } on Object catch (error) {
+    } on Object {
       if (!mounted) return;
 
       setState(() => _savingDescription = false);
-      // Конфликт правки (D-27): молча перезаписывать чужой текст нельзя.
-      if (ApiFailure.of(error).kind == ApiFailureKind.conflict) {
-        await _resolveDescriptionConflict(before);
-
-        return;
-      }
-
+      // Конфликта редактирования у описания не бывает: продукт сознательно
+      // решил не разрешать одновременную правку, побеждает последняя запись
+      // (D-27 закрыт). Поэтому здесь один путь — обычная ошибка с повтором.
       ref
           .read(toastControllerProvider.notifier)
           .error(
@@ -333,22 +394,6 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
             onAction: _saveDescription,
           );
     }
-  }
-
-  Future<void> _resolveDescriptionConflict(String before) async {
-    final author = _issue?.author.displayName ?? 'другой участник';
-    final overwrite = await DescriptionConflictDialog.show(context, author);
-    if (!mounted || overwrite == null) return;
-
-    if (overwrite) {
-      await _saveDescription();
-
-      return;
-    }
-
-    _descriptionController.text = before;
-    setState(() => _editingDescription = false);
-    _issueNotifier.refresh();
   }
 
   // --- Комментарии ----------------------------------------------------------
@@ -569,6 +614,19 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
     final issue = ref.watch(issueProvider(widget.issueKey));
     final breakpoint = SLBreakpoint.of(context);
 
+    // Подписка на тему задачи живёт, пока открыт экран: `watch` держит
+    // провайдер, а он — подписку на сервере.
+    final live = ref.watch(issueRealtimeProvider(widget.issueKey));
+
+    // Удаление приходит один раз, и реагировать на него надо один раз —
+    // поэтому слушателем, а не проверкой значения в `build`.
+    ref.listen(
+      issueRealtimeProvider(widget.issueKey).select((state) => state.deleted),
+      (previous, deleted) {
+        if (deleted && previous != true) _onDeletedElsewhere();
+      },
+    );
+
     final failure = issue.error == null ? null : ApiFailure.of(issue.error!);
     if (failure != null) return _buildError(failure);
 
@@ -590,6 +648,13 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
                 _buildDesktop(issue.value)
               else
                 _buildNarrow(issue.value, breakpoint),
+              // Плашка не двигает ленту сама: человек решает, когда
+              // спуститься к новому (`screens/README.md`, 7).
+              if (live.newComments > 0 && _tab == IssueTab.comments)
+                _NewCommentsPill(
+                  count: live.newComments,
+                  onPressed: _scrollToNewComments,
+                ),
               if (_dropActive) const _DropOverlay(),
             ],
           ),
@@ -781,6 +846,7 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
                       ),
                     ],
                     const SizedBox(height: SLSpacing.space6),
+                    _StaleDataBanner(onRefresh: _refreshAll),
                     _Tabs(
                       value: _tab,
                       issueKey: widget.issueKey,
@@ -991,6 +1057,102 @@ class _DropOverlay extends StatelessWidget {
           child: Text(
             'Отпустите файлы, чтобы прикрепить',
             style: text.title.copyWith(color: colors.accentPressed),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Баннер «данные могут быть устаревшими».
+///
+/// Показывается, пока живой связи нет: полоса офлайна в шапке говорит
+/// о соединении вообще, а этот баннер — о том, что именно эта лента
+/// перестала обновляться сама (`screens/issue.md`, «Нет соединения»).
+class _StaleDataBanner extends ConsumerWidget {
+  const _StaleDataBanner({required this.onRefresh});
+
+  /// Перечитать данные экрана обычными запросами.
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final offline = ref.watch(
+      realtimeStatusProvider.select(
+        (status) => status == RealtimeStatus.offline,
+      ),
+    );
+    if (!offline) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: SLSpacing.space3),
+      child: SLBanner(
+        title: 'Данные могут быть устаревшими',
+        description: 'Связь потеряна — новые комментарии и правки не приедут.',
+        variant: SLBannerVariant.warning,
+        actionLabel: 'Обновить',
+        onAction: onRefresh,
+      ),
+    );
+  }
+}
+
+/// Плашка «Новых комментариев: N».
+///
+/// Появляется, только когда человек не внизу ленты: если он там, новое
+/// и так видно, а плашка закрывала бы поле ввода.
+class _NewCommentsPill extends StatelessWidget {
+  const _NewCommentsPill({required this.count, required this.onPressed});
+
+  final int count;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SLColorScheme.of(context);
+    final text = SLTextScheme.of(context);
+
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: SLSpacing.space6,
+      child: Center(
+        child: Semantics(
+          button: true,
+          liveRegion: true,
+          label: 'Новых комментариев: $count. Показать',
+          child: ExcludeSemantics(
+            child: Material(
+              color: colors.accent,
+              borderRadius: SLRadii.fullAll,
+              child: InkWell(
+                onTap: onPressed,
+                borderRadius: SLRadii.fullAll,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: SLSpacing.space3,
+                    vertical: SLSpacing.space2,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.arrow_downward_rounded,
+                        size: SLIconSizes.icon16,
+                        color: colors.textOnAccent,
+                      ),
+                      const SizedBox(width: SLSpacing.space1),
+                      Text(
+                        'Новых комментариев: $count',
+                        style: text.bodySStrong.copyWith(
+                          color: colors.textOnAccent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),

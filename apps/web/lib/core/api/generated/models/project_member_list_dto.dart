@@ -16,7 +16,7 @@ abstract class ProjectMemberListDto with _$ProjectMemberListDto {
     required List<ProjectMemberDto> items,
     required String? nextCursor,
 
-    /// Всего участников в проекте
+    /// Всего участников в проекте, а при поиске (`q`) — сколько участников ему соответствует, то есть длина всего отфильтрованного списка, а не страницы.
     required num total,
   }) = _ProjectMemberListDto;
 

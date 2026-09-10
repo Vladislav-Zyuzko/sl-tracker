@@ -12,6 +12,7 @@ import 'package:sl_tracker_web/features/auth/presentation/login_screen.dart';
 import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
 import 'package:sl_tracker_web/features/invites/presentation/invite_accept_screen.dart';
 import 'package:sl_tracker_web/features/issues/presentation/issue_screen.dart';
+import 'package:sl_tracker_web/features/notifications/presentation/notifications_screen.dart';
 import 'package:sl_tracker_web/features/profile/presentation/profile_screen.dart';
 import 'package:sl_tracker_web/features/projects/presentation/project_screen.dart';
 import 'package:sl_tracker_web/features/projects/presentation/projects_screen.dart';
@@ -19,7 +20,6 @@ import 'package:sl_tracker_web/features/queues/domain/issue_sort.dart';
 import 'package:sl_tracker_web/features/queues/presentation/queue_issues_providers.dart';
 import 'package:sl_tracker_web/features/queues/presentation/queue_issues_screen.dart';
 import 'package:sl_tracker_web/features/shell/presentation/app_shell.dart';
-import 'package:sl_tracker_web/shared/uikit/states/sl_empty_state.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_error_state.dart';
 
 /// Роутер приложения.
@@ -112,20 +112,6 @@ String? inviteTokenOf(String? next) {
   return RouteParams.inviteToken.hasMatch(segments[1]) ? segments[1] : null;
 }
 
-/// Заглушка экрана уведомлений: спека есть, данных пока нет.
-class _NotificationsScreen extends StatelessWidget {
-  const _NotificationsScreen();
-
-  @override
-  Widget build(BuildContext context) => const SLEmptyState(
-    icon: Icons.notifications_none_rounded,
-    title: 'Уведомлений нет',
-    description:
-        'Сюда попадают уведомления о задачах, '
-        'в которых вы участвуете.',
-  );
-}
-
 final _routes = <RouteBase>[
   // Экраны вне оболочки: пользователь ещё не внутри приложения.
   GoRoute(
@@ -184,9 +170,16 @@ final _routes = <RouteBase>[
         builder: (context, state) {
           final slug = state.pathParameters['slug'] ?? '';
 
-          return RouteParams.projectSlug.hasMatch(slug)
-              ? ProjectScreen(slug: slug)
-              : NotFoundScreen(location: state.uri.toString());
+          if (!RouteParams.projectSlug.hasMatch(slug)) {
+            return NotFoundScreen(location: state.uri.toString());
+          }
+
+          // `?tab=members` — адрес, по которому приходят из уведомления
+          // о новом участнике (US-23).
+          return ProjectScreen(
+            slug: slug,
+            initialTab: state.uri.queryParameters['tab'],
+          );
         },
       ),
       GoRoute(
@@ -232,7 +225,7 @@ final _routes = <RouteBase>[
       GoRoute(
         path: AppRoutes.notifications,
         name: AppRoutes.notificationsName,
-        builder: (context, state) => const _NotificationsScreen(),
+        builder: (context, state) => const NotificationsScreen(),
       ),
       GoRoute(
         path: AppRoutes.profile,

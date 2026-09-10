@@ -10,6 +10,7 @@ import 'package:sl_tracker_web/features/access/presentation/access_list_screen.d
 import 'package:sl_tracker_web/features/auth/presentation/login_screen.dart';
 import 'package:sl_tracker_web/features/invites/presentation/invite_accept_screen.dart';
 import 'package:sl_tracker_web/features/issues/presentation/issue_screen.dart';
+import 'package:sl_tracker_web/features/notifications/presentation/notifications_screen.dart';
 import 'package:sl_tracker_web/features/profile/presentation/profile_screen.dart';
 import 'package:sl_tracker_web/features/projects/presentation/project_screen.dart';
 import 'package:sl_tracker_web/features/projects/presentation/projects_screen.dart';
@@ -113,6 +114,29 @@ void main() {
         tester.widget<ProjectScreen>(find.byType(ProjectScreen)).slug,
         'sweet-limit',
       );
+    });
+
+    testWidgets('прямая ссылка на центр уведомлений открывает его', (
+      tester,
+    ) async {
+      await pumpAt(tester, AppRoutes.notifications);
+
+      expect(find.byType(NotificationsScreen), findsOneWidget);
+    });
+
+    testWidgets('вкладка проекта читается из адреса: ?tab=members', (
+      tester,
+    ) async {
+      await pumpAt(tester, '/projects/sweet-limit?tab=members');
+
+      expect(
+        tester.widget<ProjectScreen>(find.byType(ProjectScreen)).initialTab,
+        'members',
+      );
+      expect(ProjectScreen.tabOf('members'), ProjectTab.members);
+      // Незнакомая вкладка — опечатка в ссылке, а не ошибка: экран
+      // открывается на вкладке по умолчанию.
+      expect(ProjectScreen.tabOf('нет-такой'), isNull);
     });
 
     testWidgets('профиль и список доступа — разные экраны', (tester) async {

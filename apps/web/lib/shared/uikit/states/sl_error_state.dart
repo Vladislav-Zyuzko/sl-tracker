@@ -181,6 +181,8 @@ class SLBanner extends StatefulWidget {
     this.description,
     this.variant = SLBannerVariant.danger,
     this.details,
+    this.actionLabel,
+    this.onAction,
     this.onDismiss,
     super.key,
   });
@@ -197,6 +199,16 @@ class SLBanner extends StatefulWidget {
   /// Технические подробности: код ошибки, идентификатор запроса.
   /// `null` — блока «Подробности» нет.
   final String? details;
+
+  /// Подпись действия внутри баннера: «Обновить», «Настроить».
+  /// `null` — действия нет.
+  ///
+  /// Действие живёт **в** баннере, а не рядом с ним: баннер объясняет
+  /// проблему, и кнопка, решающая её, должна быть на расстоянии взгляда.
+  final String? actionLabel;
+
+  /// @nodoc
+  final VoidCallback? onAction;
 
   /// Обработчик закрытия. `null` — баннер не закрывается.
   final VoidCallback? onDismiss;
@@ -219,6 +231,7 @@ class _SLBannerState extends State<SLBanner> {
     final title = widget.title;
     final description = widget.description;
     final details = widget.details;
+    final actionLabel = widget.actionLabel;
     final onDismiss = widget.onDismiss;
 
     final (background, border, accent, icon) = switch (variant) {
@@ -303,6 +316,16 @@ class _SLBannerState extends State<SLBanner> {
                                 ),
                               ),
                             ],
+                            if (actionLabel != null)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: SLButton(
+                                  label: actionLabel,
+                                  variant: SLButtonVariant.ghost,
+                                  size: SLButtonSize.sm,
+                                  onPressed: widget.onAction,
+                                ),
+                              ),
                             if (details != null)
                               _BannerDetails(
                                 details: details,

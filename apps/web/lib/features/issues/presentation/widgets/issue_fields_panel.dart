@@ -7,6 +7,7 @@ import 'package:sl_tracker_web/core/domain/issue_status.dart';
 import 'package:sl_tracker_web/core/utils/sl_date_format.dart';
 import 'package:sl_tracker_web/features/issues/domain/issue_fields.dart';
 import 'package:sl_tracker_web/features/issues/domain/issue_status_ref.dart';
+import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_field_flash.dart';
 import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_fields.dart';
 import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_skeletons.dart';
 import 'package:sl_tracker_web/shared/uikit/buttons/sl_button.dart';
@@ -104,49 +105,69 @@ class IssueFieldsPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const IssueFieldLabel('Статус'),
-          IssueStatusField(
-            key: statusFieldKey,
-            status: issue.status.ref,
-            statuses: statuses,
-            enabled: canEdit,
-            onChanged: actions.onStatusChanged,
+          IssueFieldFlash(
+            issueKey: issue.key,
+            field: IssueFieldNames.status,
+            child: IssueStatusField(
+              key: statusFieldKey,
+              status: issue.status.ref,
+              statuses: statuses,
+              enabled: canEdit,
+              onChanged: actions.onStatusChanged,
+            ),
           ),
           const SizedBox(height: SLSpacing.space4),
 
           const IssueFieldLabel('Приоритет'),
-          IssuePriorityField(
-            value: issue.priority.value,
-            enabled: canEdit,
-            onChanged: actions.onPriorityChanged,
+          IssueFieldFlash(
+            issueKey: issue.key,
+            field: IssueFieldNames.priority,
+            child: IssuePriorityField(
+              value: issue.priority.value,
+              enabled: canEdit,
+              onChanged: actions.onPriorityChanged,
+            ),
           ),
           const SizedBox(height: SLSpacing.space4),
 
           const IssueFieldLabel('Сложность'),
-          IssueComplexityField(
-            value: issue.storyPoints?.value,
-            enabled: canEdit,
-            onChanged: actions.onStoryPointsChanged,
+          IssueFieldFlash(
+            issueKey: issue.key,
+            field: IssueFieldNames.storyPoints,
+            child: IssueComplexityField(
+              value: issue.storyPoints?.value,
+              enabled: canEdit,
+              onChanged: actions.onStoryPointsChanged,
+            ),
           ),
           const SizedBox(height: SLSpacing.space4),
 
           // «Создатель» на экране не используется — только «Автор» (D-13).
           const IssueFieldLabel('Автор'),
-          IssueUserField(
+          IssueFieldFlash(
             issueKey: issue.key,
-            user: issue.author,
-            enabled: canEdit,
-            onChanged: actions.onAuthorChanged,
+            field: IssueFieldNames.author,
+            child: IssueUserField(
+              issueKey: issue.key,
+              user: issue.author,
+              enabled: canEdit,
+              onChanged: actions.onAuthorChanged,
+            ),
           ),
           const SizedBox(height: SLSpacing.space4),
 
           const IssueFieldLabel('Исполнитель'),
-          IssueUserField(
-            key: assigneeFieldKey,
+          IssueFieldFlash(
             issueKey: issue.key,
-            user: issue.assignee,
-            enabled: canEdit,
-            onChanged: actions.onAssigneeChanged,
-            onClear: actions.onClearAssignee,
+            field: IssueFieldNames.assignee,
+            child: IssueUserField(
+              key: assigneeFieldKey,
+              issueKey: issue.key,
+              user: issue.assignee,
+              enabled: canEdit,
+              onChanged: actions.onAssigneeChanged,
+              onClear: actions.onClearAssignee,
+            ),
           ),
           if (showAssignToMe)
             Padding(
@@ -294,6 +315,8 @@ class IssueFieldsBand extends StatelessWidget {
             children: [
               _Cell(
                 label: 'Статус',
+                issueKey: issue.key,
+                field: IssueFieldNames.status,
                 child: IssueStatusField(
                   key: statusFieldKey,
                   status: issue.status.ref,
@@ -304,6 +327,8 @@ class IssueFieldsBand extends StatelessWidget {
               ),
               _Cell(
                 label: 'Приоритет',
+                issueKey: issue.key,
+                field: IssueFieldNames.priority,
                 child: IssuePriorityField(
                   value: issue.priority.value,
                   enabled: canEdit,
@@ -312,6 +337,8 @@ class IssueFieldsBand extends StatelessWidget {
               ),
               _Cell(
                 label: 'Сложность',
+                issueKey: issue.key,
+                field: IssueFieldNames.storyPoints,
                 child: IssueComplexityField(
                   value: issue.storyPoints?.value,
                   enabled: canEdit,
@@ -320,6 +347,8 @@ class IssueFieldsBand extends StatelessWidget {
               ),
               _Cell(
                 label: 'Автор',
+                issueKey: issue.key,
+                field: IssueFieldNames.author,
                 child: IssueUserField(
                   issueKey: issue.key,
                   user: issue.author,
@@ -329,6 +358,8 @@ class IssueFieldsBand extends StatelessWidget {
               ),
               _Cell(
                 label: 'Исполнитель',
+                issueKey: issue.key,
+                field: IssueFieldNames.assignee,
                 child: IssueUserField(
                   key: assigneeFieldKey,
                   issueKey: issue.key,
@@ -398,12 +429,16 @@ class _IssueFieldsCompactState extends State<IssueFieldsCompact> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        IssueStatusField(
-          key: widget.statusFieldKey,
-          status: issue.status.ref,
-          statuses: widget.statuses,
-          enabled: issue.permissions.canEdit,
-          onChanged: widget.actions.onStatusChanged,
+        IssueFieldFlash(
+          issueKey: issue.key,
+          field: IssueFieldNames.status,
+          child: IssueStatusField(
+            key: widget.statusFieldKey,
+            status: issue.status.ref,
+            statuses: widget.statuses,
+            enabled: issue.permissions.canEdit,
+            onChanged: widget.actions.onStatusChanged,
+          ),
         ),
         const SizedBox(height: SLSpacing.space2),
         // Зона нажатия 44 — требование тач-раскладки, а не украшение.
@@ -469,9 +504,16 @@ class IssueFieldsPanelLoading extends StatelessWidget {
 }
 
 class _Cell extends StatelessWidget {
-  const _Cell({required this.label, required this.child});
+  const _Cell({
+    required this.label,
+    required this.issueKey,
+    required this.field,
+    required this.child,
+  });
 
   final String label;
+  final String issueKey;
+  final String field;
   final Widget child;
 
   @override
@@ -479,7 +521,10 @@ class _Cell extends StatelessWidget {
     width: IssueFieldsBand.cellWidth,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [IssueFieldLabel(label), child],
+      children: [
+        IssueFieldLabel(label),
+        IssueFieldFlash(issueKey: issueKey, field: field, child: child),
+      ],
     ),
   );
 }

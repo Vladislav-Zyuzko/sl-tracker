@@ -5,6 +5,7 @@ import 'package:sl_tracker_web/core/api/generated/export.dart';
 import 'package:sl_tracker_web/core/network/api_failure.dart';
 import 'package:sl_tracker_web/core/utils/sl_plural.dart';
 import 'package:sl_tracker_web/features/projects/presentation/project_providers.dart';
+import 'package:sl_tracker_web/features/projects/presentation/project_realtime.dart';
 import 'package:sl_tracker_web/features/projects/presentation/widgets/project_member_row.dart';
 import 'package:sl_tracker_web/features/projects/presentation/widgets/remove_member_dialog.dart';
 import 'package:sl_tracker_web/shared/uikit/buttons/sl_button.dart';
@@ -135,6 +136,9 @@ class _ProjectMembersTabState extends ConsumerState<ProjectMembersTab> {
   @override
   Widget build(BuildContext context) {
     final breakpoint = SLBreakpoint.of(context);
+    // Состав участников обновляется живьём, пока вкладка открыта (US-23):
+    // подписка живёт ровно столько, сколько её кто-то смотрит.
+    ref.watch(projectMembersRealtimeProvider(widget.slug));
     final page = ref.watch(projectMembersProvider(widget.slug));
 
     return page.when(

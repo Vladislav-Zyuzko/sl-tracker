@@ -17,7 +17,7 @@ T _$identity<T>(T value) => value;
 mixin _$ProjectMemberListDto {
 
 /// Сначала администраторы, дальше по имени (design/screens/project.md)
- List<ProjectMemberDto> get items; String? get nextCursor;/// Всего участников в проекте
+ List<ProjectMemberDto> get items; String? get nextCursor;/// Всего участников в проекте, а при поиске (`q`) — сколько участников ему соответствует, то есть длина всего отфильтрованного списка, а не страницы.
  num get total;
 /// Create a copy of ProjectMemberListDto
 /// with the given fields replaced by the non-null parameter values.
@@ -232,7 +232,7 @@ class _ProjectMemberListDto implements ProjectMemberListDto {
 }
 
 @override final  String? nextCursor;
-/// Всего участников в проекте
+/// Всего участников в проекте, а при поиске (`q`) — сколько участников ему соответствует, то есть длина всего отфильтрованного списка, а не страницы.
 @override final  num total;
 
 /// Create a copy of ProjectMemberListDto

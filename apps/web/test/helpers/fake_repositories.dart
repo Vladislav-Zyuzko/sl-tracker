@@ -1,7 +1,10 @@
+import 'package:flutter_riverpod/misc.dart';
 import 'package:sl_tracker_web/core/api/generated/export.dart';
 import 'package:sl_tracker_web/core/network/api_failure.dart';
 import 'package:sl_tracker_web/features/access/data/access_repository.dart';
 import 'package:sl_tracker_web/features/auth/data/auth_repository.dart';
+import 'package:sl_tracker_web/features/auth/domain/session.dart';
+import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
 
 /// Профиль для тестов.
 MeResponseDto fakeMe({
@@ -159,5 +162,32 @@ class FakeAccessRepository implements AccessRepository {
     entries = entries.where((entry) => entry.id != id).toList();
 
     return 2;
+  }
+}
+
+/// Переопределение состояния сессии: пользователь уже внутри.
+///
+/// Нужно там, где экран поднимается сразу готовым: `GET /api/me` в таком
+/// тесте не проверяется, а без сессии экраны за авторизацией показывают
+/// не то, что проверяется.
+Override signedIn({MeResponseDto? user}) {
+  final me = user ?? fakeMe();
+
+  return sessionControllerProvider.overrideWith(
+    () => _SignedInSessionController(me),
+  );
+}
+
+class _SignedInSessionController extends SessionController {
+  _SignedInSessionController(this.user);
+
+  final MeResponseDto user;
+
+  @override
+  Session build() {
+    // Подписка на 401 нужна и здесь: она часть поведения контроллера.
+    super.build();
+
+    return Session.authenticated(user);
   }
 }
