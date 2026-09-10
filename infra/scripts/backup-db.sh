@@ -19,6 +19,10 @@ ENV_FILE=".env"
 OUT_DIR="${BACKUP_DIR:-backups}"
 KEEP_DAYS="${BACKUP_KEEP_DAYS:-14}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
+# Том MinIO: имя проекта задано в compose-файле (name: sl-tracker).
+MINIO_VOLUME="sl-tracker_minio-data"
+# Образ для чтения тома: уже есть на сервере (это образ базы), и в нём есть tar и gzip.
+TAR_IMAGE="postgres:18-alpine"
 
 compose() { docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"; }
 fail() { echo "ОШИБКА: $*" >&2; exit 1; }
@@ -48,11 +52,15 @@ gzip -t "$DB_FILE" || fail "архив повреждён"
 
 echo "==> Вложения из MinIO"
 FILES_FILE="$OUT_DIR/files-$STAMP.tar.gz"
-compose exec -T minio tar -czf - -C /data . > "$FILES_FILE" 2>/dev/null || {
+# В образе MinIO нет ни tar, ни gzip, поэтому том читается одноразовым
+# контейнером и только на чтение (:ro) — хранилище при этом не останавливается.
+if docker run --rm -v "$MINIO_VOLUME:/data:ro" --entrypoint tar "$TAR_IMAGE" -czf - -C /data . > "$FILES_FILE" \
+   && gzip -t "$FILES_FILE"; then
+  echo "Готово: $FILES_FILE ($(($(stat -c %s "$FILES_FILE") / 1024)) КБ)"
+else
   rm -f "$FILES_FILE"
   echo "ПРЕДУПРЕЖДЕНИЕ: не удалось снять копию вложений. База сохранена."
-}
-[ -f "$FILES_FILE" ] && echo "Готово: $FILES_FILE ($(($(stat -c %s "$FILES_FILE") / 1024)) КБ)"
+fi
 
 echo "==> Удаляю копии старше $KEEP_DAYS дней"
 find "$OUT_DIR" -name 'db-*.sql.gz' -mtime +"$KEEP_DAYS" -print -delete
