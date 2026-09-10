@@ -230,8 +230,7 @@ docker compose -f infra/compose/docker-compose.prod.yml --env-file .env logs --t
 
 # Откат на предыдущую версию
 git log --oneline -10
-git checkout <хеш>
-./infra/scripts/deploy.sh
+./infra/scripts/deploy.sh <хеш>
 
 # Остановка (данные остаются)
 docker compose -f infra/compose/docker-compose.prod.yml --env-file .env down

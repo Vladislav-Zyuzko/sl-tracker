@@ -219,7 +219,7 @@ docker compose -f infra/compose/docker-compose.prod.yml --env-file .env down
 
 # Откат на предыдущую версию кода
 git log --oneline -10
-git checkout <хеш> && ./infra/scripts/deploy.sh
+./infra/scripts/deploy.sh <хеш>
 ```
 
 # Как отчитываться
