@@ -14,16 +14,32 @@ import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
 /// (кнопка 40, поле 56) для плотного трекера слишком просторны
 /// (`docs/design/system.md`, 13).
 ///
-/// В MVP тема одна — [light]. Код при этом нигде не предполагает, что она
-/// единственная: всё, что зависит от схемы, читается из [ThemeExtension].
+/// Тем две — [light] и [dark]. Всё, что зависит от схемы, читается
+/// из [ThemeExtension], поэтому обе темы собираются одним и тем же [_build]:
+/// различаются только наборы цветов и [Brightness].
+///
+/// Цвета тёмной схемы пока повторяют светлую (см. `SLColorScheme.dark`) —
+/// готов механизм, а не оформление.
 abstract final class SLThemeData {
-  /// Светлая тема — единственная в MVP.
-  static ThemeData get light => _build(
+  /// Светлая тема.
+  ///
+  /// Собирается один раз: [ThemeData] большой, а корневой виджет
+  /// перестраивается на каждой смене адреса.
+  static final ThemeData light = _build(
     colors: SLColorScheme.light(),
     statuses: SLStatusColors.light(),
     priorities: SLPriorityColors.light(),
     avatars: SLAvatarColors.light(),
     brightness: Brightness.light,
+  );
+
+  /// Тёмная тема. Тоже собирается один раз — см. [light].
+  static final ThemeData dark = _build(
+    colors: SLColorScheme.dark(),
+    statuses: SLStatusColors.dark(),
+    priorities: SLPriorityColors.dark(),
+    avatars: SLAvatarColors.dark(),
+    brightness: Brightness.dark,
   );
 
   static const _text = SLTextScheme.base();
@@ -58,6 +74,11 @@ abstract final class SLThemeData {
       colorScheme: materialColors,
       scaffoldBackgroundColor: colors.surface,
       canvasColor: colors.surface,
+      // При тёмной теме Material по умолчанию подмешивает в поверхности
+      // «оверлей высоты» — осветляет фон тем сильнее, чем выше elevation.
+      // Иерархия поверхностей в системе задаётся ролями, а не высотой
+      // (`system.md`, 12.3), и такое осветление её ломает.
+      applyElevationOverlayColor: false,
       // Ripple в трекере выключен: наведение и нажатие — мгновенная смена
       // цвета фона, а не анимация капли (`system.md`, 3.5).
       splashFactory: NoSplash.splashFactory,

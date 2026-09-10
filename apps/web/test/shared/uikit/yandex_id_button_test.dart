@@ -78,6 +78,59 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
+    testWidgets('в тёмной теме не меняется ничего: это чужая кнопка', (
+      tester,
+    ) async {
+      // Требования Яндекс ID запрещают менять цвет, содержимое и геометрию
+      // кнопки. Тема продукта на неё влиять не должна — ни светлая,
+      // ни тёмная (`system.md`, 3.4.1).
+      ButtonStyle currentStyle() =>
+          tester.widget<FilledButton>(find.byType(FilledButton)).style!;
+
+      await pumpInTheme(
+        tester,
+        SizedBox(width: 360, child: YandexIdButton(onPressed: () {})),
+      );
+      final light = currentStyle();
+
+      await pumpInTheme(
+        tester,
+        SizedBox(width: 360, child: YandexIdButton(onPressed: () {})),
+        dark: true,
+      );
+      final dark = currentStyle();
+
+      expect(dark.backgroundColor?.resolve({}), YandexIdButton.background);
+      expect(dark.foregroundColor?.resolve({}), YandexIdButton.foreground);
+      expect(
+        dark.backgroundColor?.resolve({}),
+        light.backgroundColor?.resolve({}),
+      );
+      expect(
+        dark.foregroundColor?.resolve({}),
+        light.foregroundColor?.resolve({}),
+      );
+      expect(dark.fixedSize?.resolve({}), light.fixedSize?.resolve({}));
+      expect(dark.shape?.resolve({}), light.shape?.resolve({}));
+
+      // Наведение и нажатие тоже белой вуалью, а не цветом схемы.
+      for (final state in [WidgetState.hovered, WidgetState.pressed]) {
+        expect(
+          dark.overlayColor?.resolve({state}),
+          light.overlayColor?.resolve({state}),
+        );
+      }
+
+      // Надпись покрашена литералом, а не темой.
+      final label = tester.widget<Text>(find.text(YandexIdButton.label));
+      expect(label.style?.color, YandexIdButton.foreground);
+
+      // Знак — тот же ассет, без перекраски.
+      final mark = tester.widget<Image>(find.byType(Image));
+      expect((mark.image as AssetImage).assetName, YandexIdButton.markAsset);
+      expect(mark.color, isNull);
+    });
+
     testWidgets('доступное имя — «Войти через Яндекс»', (tester) async {
       final handle = tester.ensureSemantics();
 

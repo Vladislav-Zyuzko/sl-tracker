@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:sl_tracker_web/core/storage/local_store.dart';
 
 /// Свёрнут ли сайдбар по выбору пользователя.
 ///
@@ -20,6 +21,8 @@ class SidebarCollapsedController extends Notifier<bool> {
 
   @override
   bool build() {
+    // В отличие от темы, восстанавливается уже после первого кадра: панель
+    // схлопывается без перекраски всего экрана, и лишний кадр тут не виден.
     unawaited(_restore());
 
     return false;
@@ -31,44 +34,13 @@ class SidebarCollapsedController extends Notifier<bool> {
   /// не должен ждать диска ради анимации панели.
   Future<void> toggle() async {
     state = !state;
-    await _write(state);
+    await ref.read(localStoreProvider).writeBool(storageKey, value: state);
   }
 
   Future<void> _restore() async {
-    final storage = _storage();
-    if (storage == null) return;
-
-    try {
-      final stored = await storage.getBool(storageKey);
-      if (stored != null) state = stored;
-    } on Object {
-      // Значение не прочиталось — остаёмся со значением по умолчанию.
-    }
-  }
-
-  Future<void> _write(bool value) async {
-    final storage = _storage();
-    if (storage == null) return;
-
-    try {
-      await storage.setBool(storageKey, value);
-    } on Object {
-      // Не сохранилось — значит, выбор не переживёт перезагрузку. Это худшее,
-      // что может случиться, и падать из-за этого нельзя.
-    }
-  }
-
-  /// Хранилище, если оно вообще доступно.
-  ///
-  /// Конструктор [SharedPreferencesAsync] бросает, когда платформенной
-  /// реализации нет: так бывает в виджет-тестах и в браузере с запретом
-  /// на данные сайта. Ловим `Object`, а не `Exception`, потому что там
-  /// именно [StateError] — `on Exception` его пропустит.
-  SharedPreferencesAsync? _storage() {
-    try {
-      return SharedPreferencesAsync();
-    } on Object {
-      return null;
-    }
+    final stored = await ref.read(localStoreProvider).readBool(storageKey);
+    // Между запросом и ответом хранилища провайдер мог уйти: присваивание
+    // состояния после этого бросает.
+    if (stored != null && ref.mounted) state = stored;
   }
 }

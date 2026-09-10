@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sl_tracker_web/app/router/app_router.dart';
+import 'package:sl_tracker_web/app/theme/theme_mode_providers.dart';
 import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
 import 'package:sl_tracker_web/shared/uikit/feedback/sl_toast.dart';
 import 'package:sl_tracker_web/shared/uikit/themes/sl_theme_data.dart';
@@ -33,9 +34,11 @@ class _SLAppState extends ConsumerState<SLApp> {
       title: 'SL Tracker',
       debugShowCheckedModeBanner: false,
       theme: SLThemeData.light,
-      // Тёмной темы в MVP нет. Явное указание themeMode гарантирует, что
-      // системная настройка не подсунет полупустую тему по умолчанию.
-      themeMode: ThemeMode.light,
+      darkTheme: SLThemeData.dark,
+      // В режиме `system` MaterialApp сам следит за platformBrightness
+      // и перекрашивает приложение, когда пользователь меняет настройку ОС
+      // прямо во время работы.
+      themeMode: ref.watch(themeModeProvider),
       routerConfig: ref.watch(routerProvider),
       // Тосты живут над всеми экранами и переживают переходы между ними,
       // поэтому их слой поднят выше роутера.

@@ -35,6 +35,18 @@ class SLStatusColors extends ThemeExtension<SLStatusColors> {
         IssueStatus.closed: SLColorPalette.green600,
       };
 
+  /// Тёмная схема — **заглушка**.
+  ///
+  /// Значения ещё не посчитаны: контрасты в тёмной теме проверяются
+  /// расчётом, а не на глаз, и придумывать их за дизайнера нельзя. Пока
+  /// схема повторяет светлую — работает механизм переключения, а не
+  /// оформление.
+  ///
+  /// Подстановка настоящих значений — правка **только этого файла**: вместо
+  /// делегирования появится такой же список инициализаторов, как
+  /// у [SLStatusColors.light]. Ни один виджет при этом не меняется.
+  factory SLStatusColors.dark() = SLStatusColors.light;
+
   /// Фон плашки статуса.
   Color surfaceOf(IssueStatus status) => surfaces[status]!;
 

@@ -29,12 +29,13 @@ Future<void> pumpInTheme(
   WidgetTester tester,
   Widget child, {
   Size windowSize = const Size(1280, 800),
+  bool dark = false,
 }) async {
   useWindowSize(tester, windowSize);
 
   await tester.pumpWidget(
     MaterialApp(
-      theme: SLThemeData.light,
+      theme: dark ? SLThemeData.dark : SLThemeData.light,
       home: Scaffold(body: Center(child: child)),
     ),
   );

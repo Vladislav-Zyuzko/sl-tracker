@@ -247,6 +247,18 @@ class SLColorScheme extends ThemeExtension<SLColorScheme> {
       overlayOnAccentHover = SLColorPalette.n0.withValues(alpha: 0.10),
       overlayOnAccentPressed = SLColorPalette.n0.withValues(alpha: 0.18);
 
+  /// Тёмная схема — **заглушка**.
+  ///
+  /// Значения ещё не посчитаны: контрасты в тёмной теме проверяются
+  /// расчётом, а не на глаз, и придумывать их за дизайнера нельзя. Пока
+  /// схема повторяет светлую — работает механизм переключения, а не
+  /// оформление.
+  ///
+  /// Подстановка настоящих значений — правка **только этого файла**: вместо
+  /// делегирования появится такой же список инициализаторов, как
+  /// у [SLColorScheme.light]. Ни один виджет при этом не меняется.
+  factory SLColorScheme.dark() = SLColorScheme.light;
+
   @override
   SLColorScheme copyWith({
     Color? surface,

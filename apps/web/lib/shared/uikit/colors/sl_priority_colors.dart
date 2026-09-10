@@ -34,6 +34,18 @@ class SLPriorityColors extends ThemeExtension<SLPriorityColors> {
         PriorityRange.critical: SLColorPalette.red600,
       };
 
+  /// Тёмная схема — **заглушка**.
+  ///
+  /// Значения ещё не посчитаны: контрасты в тёмной теме проверяются
+  /// расчётом, а не на глаз, и придумывать их за дизайнера нельзя. Пока
+  /// схема повторяет светлую — работает механизм переключения, а не
+  /// оформление.
+  ///
+  /// Подстановка настоящих значений — правка **только этого файла**: вместо
+  /// делегирования появится такой же список инициализаторов, как
+  /// у [SLPriorityColors.light]. Ни один виджет при этом не меняется.
+  factory SLPriorityColors.dark() = SLPriorityColors.light;
+
   /// Цвет заливки шкалы для значения приоритета.
   Color barOf(int value) => bars[PriorityRange.of(value)]!;
 

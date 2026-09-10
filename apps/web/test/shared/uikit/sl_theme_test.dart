@@ -36,69 +36,111 @@ double _contrast(Color a, Color b) {
 }
 
 void main() {
-  group('SLThemeData.light', () {
-    test('содержит все расширения дизайн-системы', () {
-      final theme = SLThemeData.light;
-
-      expect(theme.extension<SLColorScheme>(), isNotNull);
-      expect(theme.extension<SLTextScheme>(), isNotNull);
-      expect(theme.extension<SLStatusColors>(), isNotNull);
-      expect(theme.extension<SLPriorityColors>(), isNotNull);
-      expect(theme.extension<SLAvatarColors>(), isNotNull);
+  group('темы приложения', () {
+    test('обе темы содержат все расширения дизайн-системы', () {
+      for (final theme in [SLThemeData.light, SLThemeData.dark]) {
+        expect(theme.extension<SLColorScheme>(), isNotNull);
+        expect(theme.extension<SLTextScheme>(), isNotNull);
+        expect(theme.extension<SLStatusColors>(), isNotNull);
+        expect(theme.extension<SLPriorityColors>(), isNotNull);
+        expect(theme.extension<SLAvatarColors>(), isNotNull);
+      }
     });
 
-    test('ripple выключен глобально', () {
-      expect(SLThemeData.light.splashFactory, NoSplash.splashFactory);
+    test('яркость темы согласована с её материальной схемой', () {
+      expect(SLThemeData.light.brightness, Brightness.light);
+      expect(SLThemeData.light.colorScheme.brightness, Brightness.light);
+      expect(SLThemeData.dark.brightness, Brightness.dark);
+      expect(SLThemeData.dark.colorScheme.brightness, Brightness.dark);
     });
 
-    test('плотность интерфейса компактная', () {
-      expect(SLThemeData.light.visualDensity, VisualDensity.compact);
-    });
-  });
-
-  group('контраст по WCAG', () {
-    final colors = SLThemeData.light.extension<SLColorScheme>()!;
-
-    test('три уровня текста проходят AA на основной поверхности', () {
-      expect(_contrast(colors.textPrimary, colors.surface), greaterThan(4.5));
-      expect(_contrast(colors.textSecondary, colors.surface), greaterThan(4.5));
-      expect(_contrast(colors.textMuted, colors.surface), greaterThan(4.5));
+    test('ripple выключен, плотность компактная — в обеих темах', () {
+      for (final theme in [SLThemeData.light, SLThemeData.dark]) {
+        expect(theme.splashFactory, NoSplash.splashFactory);
+        expect(theme.visualDensity, VisualDensity.compact);
+      }
     });
 
-    test('текст на акценте и на опасной заливке проходит AA', () {
-      expect(_contrast(colors.textOnAccent, colors.accent), greaterThan(4.5));
-      expect(_contrast(colors.textOnAccent, colors.danger), greaterThan(4.5));
-      expect(_contrast(colors.textOnAccent, colors.success), greaterThan(4.5));
-      expect(
-        _contrast(colors.textOnWarning, colors.warningAccent),
-        greaterThan(4.5),
-      );
+    test('оверлей высоты выключен', () {
+      // Иначе в тёмной теме Material сам осветлял бы поверхности по
+      // elevation, а иерархия в системе задаётся ролями (`system.md`, 12.3).
+      for (final theme in [SLThemeData.light, SLThemeData.dark]) {
+        expect(theme.applyElevationOverlayColor, isFalse);
+      }
     });
 
-    test('граница интерактивного элемента даёт не менее 3:1', () {
-      expect(_contrast(colors.borderStrong, colors.surface), greaterThan(3));
-      expect(
-        _contrast(colors.borderStrong, colors.surfaceSunken),
-        greaterThan(3),
-      );
-      expect(
-        _contrast(colors.borderStrong, colors.surfaceSelected),
-        greaterThan(3),
-      );
-    });
+    test('фон приложения берётся из роли surface', () {
+      for (final theme in [SLThemeData.light, SLThemeData.dark]) {
+        final colors = theme.extension<SLColorScheme>()!;
 
-    test('текст плашки статуса читается на её фоне', () {
-      final statuses = SLThemeData.light.extension<SLStatusColors>()!;
-
-      for (final status in IssueStatus.values) {
-        expect(
-          _contrast(statuses.textOf(status), statuses.surfaceOf(status)),
-          greaterThan(4.3),
-          reason: 'статус ${status.code}',
-        );
+        expect(theme.scaffoldBackgroundColor, colors.surface);
+        expect(theme.canvasColor, colors.surface);
       }
     });
   });
+
+  // Обе темы проходят одни и те же проверки контраста. Пока тёмная схема —
+  // заглушка, это дублирование; когда дизайнер подставит значения, эти же
+  // тесты поймают цвет, который «выглядит нормально», но не проходит AA.
+  for (final entry in {
+    'светлая': SLThemeData.light,
+    'тёмная': SLThemeData.dark,
+  }.entries) {
+    group('контраст по WCAG: ${entry.key} тема', () {
+      final theme = entry.value;
+      final colors = theme.extension<SLColorScheme>()!;
+
+      test('три уровня текста проходят AA на основной поверхности', () {
+        expect(_contrast(colors.textPrimary, colors.surface), greaterThan(4.5));
+        expect(
+          _contrast(colors.textSecondary, colors.surface),
+          greaterThan(4.5),
+        );
+        expect(_contrast(colors.textMuted, colors.surface), greaterThan(4.5));
+      });
+
+      test('текст на акценте и на опасной заливке проходит AA', () {
+        expect(_contrast(colors.textOnAccent, colors.accent), greaterThan(4.5));
+        expect(_contrast(colors.textOnAccent, colors.danger), greaterThan(4.5));
+        expect(_contrast(colors.textOnAccent, colors.success), greaterThan(4.5));
+        expect(
+          _contrast(colors.textOnWarning, colors.warningAccent),
+          greaterThan(4.5),
+        );
+      });
+
+      test('граница интерактивного элемента даёт не менее 3:1', () {
+        expect(_contrast(colors.borderStrong, colors.surface), greaterThan(3));
+        expect(
+          _contrast(colors.borderStrong, colors.surfaceSunken),
+          greaterThan(3),
+        );
+        expect(
+          _contrast(colors.borderStrong, colors.surfaceSelected),
+          greaterThan(3),
+        );
+      });
+
+      test('текст тултипа читается на его фоне', () {
+        expect(
+          _contrast(colors.tooltipText, colors.tooltipSurface),
+          greaterThan(4.5),
+        );
+      });
+
+      test('текст плашки статуса читается на её фоне', () {
+        final statuses = theme.extension<SLStatusColors>()!;
+
+        for (final status in IssueStatus.values) {
+          expect(
+            _contrast(statuses.textOf(status), statuses.surfaceOf(status)),
+            greaterThan(4.3),
+            reason: 'статус ${status.code}',
+          );
+        }
+      });
+    });
+  }
 
   group('SLTextScheme', () {
     test('интерфейсные стили используют табличные цифры', () {

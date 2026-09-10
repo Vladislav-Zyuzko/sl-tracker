@@ -7,6 +7,7 @@ import 'package:sl_tracker_web/features/notifications/data/notifications_reposit
 import 'package:sl_tracker_web/features/profile/presentation/profile_screen.dart';
 import 'package:sl_tracker_web/features/profile/presentation/widgets/notification_setting_row.dart';
 import 'package:sl_tracker_web/features/profile/presentation/widgets/profile_skeleton.dart';
+import 'package:sl_tracker_web/features/profile/presentation/widgets/theme_mode_section.dart';
 import 'package:sl_tracker_web/shared/uikit/feedback/sl_toast.dart';
 import 'package:sl_tracker_web/shared/uikit/indicators/sl_owner_badge.dart';
 import 'package:sl_tracker_web/shared/uikit/inputs/sl_switch.dart';
@@ -220,6 +221,22 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(find.byType(ProfileSettingsSkeleton), findsNothing);
+    });
+
+    testWidgets('секция оформления стоит между уведомлениями и сессией', (
+      tester,
+    ) async {
+      await pumpProfile(tester, notifications: FakeNotificationsRepository());
+
+      expect(find.byType(ThemeModeSection), findsOneWidget);
+      expect(find.text('ОФОРМЛЕНИЕ'), findsOneWidget);
+
+      final notificationsTitle = tester.getTopLeft(find.text('УВЕДОМЛЕНИЯ'));
+      final appearanceTitle = tester.getTopLeft(find.text('ОФОРМЛЕНИЕ'));
+      final sessionTitle = tester.getTopLeft(find.text('СЕССИЯ'));
+
+      expect(notificationsTitle.dy, lessThan(appearanceTitle.dy));
+      expect(appearanceTitle.dy, lessThan(sessionTitle.dy));
     });
 
     testWidgets('на телефоне кнопка выхода занимает всю ширину', (

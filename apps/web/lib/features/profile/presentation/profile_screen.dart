@@ -7,6 +7,7 @@ import 'package:sl_tracker_web/features/notifications/domain/notification_settin
 import 'package:sl_tracker_web/features/notifications/presentation/notifications_providers.dart';
 import 'package:sl_tracker_web/features/profile/presentation/widgets/notification_setting_row.dart';
 import 'package:sl_tracker_web/features/profile/presentation/widgets/profile_skeleton.dart';
+import 'package:sl_tracker_web/features/profile/presentation/widgets/theme_mode_section.dart';
 import 'package:sl_tracker_web/shared/uikit/avatars/sl_avatar.dart';
 import 'package:sl_tracker_web/shared/uikit/buttons/sl_button.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
@@ -153,6 +154,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 const SizedBox(height: SLSpacing.space3),
                 _Settings(onToggle: _toggle),
+                const SizedBox(height: SLSpacing.space8),
+                _SectionTitle('Оформление'),
+                const SizedBox(height: SLSpacing.space3),
+                const ThemeModeSection(),
                 const SizedBox(height: SLSpacing.space8),
                 _SectionTitle('Сессия'),
                 const SizedBox(height: SLSpacing.space3),

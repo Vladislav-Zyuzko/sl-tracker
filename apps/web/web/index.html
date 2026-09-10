@@ -25,15 +25,42 @@
   <style>
     /*
       Осмысленный лоадер, пока поднимается движок и грузятся шрифты.
-      Цвета взяты из дизайн-системы (surfaceSunken, textMuted, accent,
-      border) — это единственное место вне Dart, где они дублируются,
+      Цвета взяты из дизайн-системы (surfaceSunken, textMuted, textPrimary,
+      accent, border) — это единственное место вне Dart, где они дублируются,
       потому что здесь темы ещё нет.
+
+      Лоадер знает только системную настройку: выбор «светлая» или «тёмная»
+      сделан внутри приложения и лежит в localStorage в формате пакета
+      shared_preferences, полагаться на который здесь нельзя. Поэтому при
+      явно выбранной теме, не совпадающей с системной, лоадер на доли
+      секунды покажет системный вариант.
+
+      Тёмные значения — заглушка, повторяющая светлые: их считает дизайнер.
+      Подстановка настоящих сводится к правке блока prefers-color-scheme.
     */
+    :root {
+      --sl-boot-bg: #F4F7FB;
+      --sl-boot-text: #5C6C87;
+      --sl-boot-title: #26395B;
+      --sl-boot-track: #E8EFF5;
+      --sl-boot-bar: #1A6CE5;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --sl-boot-bg: #F4F7FB;
+        --sl-boot-text: #5C6C87;
+        --sl-boot-title: #26395B;
+        --sl-boot-track: #E8EFF5;
+        --sl-boot-bar: #1A6CE5;
+      }
+    }
+
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
-      background-color: #F4F7FB;
+      background-color: var(--sl-boot-bg);
     }
 
     #sl-boot {
@@ -45,13 +72,13 @@
       justify-content: center;
       gap: 16px;
       font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: #5C6C87;
+      color: var(--sl-boot-text);
       font-size: 13px;
       line-height: 18px;
     }
 
     #sl-boot__title {
-      color: #26395B;
+      color: var(--sl-boot-title);
       font-size: 16px;
       line-height: 22px;
       font-weight: 600;
@@ -61,7 +88,7 @@
       width: 160px;
       height: 2px;
       border-radius: 4px;
-      background-color: #E8EFF5;
+      background-color: var(--sl-boot-track);
       overflow: hidden;
     }
 
@@ -69,7 +96,7 @@
       width: 40%;
       height: 100%;
       border-radius: 4px;
-      background-color: #1A6CE5;
+      background-color: var(--sl-boot-bar);
       animation: sl-boot-slide 1400ms linear infinite;
     }
 
