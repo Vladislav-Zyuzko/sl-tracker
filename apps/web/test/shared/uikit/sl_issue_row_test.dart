@@ -193,5 +193,43 @@ void main() {
 
       handle.dispose();
     });
+
+    testWidgets('шапку от списка отделяет граница, а не только тень', (
+      tester,
+    ) async {
+      // Залипшая шапка получает `shadowSm` при прокрутке, но в тёмной схеме
+      // тень почти не читается (`system.md`, 10.7.1). Границу и собственный
+      // фон шапка обязана иметь в обеих схемах и до всякой прокрутки.
+      for (final dark in [false, true]) {
+        await pumpInTheme(
+          tester,
+          const SizedBox(width: 1000, child: SLIssueTableHeader()),
+          dark: dark,
+        );
+
+        final context = tester.element(find.byType(SLIssueTableHeader));
+        final colors = SLColorScheme.of(context);
+        final box = tester.widget<Container>(
+          find
+              .descendant(
+                of: find.byType(SLIssueTableHeader),
+                matching: find.byType(Container),
+              )
+              .first,
+        );
+        final decoration = box.decoration! as BoxDecoration;
+
+        expect(
+          decoration.color,
+          colors.surfaceSunken,
+          reason: dark ? 'тёмная схема' : 'светлая схема',
+        );
+        expect(
+          decoration.border?.bottom.color,
+          colors.border,
+          reason: dark ? 'тёмная схема' : 'светлая схема',
+        );
+      }
+    });
   });
 }

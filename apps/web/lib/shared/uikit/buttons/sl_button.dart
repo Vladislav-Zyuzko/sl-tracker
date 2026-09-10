@@ -344,8 +344,9 @@ class _SLButtonContent extends StatelessWidget {
             height: 14,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              // Спиннер наследует цвет текста кнопки: на primary он белый,
-              // на secondary — цвета текста.
+              // Спиннер наследует цвет текста кнопки: на primary и danger
+              // это `textOnAccent` (в тёмной схеме — тёмные чернила),
+              // на secondary — обычный цвет текста.
               color: IconTheme.of(context).color,
             ),
           ),

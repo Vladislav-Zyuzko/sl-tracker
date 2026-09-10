@@ -7,9 +7,14 @@ import 'package:sl_tracker_web/shared/uikit/colors/sl_color_palette.dart';
 /// оперируют именами ролей, а не hex. Виджет берёт цвет только отсюда —
 /// `SLColorScheme.of(context).<роль>`.
 ///
-/// В MVP реализована одна схема — [SLColorScheme.light]. Тёмная добавляется
-/// подстановкой значений в новый именованный конструктор: набор ролей и
-/// сигнатуры виджетов при этом не меняются (`docs/design/system.md`, 12).
+/// Схем две — [SLColorScheme.light] и [SLColorScheme.dark]. Набор ролей
+/// у них общий и одинаковый: тёмная схема — это другие значения, а не другие
+/// роли, поэтому ни один виджет о ней не знает (`docs/design/system.md`, 12).
+///
+/// Направление ролей в обеих схемах одно и то же. `surfaceSunken` всегда
+/// «утоплен» относительно `surface`, `surfaceHover` всегда поднят в сторону
+/// контента, наведение и нажатие всегда уводят акцент «от фона» — в светлой
+/// схеме затемняя, в тёмной осветляя.
 class SLColorScheme extends ThemeExtension<SLColorScheme> {
   const SLColorScheme._({
     required this.surface,
@@ -96,7 +101,7 @@ class SLColorScheme extends ThemeExtension<SLColorScheme> {
   /// Фон тултипа.
   final Color tooltipSurface;
 
-  /// Текст тултипа, контраст 11.55.
+  /// Текст тултипа: 11.55 в светлой схеме, 8.19 в тёмной.
   final Color tooltipText;
 
   /// Разделители строк списка и разделители внутри карточки.
@@ -105,7 +110,9 @@ class SLColorScheme extends ThemeExtension<SLColorScheme> {
   /// Контур панели, карточки, таблицы, меню.
   final Color border;
 
-  /// Контур интерактивных элементов: поле ввода, селект, вторичная кнопка, чекбокс. Намеренно тёмный: WCAG 1.4.11 требует не менее 3:1.
+  /// Контур интерактивных элементов: поле ввода, селект, вторичная кнопка,
+  /// чекбокс. Намеренно контрастнее, чем «красиво» — в светлой схеме темнее
+  /// фона, в тёмной светлее: WCAG 1.4.11 требует не менее 3:1.
   final Color borderStrong;
 
   /// Кольцо фокуса.
@@ -126,10 +133,11 @@ class SLColorScheme extends ThemeExtension<SLColorScheme> {
   /// Только отключённые контролы. Поле без прав на правку рендерится как read-only с [textPrimary], а не как disabled.
   final Color textDisabled;
 
-  /// Текст на [accent], [danger], [success].
+  /// Текст на [accent], [danger], [success]. В светлой схеме белый,
+  /// в тёмной — **тёмные чернила**: заливки там светлые.
   final Color textOnAccent;
 
-  /// Текст на [warningAccent]: жёлтый требует тёмного текста.
+  /// Текст на [warningAccent]: жёлтый требует тёмного текста в обеих схемах.
   final Color textOnWarning;
 
   /// Иконки в строках и панелях.
@@ -141,7 +149,7 @@ class SLColorScheme extends ThemeExtension<SLColorScheme> {
   /// Основная кнопка, ссылка, ключ задачи, чекбокс.
   final Color accent;
 
-  /// Наведение на акцент.
+  /// Наведение на акцент: в светлой схеме темнее, в тёмной светлее.
   final Color accentHover;
 
   /// Нажатие; текст на [accentSurface].
@@ -187,6 +195,7 @@ class SLColorScheme extends ThemeExtension<SLColorScheme> {
   final Color info;
 
   /// Наведение поверх произвольной подложки, если нет готового токена фона.
+  /// В светлой схеме затемняет, в тёмной осветляет.
   final Color overlayHover;
 
   /// Нажатие поверх произвольной подложки.
@@ -198,7 +207,7 @@ class SLColorScheme extends ThemeExtension<SLColorScheme> {
   /// Нажатие поверх тех же заливок.
   final Color overlayOnAccentPressed;
 
-  /// Светлая схема SL Tracker — единственная в MVP.
+  /// Светлая схема (`docs/design/system.md`, столбец «Светлая» в 3.1–3.5).
   SLColorScheme.light()
     : surface = SLColorPalette.n0,
       surfaceSunken = SLColorPalette.n50,
@@ -247,17 +256,72 @@ class SLColorScheme extends ThemeExtension<SLColorScheme> {
       overlayOnAccentHover = SLColorPalette.n0.withValues(alpha: 0.10),
       overlayOnAccentPressed = SLColorPalette.n0.withValues(alpha: 0.18);
 
-  /// Тёмная схема — **заглушка**.
+  /// Тёмная схема (`docs/design/system.md`, столбец «Тёмная» в 3.1–3.5).
   ///
-  /// Значения ещё не посчитаны: контрасты в тёмной теме проверяются
-  /// расчётом, а не на глаз, и придумывать их за дизайнера нельзя. Пока
-  /// схема повторяет светлую — работает механизм переключения, а не
-  /// оформление.
+  /// Три места, где значение меняет не только яркость, но и смысл:
   ///
-  /// Подстановка настоящих значений — правка **только этого файла**: вместо
-  /// делегирования появится такой же список инициализаторов, как
-  /// у [SLColorScheme.light]. Ни один виджет при этом не меняется.
-  factory SLColorScheme.dark() = SLColorScheme.light;
+  /// * [textOnAccent] и [textOnWarning] — **тёмные чернила**, а не белый:
+  ///   заливки `accent`, `danger`, `success` в тёмной схеме светлые.
+  ///   Основная и опасная кнопки становятся светлой плашкой с тёмным
+  ///   текстом, инициалы аватара — тёмными на светлом кружке.
+  /// * [accentHover] и [accentPressed] **светлее** акцента, а не темнее:
+  ///   движение состояния всегда идёт «от фона», в сторону большей энергии.
+  /// * [overlayHover] и [overlayPressed] осветляют подложку белой плёнкой,
+  ///   а не затемняют её. Alpha подобрана так, чтобы результат совпал
+  ///   с готовыми токенами фона: +4.4 L* против +4.3 L* у [surfaceHover].
+  ///
+  /// [overlayOnAccentHover] и [overlayOnAccentPressed] не меняются вовсе:
+  /// белая плёнка осветляет заливку в обеих схемах.
+  SLColorScheme.dark()
+    : surface = SLColorPalette.d50,
+      surfaceSunken = SLColorPalette.d0,
+      surfaceHover = SLColorPalette.d100,
+      surfacePressed = SLColorPalette.d150,
+      surfaceSelected = SLColorPalette.blueD800,
+      surfaceSelectedHover = SLColorPalette.blueD750,
+      surfaceDisabled = SLColorPalette.d100,
+      scrim = SLColorPalette.dScrim.withValues(alpha: 0.72),
+      skeletonBase = SLColorPalette.d150,
+      skeletonHighlight = SLColorPalette.d175,
+      trackDefault = SLColorPalette.d300,
+      // Тултип в тёмной схеме не инвертируется: белый прямоугольник слепит
+      // и читается как ошибка отрисовки. Он на две ступени светлее
+      // поверхности — этого хватает, чтобы прочитаться как всплывший слой.
+      tooltipSurface = SLColorPalette.d300,
+      tooltipText = SLColorPalette.d900,
+      borderSubtle = SLColorPalette.d150,
+      border = SLColorPalette.d200,
+      borderStrong = SLColorPalette.d500,
+      borderFocus = SLColorPalette.blueD500,
+      borderDanger = SLColorPalette.redD500,
+      textPrimary = SLColorPalette.d800,
+      textSecondary = SLColorPalette.d700,
+      textMuted = SLColorPalette.d600,
+      textDisabled = SLColorPalette.d400,
+      textOnAccent = SLColorPalette.inkD,
+      textOnWarning = SLColorPalette.inkD,
+      iconDefault = SLColorPalette.d600,
+      iconMuted = SLColorPalette.d500,
+      accent = SLColorPalette.blueD500,
+      accentHover = SLColorPalette.blueD400,
+      accentPressed = SLColorPalette.blueD300,
+      accentSurface = SLColorPalette.blueD800,
+      accentBorder = SLColorPalette.blueD700,
+      success = SLColorPalette.greenD500,
+      successSurface = SLColorPalette.greenD800,
+      successBorder = SLColorPalette.greenD700,
+      warning = SLColorPalette.amberD500,
+      warningAccent = SLColorPalette.amberD400,
+      warningSurface = SLColorPalette.amberD800,
+      danger = SLColorPalette.redD500,
+      dangerHover = SLColorPalette.redD400,
+      dangerSurface = SLColorPalette.redD800,
+      dangerBorder = SLColorPalette.redD700,
+      info = SLColorPalette.blueD500,
+      overlayHover = SLColorPalette.n0.withValues(alpha: 0.04),
+      overlayPressed = SLColorPalette.n0.withValues(alpha: 0.08),
+      overlayOnAccentHover = SLColorPalette.n0.withValues(alpha: 0.10),
+      overlayOnAccentPressed = SLColorPalette.n0.withValues(alpha: 0.18);
 
   @override
   SLColorScheme copyWith({

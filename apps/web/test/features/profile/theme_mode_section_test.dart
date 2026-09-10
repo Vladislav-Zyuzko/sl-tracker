@@ -145,16 +145,55 @@ void main() {
       expect(selected.flagsCollection.isSelected, Tristate.isTrue);
 
       // Уточнение к «как в системе» читается вместе с названием, а не
-      // теряется отдельной строкой.
+      // теряется отдельной строкой, и называет действующую схему.
       expect(
         find.bySemanticsLabel(
           '${ThemeModeSection.labelOf(ThemeMode.system)}. '
-          '${ThemeModeSection.hintOf(ThemeMode.system)}',
+          '${ThemeModeSection.hintOf(ThemeMode.system, Brightness.light)}',
         ),
         findsOneWidget,
       );
 
       handle.dispose();
+    });
+
+    testWidgets('«Как в системе» называет действующую схему и следит за ОС', (
+      tester,
+    ) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+
+      await pumpSection(tester, store: FakeLocalStore());
+
+      expect(
+        find.text('Меняется вместе с настройкой системы. Сейчас тёмная'),
+        findsOneWidget,
+      );
+
+      // Человек переключил тему ОС, не уходя с экрана: строка обязана
+      // обновиться, иначе она врёт про то, что показано прямо сейчас.
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Меняется вместе с настройкой системы. Сейчас светлая'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('уточнение есть только у «как в системе»', (tester) async {
+      for (final brightness in Brightness.values) {
+        expect(
+          ThemeModeSection.hintOf(ThemeMode.light, brightness),
+          isNull,
+          reason: 'у «Светлая» пояснять нечего',
+        );
+        expect(
+          ThemeModeSection.hintOf(ThemeMode.dark, brightness),
+          isNull,
+          reason: 'у «Тёмная» пояснять нечего',
+        );
+      }
     });
   });
 }

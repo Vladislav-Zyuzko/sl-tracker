@@ -36,6 +36,10 @@ Future<void> pumpInTheme(
   await tester.pumpWidget(
     MaterialApp(
       theme: dark ? SLThemeData.dark : SLThemeData.light,
+      // Как в приложении: схема меняется мгновенно, без интерполяции
+      // (`system.md`, 12.5). Без этого повторный `pumpWidget` в тесте
+      // отдаёт полукадр между схемами.
+      themeAnimationDuration: Duration.zero,
       home: Scaffold(body: Center(child: child)),
     ),
   );

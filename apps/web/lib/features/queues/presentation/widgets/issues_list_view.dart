@@ -457,7 +457,7 @@ class _IssuesListViewState extends State<IssuesListView> {
         // поэтому не участвует в прокрутке и не ломает `itemExtent`.
         DecoratedBox(
           decoration: BoxDecoration(
-            boxShadow: _scrolled ? SLShadows.sm : const [],
+            boxShadow: _scrolled ? SLShadows.of(context).sm : const [],
           ),
           child: SLIssueTableHeader(layout: widget.layout),
         ),

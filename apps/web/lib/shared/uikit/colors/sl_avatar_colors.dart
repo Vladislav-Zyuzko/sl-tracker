@@ -3,7 +3,8 @@ import 'package:sl_tracker_web/shared/uikit/colors/sl_color_palette.dart';
 
 /// Слой 3 дизайн-системы — заливки аватаров (`docs/design/system.md`, 8).
 ///
-/// Все восемь цветов дают не менее 4.5:1 с белыми инициалами.
+/// Все восемь цветов дают не менее 4.5:1 с инициалами роли `textOnAccent`
+/// в обеих схемах: с белыми в светлой, с тёмными чернилами в тёмной.
 /// Цвет выбирается детерминированно по идентификатору пользователя,
 /// а не по имени: смена имени не должна менять цвет аватара.
 class SLAvatarColors extends ThemeExtension<SLAvatarColors> {
@@ -12,7 +13,7 @@ class SLAvatarColors extends ThemeExtension<SLAvatarColors> {
   /// Восемь заливок в порядке индексов из спеки.
   final List<Color> fills;
 
-  /// Светлая схема.
+  /// Светлая схема (`system.md`, 8).
   SLAvatarColors.light()
     : fills = const [
         SLColorPalette.blueAvatar,
@@ -25,17 +26,27 @@ class SLAvatarColors extends ThemeExtension<SLAvatarColors> {
         SLColorPalette.violet600,
       ];
 
-  /// Тёмная схема — **заглушка**.
+  /// Тёмная схема (`system.md`, 8).
   ///
-  /// Значения ещё не посчитаны: контрасты в тёмной теме проверяются
-  /// расчётом, а не на глаз, и придумывать их за дизайнера нельзя. Пока
-  /// схема повторяет светлую — работает механизм переключения, а не
-  /// оформление.
+  /// Порядок тонов тот же, что в светлой: у человека не меняется «его цвет»
+  /// при переключении темы — синий остаётся синим, только светлее.
   ///
-  /// Подстановка настоящих значений — правка **только этого файла**: вместо
-  /// делегирования появится такой же список инициализаторов, как
-  /// у [SLAvatarColors.light]. Ни один виджет при этом не меняется.
-  factory SLAvatarColors.dark() = SLAvatarColors.light;
+  /// Заливки светлые, потому что инициалы декорируются ролью `textOnAccent`,
+  /// а она в тёмной схеме — тёмные чернила. Оставить тёмные заливки значило
+  /// бы завести отдельную роль «чернила аватара», которой нет в светлой
+  /// схеме. Побочная польза: светлый кружок читается на тёмном фоне
+  /// (7.27–9.14 к `surface`), тогда как светлый `#2F6FD0` дал бы 2.4:1.
+  SLAvatarColors.dark()
+    : fills = const [
+        SLColorPalette.avatarBlueD,
+        SLColorPalette.avatarTealD,
+        SLColorPalette.avatarGreenD,
+        SLColorPalette.avatarAmberD,
+        SLColorPalette.avatarOrangeD,
+        SLColorPalette.avatarRedD,
+        SLColorPalette.avatarPinkD,
+        SLColorPalette.avatarVioletD,
+      ];
 
   /// Заливка аватара пользователя с идентификатором [userId].
   ///

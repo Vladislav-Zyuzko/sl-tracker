@@ -7,14 +7,15 @@ import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
 
-/// Выбор темы оформления на экране профиля.
+/// Выбор темы оформления на экране профиля
+/// (`docs/design/screens/profile.md`, «Блок „Оформление“»).
 ///
 /// Три взаимоисключающих варианта, поэтому это группа радиокнопок, а не
 /// тумблер: тумблер умеет только «да/нет», а «как в системе» — полноценный
 /// третий вариант, и он же значение по умолчанию.
 ///
-/// Спеки экрана на эту секцию пока нет: раскладка повторяет строки настроек
-/// уведомлений, которые на этом экране уже есть, а не изобретает свою.
+/// Раскладка строки повторяет строку настройки уведомления ниже: секции идут
+/// подряд, и разнобой в ритме был бы виден.
 class ThemeModeSection extends ConsumerWidget {
   /// @nodoc
   const ThemeModeSection({super.key});
@@ -30,11 +31,24 @@ class ThemeModeSection extends ConsumerWidget {
   };
 
   /// Уточнение второй строкой. `null` — название говорит само за себя.
-  static String? hintOf(ThemeMode mode) => switch (mode) {
-    ThemeMode.system => 'Меняется вместе с настройкой операционной системы',
-    ThemeMode.light => null,
-    ThemeMode.dark => null,
-  };
+  ///
+  /// У «как в системе» вторая строка **обязана называть действующую схему**:
+  /// без неё человек видит выбранный вариант, но не знает, что он означает
+  /// прямо сейчас, — а это единственная информация, ради которой на экран
+  /// заходят второй раз. Текст живой: [systemBrightness] приходит из
+  /// `MediaQuery`, и строка меняется вместе с настройкой ОС, без перезагрузки.
+  static String? hintOf(ThemeMode mode, Brightness systemBrightness) =>
+      switch (mode) {
+        ThemeMode.system =>
+          'Меняется вместе с настройкой системы. '
+              'Сейчас ${_schemeName(systemBrightness)}',
+        ThemeMode.light => null,
+        ThemeMode.dark => null,
+      };
+
+  /// Название действующей схемы в винительном виде для второй строки.
+  static String _schemeName(Brightness brightness) =>
+      brightness == Brightness.dark ? 'тёмная' : 'светлая';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -77,7 +91,8 @@ class _ThemeModeRow extends StatelessWidget {
   final VoidCallback onSelect;
 
   /// Совпадает с высотой строки настройки уведомления: секции идут одна
-  /// под другой, и разнобой в ритме там был бы виден.
+  /// под другой, и разнобой в ритме там был бы виден. Строка «как в системе»
+  /// выше остальных — 56 против 48, — потому что у неё есть вторая строка.
   static const minHeight = 48.0;
 
   @override
@@ -85,7 +100,13 @@ class _ThemeModeRow extends StatelessWidget {
     final colors = SLColorScheme.of(context);
     final text = SLTextScheme.of(context);
     final label = ThemeModeSection.labelOf(mode);
-    final hint = ThemeModeSection.hintOf(mode);
+    // Подписка именно на системную схему, а не на применённую тему: строка
+    // «Сейчас тёмная» говорит про настройку ОС и обязана меняться вместе
+    // с ней, даже когда выбран явный режим.
+    final hint = ThemeModeSection.hintOf(
+      mode,
+      MediaQuery.platformBrightnessOf(context),
+    );
 
     return Semantics(
       inMutuallyExclusiveGroup: true,

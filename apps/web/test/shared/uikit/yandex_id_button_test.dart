@@ -23,7 +23,7 @@ void main() {
       expect(mark.excludeFromSemantics, isTrue);
     });
 
-    testWidgets('исключение из системы: чёрный фон, высота 44, радиус 12', (
+    testWidgets('в светлой схеме — основной вариант: чёрный фон, белый текст', (
       tester,
     ) async {
       await pumpInTheme(
@@ -35,12 +35,21 @@ void main() {
           .widget<FilledButton>(find.byType(FilledButton))
           .style!;
 
-      expect(style.backgroundColor?.resolve({}), YandexIdButton.background);
-      expect(style.foregroundColor?.resolve({}), YandexIdButton.foreground);
+      expect(
+        style.backgroundColor?.resolve({}),
+        YandexIdButton.blackBackground,
+      );
+      expect(
+        style.foregroundColor?.resolve({}),
+        YandexIdButton.blackForeground,
+      );
       expect(style.fixedSize?.resolve({})?.height, YandexIdButton.height);
 
       final shape = style.shape?.resolve({})! as RoundedRectangleBorder;
       expect(shape.borderRadius, BorderRadius.circular(YandexIdButton.radius));
+
+      final label = tester.widget<Text>(find.text(YandexIdButton.label));
+      expect(label.style?.color, YandexIdButton.blackForeground);
     });
 
     testWidgets('нажатие срабатывает', (tester) async {
@@ -72,18 +81,19 @@ void main() {
       await tester.pump();
 
       expect(taps, 0);
-      // Надпись сменяется спиннером, но кнопка остаётся чёрной и активной
+      // Надпись сменяется спиннером, но кнопка остаётся сплошной и активной
       // на вид: мигать ей нечем, страница всё равно выгружается.
       expect(find.text(YandexIdButton.label), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('в тёмной теме не меняется ничего: это чужая кнопка', (
+    testWidgets('в тёмной схеме — белый вариант Яндекса, а не чёрный', (
       tester,
     ) async {
-      // Требования Яндекс ID запрещают менять цвет, содержимое и геометрию
-      // кнопки. Тема продукта на неё влиять не должна — ни светлая,
-      // ни тёмная (`system.md`, 3.4.1).
+      // Чёрная кнопка на фоне экрана входа `#10141C` даёт 1.14:1 при
+      // требуемых WCAG 1.4.11 3:1 — контрол исчезает. Яндекс публикует
+      // два варианта, и выбор между ними изменением кнопки не является
+      // (`system.md`, 3.4.1; `screens/login.md`).
       ButtonStyle currentStyle() =>
           tester.widget<FilledButton>(find.byType(FilledButton)).style!;
 
@@ -100,35 +110,84 @@ void main() {
       );
       final dark = currentStyle();
 
-      expect(dark.backgroundColor?.resolve({}), YandexIdButton.background);
-      expect(dark.foregroundColor?.resolve({}), YandexIdButton.foreground);
-      expect(
-        dark.backgroundColor?.resolve({}),
-        light.backgroundColor?.resolve({}),
-      );
-      expect(
-        dark.foregroundColor?.resolve({}),
-        light.foregroundColor?.resolve({}),
-      );
+      expect(dark.backgroundColor?.resolve({}), YandexIdButton.whiteBackground);
+      expect(dark.foregroundColor?.resolve({}), YandexIdButton.whiteForeground);
+
+      // Геометрия — общая для обоих вариантов и не обсуждается.
       expect(dark.fixedSize?.resolve({}), light.fixedSize?.resolve({}));
       expect(dark.shape?.resolve({}), light.shape?.resolve({}));
+      expect(dark.padding?.resolve({}), light.padding?.resolve({}));
 
-      // Наведение и нажатие тоже белой вуалью, а не цветом схемы.
-      for (final state in [WidgetState.hovered, WidgetState.pressed]) {
-        expect(
-          dark.overlayColor?.resolve({state}),
-          light.overlayColor?.resolve({state}),
-        );
-      }
-
-      // Надпись покрашена литералом, а не темой.
+      // Надпись покрашена вариантом кнопки, а не ролью темы.
       final label = tester.widget<Text>(find.text(YandexIdButton.label));
-      expect(label.style?.color, YandexIdButton.foreground);
+      expect(label.style?.color, YandexIdButton.whiteForeground);
 
-      // Знак — тот же ассет, без перекраски.
+      // Знак — тот же ассет, без перекраски: он не меняется ни в одном
+      // из вариантов.
       final mark = tester.widget<Image>(find.byType(Image));
       expect((mark.image as AssetImage).assetName, YandexIdButton.markAsset);
       expect(mark.color, isNull);
+    });
+
+    testWidgets('вуаль наведения и нажатия — цветом надписи варианта', (
+      tester,
+    ) async {
+      // На чёрном варианте она белая, на белом — чёрная: белая вуаль
+      // на белой кнопке ничего бы не показала.
+      for (final dark in [false, true]) {
+        await pumpInTheme(
+          tester,
+          SizedBox(width: 360, child: YandexIdButton(onPressed: () {})),
+          dark: dark,
+        );
+
+        final overlay = tester
+            .widget<FilledButton>(find.byType(FilledButton))
+            .style!
+            .overlayColor;
+        final expected = YandexIdButton.foregroundOf(
+          dark ? Brightness.dark : Brightness.light,
+        );
+
+        expect(
+          overlay?.resolve({WidgetState.hovered}),
+          expected.withValues(alpha: 0.10),
+          reason: dark ? 'тёмная схема' : 'светлая схема',
+        );
+        expect(
+          overlay?.resolve({WidgetState.pressed}),
+          expected.withValues(alpha: 0.18),
+          reason: dark ? 'тёмная схема' : 'светлая схема',
+        );
+      }
+    });
+
+    testWidgets('спиннер красится цветом надписи кнопки, а не ролью темы', (
+      tester,
+    ) async {
+      // В тёмной схеме `textOnAccent` — тёмные чернила, а кнопка белая:
+      // спиннер обязан быть чёрным, иначе он исчезнет
+      // (`screens/login.md`, «Состояния»).
+      for (final dark in [false, true]) {
+        await pumpInTheme(
+          tester,
+          SizedBox(
+            width: 360,
+            child: YandexIdButton(isLoading: true, onPressed: () {}),
+          ),
+          dark: dark,
+        );
+
+        final spinner = tester.widget<CircularProgressIndicator>(
+          find.byType(CircularProgressIndicator),
+        );
+
+        expect(
+          spinner.color,
+          YandexIdButton.foregroundOf(dark ? Brightness.dark : Brightness.light),
+          reason: dark ? 'тёмная схема' : 'светлая схема',
+        );
+      }
     });
 
     testWidgets('доступное имя — «Войти через Яндекс»', (tester) async {

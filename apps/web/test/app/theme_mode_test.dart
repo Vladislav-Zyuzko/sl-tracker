@@ -7,9 +7,11 @@ import 'package:sl_tracker_web/app/sl_app.dart';
 import 'package:sl_tracker_web/app/theme/theme_mode_preference.dart';
 import 'package:sl_tracker_web/app/theme/theme_mode_providers.dart';
 import 'package:sl_tracker_web/core/network/api_failure.dart';
+import 'package:sl_tracker_web/core/platform/boot_theme_store.dart';
 import 'package:sl_tracker_web/core/storage/local_store.dart';
 import 'package:sl_tracker_web/features/auth/data/auth_repository.dart';
 
+import '../helpers/fake_boot_theme_store.dart';
 import '../helpers/fake_local_store.dart';
 import '../helpers/fake_repositories.dart';
 import '../helpers/pump_widget.dart';
@@ -131,6 +133,62 @@ void main() {
 
       final afterReload = await bootContainer(store);
       expect(afterReload.read(themeModeProvider), ThemeMode.system);
+    });
+  });
+
+  group('зеркальный ключ для загрузчика в index.html', () {
+    /// Контейнер с подставным зеркалом: настоящий пишет в `localStorage`,
+    /// которого в тесте нет.
+    Future<(ProviderContainer, FakeBootThemeStore)> boot() async {
+      final mirror = FakeBootThemeStore();
+      final container = await bootContainer(
+        FakeLocalStore(),
+        overrides: [bootThemeStoreProvider.overrideWithValue(mirror)],
+      );
+
+      return (container, mirror);
+    }
+
+    test('явный выбор записывает уже вычисленную схему', () async {
+      final (container, mirror) = await boot();
+      final controller = container.read(themeModeProvider.notifier);
+
+      await controller.select(ThemeMode.dark);
+      expect(mirror.value, Brightness.dark);
+
+      await controller.select(ThemeMode.light);
+      expect(mirror.value, Brightness.light);
+    });
+
+    test('«как в системе» ключ стирает, а не консервирует', () async {
+      // Записанное значение протухнет при первой же смене темы в ОС,
+      // и загрузчик начнёт врать тому, кто попросил следовать системе.
+      // Пустой ключ означает «спроси prefers-color-scheme», и это верно
+      // всегда (`system.md`, 12.5).
+      final (container, mirror) = await boot();
+      final controller = container.read(themeModeProvider.notifier);
+
+      await controller.select(ThemeMode.dark);
+      await controller.select(ThemeMode.system);
+
+      expect(mirror.value, isNull);
+      expect(mirror.writes, [Brightness.dark, null]);
+    });
+
+    test('значения ключа — те, которые читает index.html', () {
+      expect(SLBootThemeStore.storageKey, 'sl.theme.boot');
+      expect(SLBootThemeStore.encode(Brightness.light), 'light');
+      expect(SLBootThemeStore.encode(Brightness.dark), 'dark');
+    });
+
+    test('повторный выбор того же режима зеркало не трогает', () async {
+      final (container, mirror) = await boot();
+      final controller = container.read(themeModeProvider.notifier);
+
+      await controller.select(ThemeMode.dark);
+      await controller.select(ThemeMode.dark);
+
+      expect(mirror.writes.length, 1);
     });
   });
 

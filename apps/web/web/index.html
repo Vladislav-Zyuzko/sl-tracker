@@ -13,6 +13,15 @@
   -->
   <meta name="robots" content="noindex, nofollow">
 
+  <!--
+    Обе схемы поддерживаются. Браузер благодаря этому красит системные части
+    страницы — полосы прокрутки, поля ввода до старта Flutter — в тон схемы,
+    а не в светлый по умолчанию (`system.md`, 12.5).
+  -->
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F4F7FB" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#10141C" media="(prefers-color-scheme: dark)">
+
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="SL Tracker">
@@ -26,17 +35,22 @@
     /*
       Осмысленный лоадер, пока поднимается движок и грузятся шрифты.
       Цвета взяты из дизайн-системы (surfaceSunken, textMuted, textPrimary,
-      accent, border) — это единственное место вне Dart, где они дублируются,
-      потому что здесь темы ещё нет.
+      borderSubtle, accent) — это единственное место вне Dart, где они
+      дублируются, потому что здесь темы ещё нет (`system.md`, 12.5).
 
-      Лоадер знает только системную настройку: выбор «светлая» или «тёмная»
-      сделан внутри приложения и лежит в localStorage в формате пакета
-      shared_preferences, полагаться на который здесь нельзя. Поэтому при
-      явно выбранной теме, не совпадающей с системной, лоадер на доли
-      секунды покажет системный вариант.
+      Схема выбирается в три шага, и порядок важен:
 
-      Тёмные значения — заглушка, повторяющая светлые: их считает дизайнер.
-      Подстановка настоящих сводится к правке блока prefers-color-scheme.
+        1. собственный ключ `sl.theme.boot` — там лежит УЖЕ ВЫЧИСЛЕННАЯ
+           схема (`light` / `dark`), которую приложение записало при явном
+           выборе. Скрипт ниже ставит по нему атрибут на <html>;
+        2. если ключа нет (первый визит либо режим «как в системе») —
+           работает медиа-запрос prefers-color-scheme, то есть настройка ОС;
+        3. если JavaScript выключен, шага 1 не происходит вовсе, и остаётся
+           тот же медиа-запрос. Поэтому светлые значения объявлены на голом
+           :root, а не внутри правила с атрибутом.
+
+      Разбирать формат хранения shared_preferences здесь нельзя — это деталь
+      пакета. Отсюда и собственный ключ: договорённость с приложением наша.
     */
     :root {
       --sl-boot-bg: #F4F7FB;
@@ -48,12 +62,29 @@
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --sl-boot-bg: #F4F7FB;
-        --sl-boot-text: #5C6C87;
-        --sl-boot-title: #26395B;
-        --sl-boot-track: #E8EFF5;
-        --sl-boot-bar: #1A6CE5;
+        --sl-boot-bg: #10141C;
+        --sl-boot-text: #99A6BC;
+        --sl-boot-title: #DCE3EE;
+        --sl-boot-track: #242D3C;
+        --sl-boot-bar: #6BA6FF;
       }
+    }
+
+    /* Явный выбор перекрывает системную настройку в обе стороны. */
+    html[data-sl-scheme="light"] {
+      --sl-boot-bg: #F4F7FB;
+      --sl-boot-text: #5C6C87;
+      --sl-boot-title: #26395B;
+      --sl-boot-track: #E8EFF5;
+      --sl-boot-bar: #1A6CE5;
+    }
+
+    html[data-sl-scheme="dark"] {
+      --sl-boot-bg: #10141C;
+      --sl-boot-text: #99A6BC;
+      --sl-boot-title: #DCE3EE;
+      --sl-boot-track: #242D3C;
+      --sl-boot-bar: #6BA6FF;
     }
 
     html, body {
@@ -113,6 +144,33 @@
       }
     }
   </style>
+
+  <script>
+    // Синхронно и до <body>: атрибут обязан стоять на первом же кадре,
+    // иначе человек с тёмной схемой увидит вспышку светлого загрузчика —
+    // ровно то, ради чего ключ и заведён.
+    (function () {
+      var scheme = null;
+      try {
+        scheme = window.localStorage.getItem('sl.theme.boot');
+      } catch (e) {
+        // Данные сайта запрещены — остаётся системная настройка.
+      }
+
+      if (scheme !== 'light' && scheme !== 'dark') return;
+
+      document.documentElement.setAttribute('data-sl-scheme', scheme);
+
+      // Оба theme-color разводятся медиа-запросом, и браузер берёт первый
+      // подходящий. Добавлять третий без media бесполезно — он окажется
+      // позже, — поэтому явный выбор просто перезаписывает содержимое обоих.
+      var color = scheme === 'dark' ? '#10141C' : '#F4F7FB';
+      var metas = document.querySelectorAll('meta[name="theme-color"]');
+      for (var i = 0; i < metas.length; i++) {
+        metas[i].setAttribute('content', color);
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="sl-boot">

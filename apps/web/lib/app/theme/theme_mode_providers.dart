@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sl_tracker_web/app/theme/theme_mode_preference.dart';
+import 'package:sl_tracker_web/core/platform/boot_theme_store.dart';
 import 'package:sl_tracker_web/core/storage/local_store.dart';
 
 /// Режим, с которым приложение поднимается.
@@ -33,6 +34,22 @@ class ThemeModeController extends Notifier<ThemeMode> {
     if (state == mode) return;
 
     state = mode;
+    _mirrorForBootLoader(mode);
     await SLThemeModePreference.write(ref.read(localStoreProvider), mode);
+  }
+
+  /// Кладёт выбранную схему туда, где её увидит `index.html` до первого
+  /// кадра Flutter (`system.md`, 12.5).
+  ///
+  /// В режиме «как в системе» ключ **стирается**, а не заполняется текущей
+  /// системной схемой: правильный ответ там уже знает `prefers-color-scheme`,
+  /// а записанное значение протухнет при первой же смене темы в ОС —
+  /// и загрузчик начнёт врать ровно тому, кто попросил следовать системе.
+  void _mirrorForBootLoader(ThemeMode mode) {
+    ref.read(bootThemeStoreProvider).write(switch (mode) {
+      ThemeMode.system => null,
+      ThemeMode.light => Brightness.light,
+      ThemeMode.dark => Brightness.dark,
+    });
   }
 }

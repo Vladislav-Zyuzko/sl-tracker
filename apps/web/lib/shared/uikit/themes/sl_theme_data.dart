@@ -6,6 +6,7 @@ import 'package:sl_tracker_web/shared/uikit/colors/sl_priority_colors.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_status_colors.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_motion.dart';
+import 'package:sl_tracker_web/shared/uikit/sl_shadows.dart';
 import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
 
 /// Темы SL Tracker.
@@ -18,8 +19,8 @@ import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
 /// из [ThemeExtension], поэтому обе темы собираются одним и тем же [_build]:
 /// различаются только наборы цветов и [Brightness].
 ///
-/// Цвета тёмной схемы пока повторяют светлую (см. `SLColorScheme.dark`) —
-/// готов механизм, а не оформление.
+/// Значения обеих схем — из `docs/design/system.md` 1.3: набор ролей общий,
+/// различаются только числа.
 abstract final class SLThemeData {
   /// Светлая тема.
   ///
@@ -30,6 +31,7 @@ abstract final class SLThemeData {
     statuses: SLStatusColors.light(),
     priorities: SLPriorityColors.light(),
     avatars: SLAvatarColors.light(),
+    shadows: const SLShadows.light(),
     brightness: Brightness.light,
   );
 
@@ -39,6 +41,7 @@ abstract final class SLThemeData {
     statuses: SLStatusColors.dark(),
     priorities: SLPriorityColors.dark(),
     avatars: SLAvatarColors.dark(),
+    shadows: const SLShadows.dark(),
     brightness: Brightness.dark,
   );
 
@@ -49,6 +52,7 @@ abstract final class SLThemeData {
     required SLStatusColors statuses,
     required SLPriorityColors priorities,
     required SLAvatarColors avatars,
+    required SLShadows shadows,
     required Brightness brightness,
   }) {
     final materialColors = ColorScheme(
@@ -64,7 +68,7 @@ abstract final class SLThemeData {
       surfaceContainerHighest: colors.surfaceSunken,
       outline: colors.borderStrong,
       outlineVariant: colors.border,
-      shadow: colors.textPrimary,
+      shadow: shadows.base,
       scrim: colors.scrim,
     );
 
@@ -85,7 +89,7 @@ abstract final class SLThemeData {
       splashColor: const Color(0x00000000),
       highlightColor: const Color(0x00000000),
       visualDensity: VisualDensity.compact,
-      extensions: [_text, colors, statuses, priorities, avatars],
+      extensions: [_text, colors, statuses, priorities, avatars, shadows],
       textTheme: _textTheme(colors),
       iconTheme: IconThemeData(
         color: colors.iconDefault,
@@ -237,7 +241,14 @@ abstract final class SLThemeData {
       surfaceTintColor: const Color(0x00000000),
       elevation: 0,
       barrierColor: colors.scrim,
-      shape: const RoundedRectangleBorder(borderRadius: SLRadii.mdAll),
+      // Граница рисуется **в обеих схемах, безусловно** (`components.md`, 13):
+      // в тёмной `shadowLg` теряет почти половину силы, и без границы модалка
+      // на подложке `scrim` остаётся без края. Ветвления по теме внутри
+      // компонента быть не должно, поэтому граница есть и в светлой.
+      shape: RoundedRectangleBorder(
+        borderRadius: SLRadii.mdAll,
+        side: BorderSide(color: colors.border, width: SLBorders.hairline),
+      ),
       titleTextStyle: _text.title.copyWith(color: colors.textPrimary),
       contentTextStyle: _text.body.copyWith(color: colors.textPrimary),
     );

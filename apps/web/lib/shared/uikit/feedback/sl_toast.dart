@@ -366,7 +366,7 @@ class _SLToastCardState extends ConsumerState<_SLToastCard> {
                     color: colors.border,
                     width: SLBorders.hairline,
                   ),
-                  boxShadow: SLShadows.md,
+                  boxShadow: SLShadows.of(context).md,
                 ),
                 // Высота тоста задаётся содержимым, а полоса слева тянется
                 // на всю его высоту — без `IntrinsicHeight` растягивать

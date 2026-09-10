@@ -18,7 +18,7 @@ class SLStatusColors extends ThemeExtension<SLStatusColors> {
   /// Цвет текста и иконки плашки по статусу.
   final Map<IssueStatus, Color> texts;
 
-  /// Светлая схема.
+  /// Светлая схема (`system.md`, 4).
   SLStatusColors.light()
     : surfaces = const {
         IssueStatus.open: SLColorPalette.n150,
@@ -35,17 +35,28 @@ class SLStatusColors extends ThemeExtension<SLStatusColors> {
         IssueStatus.closed: SLColorPalette.green600,
       };
 
-  /// Тёмная схема — **заглушка**.
+  /// Тёмная схема (`system.md`, 4). Оттенки те же, светлота перевёрнутая;
+  /// иконки и коды статусов не меняются.
   ///
-  /// Значения ещё не посчитаны: контрасты в тёмной теме проверяются
-  /// расчётом, а не на глаз, и придумывать их за дизайнера нельзя. Пока
-  /// схема повторяет светлую — работает механизм переключения, а не
-  /// оформление.
-  ///
-  /// Подстановка настоящих значений — правка **только этого файла**: вместо
-  /// делегирования появится такой же список инициализаторов, как
-  /// у [SLStatusColors.light]. Ни один виджет при этом не меняется.
-  factory SLStatusColors.dark() = SLStatusColors.light;
+  /// Светлота всех пяти плашек укладывается в 16.5–20.7 L*, то есть фоны
+  /// почти одинаковы по яркости и различаются только тоном. Это ещё один
+  /// довод за то, что смысл несут текст и иконка, а плашка — фон под ними:
+  /// сокращать плашку до цветной точки нельзя ни в одной схеме.
+  SLStatusColors.dark()
+    : surfaces = const {
+        IssueStatus.open: SLColorPalette.d150,
+        IssueStatus.inProgress: SLColorPalette.blueD780,
+        IssueStatus.review: SLColorPalette.purpleD800,
+        IssueStatus.testing: SLColorPalette.amberD800,
+        IssueStatus.closed: SLColorPalette.greenD800,
+      },
+      texts = const {
+        IssueStatus.open: SLColorPalette.d700,
+        IssueStatus.inProgress: SLColorPalette.blueD400,
+        IssueStatus.review: SLColorPalette.purpleD400,
+        IssueStatus.testing: SLColorPalette.amberD500,
+        IssueStatus.closed: SLColorPalette.greenD500,
+      };
 
   /// Фон плашки статуса.
   Color surfaceOf(IssueStatus status) => surfaces[status]!;

@@ -8,13 +8,21 @@ import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 /// **Единственное задокументированное исключение из дизайн-системы**
 /// (`docs/design/system.md`, 3.4.1; `screens/login.md`). Требования Яндекс ID
 /// запрещают менять цвет кнопки, её содержимое, знак и отступы внутри неё,
-/// поэтому здесь стоят литералы цвета и размера, а не токены: чёрный фон,
-/// белый текст, высота 44, скругление 12.
+/// поэтому здесь стоят литералы цвета и размера, а не токены: высота 44,
+/// скругление 12 и один из двух опубликованных Яндексом вариантов цвета.
 ///
-/// Исключение действует только на этом виджете и только на экране входа.
-/// Ни одна другая кнопка продукта так не выглядит; при пересмотре палитры
-/// и в тёмной теме эта кнопка остаётся неизменной, потому что она чужая.
-/// Расширять исключение нельзя.
+/// **Вариантов два, и оба — Яндекса.** Основной чёрный (белый текст) в светлой
+/// схеме и дополнительный белый (чёрный текст) в тёмной. Это не изменение
+/// кнопки: выбор между двумя опубликованными вариантами разрешён, а знак,
+/// надпись, отступы, высота и радиус в обоих одинаковы. Причина замера,
+/// а не вкуса: чёрная кнопка на тёмном фоне экрана входа (`surfaceSunken`
+/// `#10141C`) даёт **1.14:1** при требуемых WCAG 1.4.11 3:1 — единственный
+/// контрол единственного экрана без сессии превращается в дыру. Белый
+/// вариант на том же фоне даёт 18.44:1 (`system.md`, 3.4.1).
+///
+/// Роли системы к кнопке по-прежнему не применяются: цвет берётся не из
+/// [SLColorScheme], а из требований Яндекса — тема лишь говорит, какой
+/// из двух вариантов сейчас уместен. Расширять исключение нельзя.
 ///
 /// Знак — официальный ассет (`assets/brand/yandex-id-mark.png` в трёх
 /// плотностях). Он **уже содержит** оранжевый фон `#FC3F1D` и скругление:
@@ -61,11 +69,29 @@ class YandexIdButton extends StatefulWidget {
   /// Ассет знака.
   static const markAsset = 'assets/brand/yandex-id-mark.png';
 
-  /// Фон: основной вариант — чёрный.
-  static const background = Color(0xFF000000);
+  /// Фон основного варианта Яндекса — чёрный.
+  static const blackBackground = Color(0xFF000000);
 
-  /// Текст и спиннер: белый. Контраст 21:1.
-  static const foreground = Color(0xFFFFFFFF);
+  /// Текст и спиннер основного варианта — белый. Контраст 21:1.
+  static const blackForeground = Color(0xFFFFFFFF);
+
+  /// Фон дополнительного варианта Яндекса — белый.
+  static const whiteBackground = Color(0xFFFFFFFF);
+
+  /// Текст и спиннер дополнительного варианта — чёрный. Контраст 21:1.
+  static const whiteForeground = Color(0xFF000000);
+
+  /// Фон варианта, уместного в схеме [brightness].
+  static Color backgroundOf(Brightness brightness) =>
+      brightness == Brightness.dark ? whiteBackground : blackBackground;
+
+  /// Цвет надписи и спиннера того же варианта.
+  ///
+  /// Спиннер красится **этим** цветом, а не ролью `textOnAccent`: кнопка
+  /// вне системы, а в тёмной схеме `textOnAccent` стал тёмным — белый
+  /// спиннер на белой кнопке исчез бы (`screens/login.md`, «Состояния»).
+  static Color foregroundOf(Brightness brightness) =>
+      brightness == Brightness.dark ? whiteForeground : blackForeground;
 
   @override
   State<YandexIdButton> createState() => _YandexIdButtonState();
@@ -95,88 +121,113 @@ class _YandexIdButtonState extends State<YandexIdButton> {
   }
 
   @override
-  Widget build(BuildContext context) => SLFocusRing(
-    focused: _focused,
-    borderRadius: YandexIdButton.radius,
-    child: SizedBox(
-      width: double.infinity,
-      child: Semantics(
-        label: YandexIdButton.semanticLabel,
-        button: true,
-        excludeSemantics: true,
-        child: FilledButton(
-          focusNode: widget.focusNode,
-          statesController: _statesController,
-          // Во время перехода нажатие игнорируется, но кнопка не выглядит
-          // отключённой: она всё ещё чёрная, а не полупрозрачная.
-          onPressed: widget.isLoading ? () {} : widget.onPressed,
-          style: _style,
-          child: widget.isLoading
-              ? const _LoadingContent()
-              : const _LabelContent(),
+  Widget build(BuildContext context) {
+    // Схема решает только одно: какой из двух вариантов Яндекса показать.
+    final brightness = Theme.of(context).brightness;
+    final foreground = YandexIdButton.foregroundOf(brightness);
+
+    return SLFocusRing(
+      focused: _focused,
+      borderRadius: YandexIdButton.radius,
+      child: SizedBox(
+        width: double.infinity,
+        child: Semantics(
+          label: YandexIdButton.semanticLabel,
+          button: true,
+          excludeSemantics: true,
+          child: FilledButton(
+            focusNode: widget.focusNode,
+            statesController: _statesController,
+            // Во время перехода нажатие игнорируется, но кнопка не выглядит
+            // отключённой: она всё ещё сплошная, а не полупрозрачная.
+            onPressed: widget.isLoading ? () {} : widget.onPressed,
+            style: _styleOf(brightness),
+            child: widget.isLoading
+                ? _LoadingContent(color: foreground)
+                : _LabelContent(color: foreground),
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
-  static final _style = ButtonStyle(
-    backgroundColor: const WidgetStatePropertyAll(YandexIdButton.background),
-    foregroundColor: const WidgetStatePropertyAll(YandexIdButton.foreground),
-    // Цвет кнопки менять нельзя, поэтому наведение и нажатие показываются
-    // белой вуалью поверх чёрного, а не другим фоном.
-    overlayColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.pressed)) {
-        return YandexIdButton.foreground.withValues(alpha: 0.18);
-      }
-      if (states.contains(WidgetState.hovered)) {
-        return YandexIdButton.foreground.withValues(alpha: 0.10);
-      }
+  /// Стиль варианта. Обе версии собираются по одному разу: [ButtonStyle]
+  /// не бесплатен, а экран входа перестраивается на каждом кадре спиннера.
+  static ButtonStyle _styleOf(Brightness brightness) =>
+      brightness == Brightness.dark ? _darkStyle : _lightStyle;
 
-      return null;
-    }),
-    padding: const WidgetStatePropertyAll(
-      EdgeInsets.symmetric(horizontal: SLSpacing.space4),
-    ),
-    fixedSize: const WidgetStatePropertyAll(
-      Size.fromHeight(YandexIdButton.height),
-    ),
-    minimumSize: const WidgetStatePropertyAll(Size(0, YandexIdButton.height)),
-    maximumSize: const WidgetStatePropertyAll(Size.infinite),
-    shape: const WidgetStatePropertyAll(
-      RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(YandexIdButton.radius)),
+  static final _lightStyle = _buildStyle(Brightness.light);
+  static final _darkStyle = _buildStyle(Brightness.dark);
+
+  static ButtonStyle _buildStyle(Brightness brightness) {
+    final background = YandexIdButton.backgroundOf(brightness);
+    final foreground = YandexIdButton.foregroundOf(brightness);
+
+    return ButtonStyle(
+      backgroundColor: WidgetStatePropertyAll(background),
+      foregroundColor: WidgetStatePropertyAll(foreground),
+      // Цвет кнопки менять нельзя, поэтому наведение и нажатие показываются
+      // вуалью цвета надписи поверх фона, а не другим фоном: на чёрном
+      // варианте она белая, на белом — чёрная.
+      overlayColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.pressed)) {
+          return foreground.withValues(alpha: 0.18);
+        }
+        if (states.contains(WidgetState.hovered)) {
+          return foreground.withValues(alpha: 0.10);
+        }
+
+        return null;
+      }),
+      padding: const WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: SLSpacing.space4),
       ),
-    ),
-    elevation: const WidgetStatePropertyAll(0),
-    shadowColor: const WidgetStatePropertyAll(Color(0x00000000)),
-    surfaceTintColor: const WidgetStatePropertyAll(Color(0x00000000)),
-    splashFactory: NoSplash.splashFactory,
-    visualDensity: VisualDensity.standard,
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    mouseCursor: WidgetStateProperty.resolveWith(
-      (states) => states.contains(WidgetState.disabled)
-          ? SystemMouseCursors.basic
-          : SystemMouseCursors.click,
-    ),
-    animationDuration: Duration.zero,
-    alignment: Alignment.center,
-  );
+      fixedSize: const WidgetStatePropertyAll(
+        Size.fromHeight(YandexIdButton.height),
+      ),
+      minimumSize: const WidgetStatePropertyAll(Size(0, YandexIdButton.height)),
+      maximumSize: const WidgetStatePropertyAll(Size.infinite),
+      shape: const WidgetStatePropertyAll(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(
+            Radius.circular(YandexIdButton.radius),
+          ),
+        ),
+      ),
+      elevation: const WidgetStatePropertyAll(0),
+      shadowColor: const WidgetStatePropertyAll(Color(0x00000000)),
+      surfaceTintColor: const WidgetStatePropertyAll(Color(0x00000000)),
+      splashFactory: NoSplash.splashFactory,
+      visualDensity: VisualDensity.standard,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      mouseCursor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.disabled)
+            ? SystemMouseCursors.basic
+            : SystemMouseCursors.click,
+      ),
+      animationDuration: Duration.zero,
+      alignment: Alignment.center,
+    );
+  }
 }
 
 /// Знак и надпись. Отступ между ними задан Яндексом и не меняется.
 class _LabelContent extends StatelessWidget {
-  const _LabelContent();
+  const _LabelContent({required this.color});
+
+  /// Цвет надписи выбранного варианта кнопки.
+  final Color color;
 
   @override
-  Widget build(BuildContext context) => const Row(
+  Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      _Mark(),
-      SizedBox(width: SLSpacing.space2),
+      const _Mark(),
+      const SizedBox(width: SLSpacing.space2),
       Text(
         YandexIdButton.label,
         style: TextStyle(
-          color: YandexIdButton.foreground,
+          color: color,
           fontSize: 15,
           height: 20 / 15,
           fontWeight: FontWeight.w500,
@@ -188,20 +239,21 @@ class _LabelContent extends StatelessWidget {
 
 /// Переход на Яндекс: знак остаётся, надпись сменяется спиннером.
 class _LoadingContent extends StatelessWidget {
-  const _LoadingContent();
+  const _LoadingContent({required this.color});
+
+  /// Цвет спиннера — цвет надписи **этой** кнопки, а не роль `textOnAccent`:
+  /// на белом варианте белый спиннер был бы невидим.
+  final Color color;
 
   @override
-  Widget build(BuildContext context) => const Row(
+  Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      _Mark(),
-      SizedBox(width: SLSpacing.space2),
+      const _Mark(),
+      const SizedBox(width: SLSpacing.space2),
       SizedBox.square(
         dimension: SLIconSizes.icon16,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: YandexIdButton.foreground,
-        ),
+        child: CircularProgressIndicator(strokeWidth: 2, color: color),
       ),
     ],
   );

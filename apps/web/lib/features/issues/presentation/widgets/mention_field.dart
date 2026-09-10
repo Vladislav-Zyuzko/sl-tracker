@@ -393,7 +393,7 @@ class _SLMentionFieldState extends ConsumerState<SLMentionField> {
                 color: colors.border,
                 width: SLBorders.hairline,
               ),
-              boxShadow: SLShadows.md,
+              boxShadow: SLShadows.of(context).md,
             ),
             padding: const EdgeInsets.symmetric(vertical: SLSpacing.space1),
             child: switch (_items) {

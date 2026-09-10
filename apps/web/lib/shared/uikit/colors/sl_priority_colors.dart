@@ -9,7 +9,8 @@ import 'package:sl_tracker_web/shared/uikit/colors/sl_color_palette.dart';
 /// что-либо значить. Внимание привлекают только значения 70 и выше.
 ///
 /// Все заливки шкалы дают не менее 3:1 к роли `surface` — требование
-/// WCAG 1.4.11 к графическим объектам выполняется.
+/// WCAG 1.4.11 к графическим объектам выполняется в обеих схемах:
+/// минимум по системе — 3.46 в светлой и 5.08 в тёмной.
 class SLPriorityColors extends ThemeExtension<SLPriorityColors> {
   const SLPriorityColors._({required this.bars, required this.numbers});
 
@@ -19,7 +20,7 @@ class SLPriorityColors extends ThemeExtension<SLPriorityColors> {
   /// Цвет числа по диапазону.
   final Map<PriorityRange, Color> numbers;
 
-  /// Светлая схема.
+  /// Светлая схема (`system.md`, 5).
   SLPriorityColors.light()
     : bars = const {
         PriorityRange.low: SLColorPalette.n500,
@@ -34,17 +35,26 @@ class SLPriorityColors extends ThemeExtension<SLPriorityColors> {
         PriorityRange.critical: SLColorPalette.red600,
       };
 
-  /// Тёмная схема — **заглушка**.
+  /// Тёмная схема (`system.md`, 5).
   ///
-  /// Значения ещё не посчитаны: контрасты в тёмной теме проверяются
-  /// расчётом, а не на глаз, и придумывать их за дизайнера нельзя. Пока
-  /// схема повторяет светлую — работает механизм переключения, а не
-  /// оформление.
-  ///
-  /// Подстановка настоящих значений — правка **только этого файла**: вместо
-  /// делегирования появится такой же список инициализаторов, как
-  /// у [SLPriorityColors.light]. Ни один виджет при этом не меняется.
-  factory SLPriorityColors.dark() = SLPriorityColors.light;
+  /// Главное свойство шкалы сохранено: диапазоны «низкий» и «обычный»
+  /// остаются нейтральными по цвету, цвет появляется только с 70. Шкала
+  /// диапазона «высокий» на ступень темнее числа — как и в светлой, где
+  /// заливка светлее текста: заливке достаточно 3:1, и разведение двух
+  /// значений не даёт столбику спорить по яркости с числом.
+  SLPriorityColors.dark()
+    : bars = const {
+        PriorityRange.low: SLColorPalette.d500,
+        PriorityRange.normal: SLColorPalette.d600,
+        PriorityRange.high: SLColorPalette.amberD600,
+        PriorityRange.critical: SLColorPalette.redD500,
+      },
+      numbers = const {
+        PriorityRange.low: SLColorPalette.d600,
+        PriorityRange.normal: SLColorPalette.d700,
+        PriorityRange.high: SLColorPalette.amberD500,
+        PriorityRange.critical: SLColorPalette.redD500,
+      };
 
   /// Цвет заливки шкалы для значения приоритета.
   Color barOf(int value) => bars[PriorityRange.of(value)]!;
