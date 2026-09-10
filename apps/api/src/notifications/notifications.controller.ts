@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -114,6 +125,7 @@ export class NotificationsController {
   }
 
   @Post('read-all')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Отметить все как прочитанные',
     description:
@@ -126,6 +138,7 @@ export class NotificationsController {
   }
 
   @Post(':id/read')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Отметить уведомление прочитанным',
     description:

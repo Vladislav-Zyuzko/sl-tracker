@@ -2,7 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Length, Max, Min } from 'class-validator';
 import { IssueUserDto } from '../../issues/dto/issue.dto.js';
-import { COMMENT_BODY_MAX_LENGTH } from '../comment-body.js';
+import { InvalidField } from '../../common/index.js';
+import { COMMENT_BODY_MAX_LENGTH, INVALID_COMMENT_BODY } from '../comment-body.js';
 import type { CommentRow } from '../comments.repository.js';
 import { COMMENTS_MAX_LIMIT, commentPermissionsFor } from '../comments.service.js';
 
@@ -116,6 +117,7 @@ export class CreateCommentDto {
   })
   @IsString()
   @Length(1, COMMENT_BODY_MAX_LENGTH)
+  @InvalidField(INVALID_COMMENT_BODY)
   body!: string;
 }
 

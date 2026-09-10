@@ -10,8 +10,9 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
+import { InvalidField } from '../../common/index.js';
 import { SLUG_MAX_LENGTH } from '../project-slug.js';
-import { PROJECTS_MAX_LIMIT } from '../projects.service.js';
+import { INVALID_PROJECT_NAME, PROJECTS_MAX_LIMIT } from '../projects.service.js';
 
 export class CreateProjectDto {
   @ApiProperty({
@@ -24,6 +25,7 @@ export class CreateProjectDto {
   })
   @IsString()
   @Length(1, 100)
+  @InvalidField(INVALID_PROJECT_NAME)
   name!: string;
 
   @ApiPropertyOptional({
@@ -49,6 +51,7 @@ export class UpdateProjectDto {
   @IsOptional()
   @IsString()
   @Length(1, 100)
+  @InvalidField(INVALID_PROJECT_NAME)
   name?: string;
 
   @ApiPropertyOptional({

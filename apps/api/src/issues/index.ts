@@ -10,7 +10,8 @@ export type {
   IssueSortOrder,
   UserRef,
 } from './issues.repository.js';
-export { IssueAccessService, permissionsFor } from './issue-access.service.js';
+export { IssueAccessService, issueNotFound, permissionsFor } from './issue-access.service.js';
+export { whileIssueExists } from './issue-writes.js';
 export type { IssueContext, IssuePermissions } from './issue-access.service.js';
 export { IssueHistoryService } from './issue-history.service.js';
 export { IssueHistoryRepository } from './issue-history.repository.js';

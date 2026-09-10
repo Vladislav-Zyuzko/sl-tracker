@@ -6,10 +6,10 @@ import {
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/index.js';
 import { clampLimit, decodeCursor, encodeCursor } from '../common/index.js';
-import { IssueAccessService } from '../issues/index.js';
+import { IssueAccessService, whileIssueExists } from '../issues/index.js';
 import type { IssueContext } from '../issues/index.js';
 import type { IssueEventRef } from '../notifications/index.js';
-import { COMMENT_BODY_MAX_LENGTH, normalizeCommentBody } from './comment-body.js';
+import { INVALID_COMMENT_BODY, normalizeCommentBody } from './comment-body.js';
 import { type CommentRow, CommentsRepository } from './comments.repository.js';
 
 /** Лента подгружается порциями; потолок жёсткий (US-70). */
@@ -107,11 +107,14 @@ export class CommentsService {
       throw invalidBody();
     }
 
-    const comment = await this.repository.create({
-      issue: issueRefOf(context),
-      authorId: actor.id,
-      body: text,
-    });
+    // Задачу могли удалить, пока писался комментарий: тогда это 404, а не 500 (DEF-02).
+    const comment = await whileIssueExists(() =>
+      this.repository.create({
+        issue: issueRefOf(context),
+        authorId: actor.id,
+        body: text,
+      }),
+    );
 
     return { comment, context };
   }
@@ -217,10 +220,7 @@ function commentNotFound(): NotFoundException {
 }
 
 function invalidBody(): BadRequestException {
-  return new BadRequestException({
-    code: 'invalid_comment_body',
-    message: `Комментарий не может быть пустым и длиннее ${COMMENT_BODY_MAX_LENGTH} символов`,
-  });
+  return new BadRequestException(INVALID_COMMENT_BODY);
 }
 
 /** Курсор ленты: время и идентификатор самого раннего показанного комментария. */

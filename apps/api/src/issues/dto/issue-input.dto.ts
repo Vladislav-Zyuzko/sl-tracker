@@ -10,7 +10,9 @@ import {
   Matches,
   ValidateIf,
 } from 'class-validator';
+import { InvalidField } from '../../common/index.js';
 import {
+  INVALID_ISSUE_TITLE,
   ISSUE_DESCRIPTION_MAX_LENGTH,
   ISSUE_PRIORITY_DEFAULT,
   ISSUE_PRIORITY_VALUES,
@@ -38,6 +40,7 @@ export class CreateIssueDto {
   })
   @IsString()
   @Length(1, ISSUE_TITLE_MAX_LENGTH)
+  @InvalidField(INVALID_ISSUE_TITLE)
   title!: string;
 
   @ApiPropertyOptional({ maxLength: ISSUE_DESCRIPTION_MAX_LENGTH, description: DESCRIPTION_HELP })
@@ -107,6 +110,7 @@ export class UpdateIssueDto {
   @IsOptional()
   @IsString()
   @Length(1, ISSUE_TITLE_MAX_LENGTH)
+  @InvalidField(INVALID_ISSUE_TITLE)
   title?: string;
 
   @ApiPropertyOptional({
@@ -177,6 +181,10 @@ export class CreateIssueLinkDto {
   })
   @IsString()
   @Length(1, ISSUE_LINK_URL_MAX_LENGTH)
+  @InvalidField({
+    code: 'invalid_link_url',
+    message: `Адрес ссылки обязателен и не длиннее ${ISSUE_LINK_URL_MAX_LENGTH} символов`,
+  })
   url!: string;
 
   @ApiPropertyOptional({

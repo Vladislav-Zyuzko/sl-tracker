@@ -7,6 +7,8 @@
  * мусор в обход приложения — например, миграцией или чужим скриптом.
  */
 
+import type { InvalidFieldReason } from '../common/index.js';
+
 export const ISSUE_TITLE_MAX_LENGTH = 255;
 export const ISSUE_DESCRIPTION_MAX_LENGTH = 100_000;
 
@@ -77,3 +79,13 @@ export function normalizeDescription(raw: string | null | undefined): string | n
   }
   return raw.trim().length > 0 ? raw : null;
 }
+
+/**
+ * Отказ по названию задачи. Один код и один текст на оба случая — пустое название
+ * и слишком длинное: для клиента это один и тот же отказ, и то, кто его заметил
+ * (проверка DTO или доменный код), значения не имеет.
+ */
+export const INVALID_ISSUE_TITLE: InvalidFieldReason = {
+  code: 'invalid_issue_title',
+  message: `Название задачи обязательно и не длиннее ${ISSUE_TITLE_MAX_LENGTH} символов`,
+};

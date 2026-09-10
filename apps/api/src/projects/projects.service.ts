@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/index.js';
 import { clampLimit, decodeCursor, encodeCursor } from '../common/index.js';
+import type { InvalidFieldReason } from '../common/index.js';
 import {
   COVER_ALLOWED_TYPES,
   COVER_MAX_BYTES,
@@ -29,6 +30,13 @@ export const PROJECTS_MAX_LIMIT = 100;
 export const PROJECTS_DEFAULT_LIMIT = 50;
 /** Сколько участников показывает карточка проекта группой аватаров (design/projects.md). */
 const MEMBER_PREVIEW_SIZE = 3;
+
+/** Название проекта: длина проверяется в DTO, пустота — здесь; отказ один и тот же. */
+export const PROJECT_NAME_MAX_LENGTH = 100;
+export const INVALID_PROJECT_NAME: InvalidFieldReason = {
+  code: 'invalid_project_name',
+  message: `Название проекта обязательно и не длиннее ${PROJECT_NAME_MAX_LENGTH} символов`,
+};
 
 export interface ProjectView {
   project: ProjectRow;
@@ -70,10 +78,7 @@ export class ProjectsService {
   ): Promise<ProjectView> {
     const name = input.name.trim();
     if (name.length === 0) {
-      throw new BadRequestException({
-        code: 'invalid_project_name',
-        message: 'Название проекта обязательно',
-      });
+      throw new BadRequestException(INVALID_PROJECT_NAME);
     }
 
     const project = await this.repository.create({
@@ -161,10 +166,7 @@ export class ProjectsService {
     if (patch.name !== undefined) {
       const name = patch.name.trim();
       if (name.length === 0) {
-        throw new BadRequestException({
-          code: 'invalid_project_name',
-          message: 'Название проекта обязательно',
-        });
+        throw new BadRequestException(INVALID_PROJECT_NAME);
       }
       changes.name = name;
     }

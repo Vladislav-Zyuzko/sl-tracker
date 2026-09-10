@@ -8,7 +8,9 @@ import type { QueueContext } from '../queues/index.js';
 import { issueTopic } from '../realtime/realtime.events.js';
 import { RealtimePublisher } from '../realtime/realtime.publisher.js';
 import { type IssueContext, IssueAccessService, issueNotFound } from './issue-access.service.js';
+import { whileIssueExists } from './issue-writes.js';
 import {
+  INVALID_ISSUE_TITLE,
   ISSUE_PRIORITY_DEFAULT,
   isValidPriority,
   isValidStoryPoints,
@@ -101,10 +103,7 @@ export class IssuesService {
 
     const title = normalizeTitle(input.title);
     if (title === null) {
-      throw new BadRequestException({
-        code: 'invalid_issue_title',
-        message: 'Название задачи обязательно и не длиннее 255 символов',
-      });
+      throw new BadRequestException(INVALID_ISSUE_TITLE);
     }
 
     const status = input.statusId
@@ -167,10 +166,7 @@ export class IssuesService {
     if (input.title !== undefined) {
       const title = normalizeTitle(input.title);
       if (title === null) {
-        throw new BadRequestException({
-          code: 'invalid_issue_title',
-          message: 'Название задачи обязательно и не длиннее 255 символов',
-        });
+        throw new BadRequestException(INVALID_ISSUE_TITLE);
       }
       patch.title = title;
     }
@@ -341,12 +337,15 @@ export class IssuesService {
     }
 
     const title = input.title?.trim();
-    await this.repository.addLink({
-      issueId: context.detail.issue.id,
-      url,
-      title: title && title.length > 0 ? title : null,
-      actorId: actor.id,
-    });
+    // Задачу могли удалить, пока добавлялась ссылка: тогда это 404, а не 500 (DEF-02).
+    await whileIssueExists(() =>
+      this.repository.addLink({
+        issueId: context.detail.issue.id,
+        url,
+        title: title && title.length > 0 ? title : null,
+        actorId: actor.id,
+      }),
+    );
 
     await this.announce(context, actor.id, 'issue.updated', { changedFields: ['links'] });
     return this.viewOfKey(context.detail.issue.key, actor);

@@ -189,8 +189,26 @@ describe('Мои активные задачи', () => {
 
     expect(response.json().items).toHaveLength(1);
     expect(response.json().items[0].key).toBe('DEV-1');
-    // Счётчик у заголовка списка поиском не сужается.
-    expect(response.json().total).toBe(2);
+    // Счётчик у заголовка считает то же, что показывает список: у пользователя
+    // две активные задачи, но под запрос подходит одна (DEF-05).
+    expect(response.json().total).toBe(1);
+  });
+
+  it('поиск без совпадений даёт и пустой список, и нулевой счётчик (DEF-05)', async () => {
+    const { anna } = await seedWorkspace();
+
+    const all = await get('/api/issues/my-active', anna.headers);
+    expect(all.json().total).toBe(2);
+
+    // «такоготочнонет» — подстрока, которой нет ни в одной теме и ни в одном ключе.
+    const response = await get(
+      '/api/issues/my-active?q=%D1%82%D0%B0%D0%BA%D0%BE%D0%B3%D0%BE%D1%82%D0%BE%D1%87%D0%BD%D0%BE%D0%BD%D0%B5%D1%82',
+      anna.headers,
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().items).toHaveLength(0);
+    expect(response.json().total).toBe(0);
   });
 
   it('ищет по ключу задачи: dev-2 находит DEV-2', async () => {

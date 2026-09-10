@@ -3,7 +3,13 @@ import fastifyMultipart from '@fastify/multipart';
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, type OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
-import { AllExceptionsFilter, REQUEST_ID_HEADER, resolveRequestId } from './common/index.js';
+import {
+  AllExceptionsFilter,
+  NoNullBytesPipe,
+  REQUEST_ID_HEADER,
+  resolveRequestId,
+  validationExceptionFactory,
+} from './common/index.js';
 
 /** Глобальный префикс. Caddy проксирует в API именно `/api/*` (ADR-0001, ADR-0005). */
 export const API_PREFIX = 'api';
@@ -40,12 +46,19 @@ export async function configureApp(app: NestFastifyApplication): Promise<void> {
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: undefined });
 
   app.useGlobalPipes(
+    // Нулевой символ отсекается до проверки DTO и до базы: PostgreSQL не хранит его
+    // в `text` ни в каком поле, и без этого фильтра любая строка с ним роняет запрос
+    // в 500 (DEF-03).
+    new NoNullBytesPipe(),
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
       // Наружу — только текст ошибки валидации, без внутренних деталей.
       disableErrorMessages: false,
+      // Отказ проверки DTO приводится к общему виду `{ code, message }`: у ошибок 400
+      // одна форма независимо от того, кто их заметил — DTO или доменный код (DEF-04).
+      exceptionFactory: validationExceptionFactory,
     }),
   );
 
@@ -58,7 +71,15 @@ export function buildOpenApiDocument(app: NestFastifyApplication): OpenAPIObject
     .setTitle('SL Tracker API')
     .setDescription(
       'HTTP API трекера задач SL Tracker. Единственный источник правды по контракту: ' +
-        'файл генерируется из кода, руками не редактируется.',
+        'файл генерируется из кода, руками не редактируется.\n\n' +
+        '**Формат ошибки.** Любой отказ приходит телом `{ statusCode, message, code }`: ' +
+        '`code` — машиночитаемая причина, по ней клиент выбирает текст для человека, ' +
+        '`message` — русский текст на случай, если код клиенту незнаком. Форма одна ' +
+        'и у доменных отказов, и у отказов проверки полей.\n\n' +
+        'Два кода общие для всех эндпоинтов: `invalid_request` — поле запроса не прошло ' +
+        'проверку, а своего кода у него нет; `invalid_characters` — в тексте есть ' +
+        'нулевой символ `U+0000`, который не хранится в базе. Остальные коды перечислены ' +
+        'в описании конкретных ответов.',
     )
     .setVersion('0.1.0')
     .addCookieAuth('sl_session', {

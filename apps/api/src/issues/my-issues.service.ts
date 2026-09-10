@@ -10,7 +10,7 @@ export const MY_ISSUES_DEFAULT_LIMIT = 50;
 export interface MyIssuesPage {
   items: MyIssueRow[];
   nextCursor: string | null;
-  /** Всего активных задач, без учёта поиска: это счётчик у заголовка списка. */
+  /** Всего активных задач, подходящих под тот же поиск: это счётчик у заголовка списка. */
   total: number;
 }
 
@@ -52,7 +52,7 @@ export class MyIssuesService {
         hasMore && last
           ? encodeCursor([String(last.priority), last.updatedAt.toISOString(), last.id])
           : null,
-      total: await this.repository.count(actor.id),
+      total: await this.repository.count(actor.id, query),
     };
   }
 }

@@ -435,6 +435,8 @@ describe('Уведомления', () => {
 
       const items = await inbox(space.admin);
       const marked = await post(`/api/notifications/${items[0]!.id}/read`, space.admin.headers);
+      // 200, а не 201: пометка ничего не создаёт, и ровно это обещает контракт (DEF-01).
+      expect(marked.statusCode).toBe(200);
       expect(marked.json().unreadCount).toBe(1);
 
       // Повторная пометка идемпотентна.
@@ -444,6 +446,7 @@ describe('Уведомления', () => {
       });
 
       const all = await post('/api/notifications/read-all', space.admin.headers);
+      expect(all.statusCode).toBe(200);
       expect(all.json().updated).toBe(1);
       expect(
         (await get('/api/notifications/unread-count', space.admin.headers)).json().unreadCount,

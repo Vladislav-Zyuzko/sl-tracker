@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/index.js';
 import { clampLimit, decodeCursor, encodeCursor } from '../common/index.js';
-import { IssueAccessService } from '../issues/index.js';
+import { IssueAccessService, whileIssueExists } from '../issues/index.js';
 import type { IssueContext } from '../issues/index.js';
 // Конкретные файлы, а не бочка realtime: та тянет gateway, который сам зависит
 // от домена задач, — получился бы цикл модулей.
@@ -135,14 +135,26 @@ export class AttachmentsService {
     );
     const stored = await this.storage.put(objectKey, file.buffer, detected.contentType);
 
-    const row = await this.repository.create({
-      issueId: context.detail.issue.id,
-      objectKey: stored.objectKey,
-      fileName,
-      contentType: stored.contentType,
-      sizeBytes: stored.sizeBytes,
-      uploadedByUserId: actor.id,
-    });
+    // Файл кладётся раньше строки намеренно: иначе строка ссылалась бы на объект,
+    // которого может не оказаться, и список раздавал бы битые ссылки. Зато теперь
+    // за неудачную вставку отвечаем мы: объект, на который не осталось ссылки, надо
+    // убрать самим — иначе он лежит в бакете вечно и о нём никто не узнает (DEF-02).
+    let row: AttachmentRow;
+    try {
+      row = await whileIssueExists(() =>
+        this.repository.create({
+          issueId: context.detail.issue.id,
+          objectKey: stored.objectKey,
+          fileName,
+          contentType: stored.contentType,
+          sizeBytes: stored.sizeBytes,
+          uploadedByUserId: actor.id,
+        }),
+      );
+    } catch (error) {
+      await this.storage.remove(stored.objectKey).catch(() => undefined);
+      throw error;
+    }
 
     await this.announce(context, actor.id);
     return this.view(row, context, actor);
