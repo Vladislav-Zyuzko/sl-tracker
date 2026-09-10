@@ -189,6 +189,11 @@ class _SLSearchFieldState extends State<SLSearchField> {
           onChanged: _onChanged,
           onSubmitted: (_) => widget.onSubmitted?.call(),
           textInputAction: TextInputAction.search,
+          // Строка — по центру высоты поля в обоих видах. У самостоятельного
+          // (с контуром) это и так поведение `InputDecorator` по умолчанию;
+          // у встроенного (без рамки) по умолчанию «прижать к верху», и
+          // строка стояла выше иконки поиска, центрованной по высоте поля.
+          textAlignVertical: TextAlignVertical.center,
           style: text.bodyS.copyWith(color: colors.textPrimary),
           cursorColor: colors.accent,
           decoration: InputDecoration(
@@ -209,9 +214,19 @@ class _SLSearchFieldState extends State<SLSearchField> {
                 color: colors.iconMuted,
               ),
             ),
-            prefixIconConstraints: const BoxConstraints(
+            // Слот иконки поиска — во всю высоту поля: это и держит высоту
+            // рамки. `InputDecorator` рисует заливку и контур не по
+            // `SizedBox(height)`, а по высоте своего содержимого — при
+            // `isDense` и компактной плотности это самый высокий из слотов
+            // иконок или строка текста. С `minHeight: 0` рамка зависела от
+            // того, что стоит справа: с бейджем `/`, спиннером или пустая —
+            // 18, с кнопкой очистки 24 × 24 — 24, и всё это внутри коробки
+            // 36. Иконка поиска есть во всех состояниях, поэтому, растянутая
+            // на высоту поля, она делает рамку ровно `height` всегда, что бы
+            // ни стояло справа (`system.md`, 10.3.1).
+            prefixIconConstraints: BoxConstraints(
               minWidth: 0,
-              minHeight: 0,
+              minHeight: height,
             ),
             suffixIcon: _buildSuffix(colors, text, showHint: showHint),
             suffixIconConstraints: const BoxConstraints(

@@ -16,6 +16,7 @@ import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 
 import '../../helpers/fake_repositories.dart';
 import '../../helpers/pump_widget.dart';
+import '../../helpers/search_field_geometry.dart';
 
 /// Поднимает экран списка доступа с готовой сессией.
 Future<ProviderContainer> pumpAccessList(
@@ -196,6 +197,31 @@ void main() {
       final size = tester.getSize(find.byType(SLSearchField));
       expect(size.height, 36);
       expect(size.width, greaterThanOrEqualTo(SLSizes.searchFieldMinWidth));
+    });
+
+    testWidgets('рамка поиска одного размера во всех состояниях', (
+      tester,
+    ) async {
+      // Та же геометрия и тот же дефект, что у поиска в сайдбаре: рамка
+      // была 18 без текста и 24 с текстом внутри коробки 36.
+      await pumpAccessList(
+        tester,
+        access: FakeAccessRepository(
+          entries: [fakeEntry(id: '1', email: 'anna@yandex.ru')],
+        ),
+      );
+
+      final frames = await searchFieldFramesByState(tester);
+
+      for (final MapEntry(key: state, value: frame) in frames.entries) {
+        expect(frame.height, 36, reason: 'высота рамки в состоянии «$state»');
+        expect(
+          frame.width,
+          greaterThanOrEqualTo(SLSizes.searchFieldMinWidth),
+          reason: 'ширина рамки в состоянии «$state»',
+        );
+      }
+      expectFrameFillsField(tester, frames);
     });
 
     testWidgets('поиск уходит на сервер, а не фильтрует загруженное', (

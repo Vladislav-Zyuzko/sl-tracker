@@ -16,6 +16,7 @@ import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import '../../helpers/fake_issue_repositories.dart';
 import '../../helpers/fake_queue_repositories.dart';
 import '../../helpers/pump_widget.dart';
+import '../../helpers/search_field_geometry.dart';
 
 void main() {
   group('мои активные задачи', () {
@@ -204,6 +205,35 @@ void main() {
         closeTo(SLSizes.sidebarWidth - 2 * SLSpacing.space2, 1),
       );
       expect(field.width, greaterThanOrEqualTo(SLSizes.searchFieldMinWidth));
+    });
+
+    testWidgets('рамка поиска одного размера во всех состояниях', (
+      tester,
+    ) async {
+      // Дефект с боевого стенда: пустое поле было низким — рамка 18 внутри
+      // коробки 36 — и вырастало до 24, когда появлялась кнопка очистки.
+      // Рамка обязана быть 264 × 36, вровень со строкой списка, что бы
+      // ни стояло справа (`app-shell.md`, `components.md` 4.1).
+      await pumpSidebar(tester, state: ActiveIssuesState.loading);
+      expect(find.text('/'), findsOneWidget);
+
+      final frames = await searchFieldFramesByState(tester);
+
+      for (final MapEntry(key: state, value: frame) in frames.entries) {
+        expect(
+          frame.height,
+          ShellSidebar.issueRowExtent,
+          reason: 'высота рамки в состоянии «$state»',
+        );
+        // 280 − 2 · space2 = 264 минус пиксель правой границы сайдбара —
+        // та же поправка, что в проверке выше.
+        expect(
+          frame.width,
+          closeTo(SLSizes.sidebarWidth - 2 * SLSpacing.space2, 1),
+          reason: 'ширина рамки в состоянии «$state»',
+        );
+      }
+      expectFrameFillsField(tester, frames);
     });
 
     testWidgets('подпись о границах поиска появляется только с запросом', (
