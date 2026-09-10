@@ -6,6 +6,7 @@ import 'package:sl_tracker_web/shared/uikit/avatars/sl_avatar.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
 import 'package:sl_tracker_web/shared/uikit/lists/sl_issue_row.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
+import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
 
 import '../../helpers/pump_widget.dart';
@@ -129,7 +130,7 @@ void main() {
       expect(title.style?.fontStyle, FontStyle.italic);
     });
 
-    testWidgets('на планшете скрыты сложность и имя исполнителя', (
+    testWidgets('в узкой области скрыты сложность и имя исполнителя', (
       tester,
     ) async {
       await pumpInTheme(
@@ -146,7 +147,10 @@ void main() {
               userId: 'user-1',
               fullName: 'Анна Иванова',
             ),
-            layout: SLIssueRowLayout.tablet,
+            layout: SLIssueRowLayout.resolve(
+              breakpoint: SLBreakpoint.md,
+              contentWidth: 700,
+            ),
             onTap: () {},
           ),
         ),
@@ -159,16 +163,94 @@ void main() {
       expect(find.text('DEV-42'), findsOneWidget);
     });
 
-    testWidgets('раскладка выбирается по брейкпоинту', (tester) async {
-      expect(SLIssueRowLayout.of(SLBreakpoint.sm), SLIssueRowLayout.phone);
-      expect(SLIssueRowLayout.of(SLBreakpoint.md), SLIssueRowLayout.tablet);
-      expect(SLIssueRowLayout.of(SLBreakpoint.lg), SLIssueRowLayout.desktop);
-      expect(SLIssueRowLayout.of(SLBreakpoint.xl), SLIssueRowLayout.desktop);
+    test('высота строки — по брейкпоинту, колонки — по ширине содержимого', () {
+      // Две независимые величины, и путать их нельзя: высота — это
+      // плотность интерфейса, набор колонок — это место под название.
+      SLIssueRowLayout wide(SLBreakpoint breakpoint) =>
+          SLIssueRowLayout.resolve(breakpoint: breakpoint, contentWidth: 1200);
 
-      // Экстенты — из плотности дизайн-системы, а не из литералов в списке.
-      expect(SLIssueRowLayout.desktop.extent, 36);
-      expect(SLIssueRowLayout.tablet.extent, 40);
+      expect(wide(SLBreakpoint.xl).extent, 36);
+      expect(wide(SLBreakpoint.lg).extent, 36);
+      expect(wide(SLBreakpoint.md).extent, 40);
+      expect(wide(SLBreakpoint.xl).columns, SLIssueColumnSet.full);
+      expect(wide(SLBreakpoint.md).columns, SLIssueColumnSet.full);
+
+      // Телефон — карточка при любой ширине: семь колонок в 360 px
+      // не помещаются ни при какой арифметике.
+      expect(wide(SLBreakpoint.sm), SLIssueRowLayout.phone);
       expect(SLIssueRowLayout.phone.extent, 56);
+      expect(SLIssueRowLayout.phone.isCard, isTrue);
+    });
+
+    test('колонка названия никогда не уже 280', () {
+      // Это и есть правило, из которого выведены пороги
+      // (`screens/queue-issues.md`, «Колонки по ширине содержимого»).
+      // Проверяем его напрямую, а не через пороги: пороги — следствие.
+      for (var width = 688.0; width <= 1600.0; width += 1) {
+        final layout = SLIssueRowLayout.resolve(
+          breakpoint: SLBreakpoint.lg,
+          contentWidth: width,
+        );
+        final title = width - SLIssueRowLayout.fixedWidth(layout.columns);
+
+        expect(
+          title,
+          greaterThanOrEqualTo(SLSizes.issueTitleMinWidth),
+          reason: 'ширина содержимого $width, набор ${layout.columns.name}',
+        );
+      }
+    });
+
+    test('порядок отбрасывания колонок: сложность, имя исполнителя', () {
+      SLIssueColumnSet columnsAt(double width) => SLIssueRowLayout.resolve(
+        breakpoint: SLBreakpoint.lg,
+        contentWidth: width,
+      ).columns;
+
+      expect(columnsAt(1000), SLIssueColumnSet.full);
+      expect(columnsAt(860), SLIssueColumnSet.full);
+      expect(columnsAt(859), SLIssueColumnSet.withoutComplexity);
+      expect(columnsAt(816), SLIssueColumnSet.withoutComplexity);
+      expect(columnsAt(815), SLIssueColumnSet.assigneeAvatarOnly);
+      expect(columnsAt(688), SLIssueColumnSet.assigneeAvatarOnly);
+      expect(columnsAt(687), SLIssueColumnSet.card);
+
+      // Ключ, название, статус и приоритет не отбрасываются никогда.
+      for (final columns in SLIssueColumnSet.values) {
+        if (columns == SLIssueColumnSet.card) continue;
+        expect(
+          SLIssueRowLayout.fixedWidth(columns),
+          greaterThanOrEqualTo(
+            SLSizes.issueKeyColumn +
+                SLSizes.statusColumn +
+                SLSizes.priorityColumn,
+          ),
+        );
+      }
+    });
+
+    test('дефект: при окне 1024 с сайдбаром название не сжимается до 84', () {
+      // Регрессия на исходный дефект. Окно 1024, сайдбар 280 развёрнут —
+      // области содержимого остаётся 744 px.
+      const contentWidth = 1024.0 - SLSizes.sidebarWidth;
+      final layout = SLIssueRowLayout.resolve(
+        breakpoint: SLBreakpoint.lg,
+        contentWidth: contentWidth,
+      );
+      final title = contentWidth - SLIssueRowLayout.fixedWidth(layout.columns);
+
+      expect(layout.columns, SLIssueColumnSet.assigneeAvatarOnly);
+      expect(title, greaterThanOrEqualTo(280));
+
+      // Свернув сайдбар, пользователь возвращает себе колонки.
+      const collapsedWidth = 1024.0 - SLSizes.sidebarCollapsedWidth;
+      expect(
+        SLIssueRowLayout.resolve(
+          breakpoint: SLBreakpoint.lg,
+          contentWidth: collapsedWidth,
+        ).columns,
+        SLIssueColumnSet.full,
+      );
     });
 
     testWidgets('заголовки колонок не входят в порядок фокуса', (tester) async {

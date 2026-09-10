@@ -11,7 +11,7 @@ enum SLBreakpoint {
   /// 768–1023. Сайдбар свёрнут до 48, часть колонок таблицы скрыта.
   md,
 
-  /// 1024–1439. Базовая десктопная раскладка, сайдбар 240 развёрнут.
+  /// 1024–1439. Базовая десктопная раскладка, сайдбар 280 развёрнут.
   lg,
 
   /// >= 1440. Всё видно; контент центрируется, максимальная ширина рабочей
@@ -70,6 +70,8 @@ class SLDensity {
     required this.buttonLg,
     required this.fieldMd,
     required this.fieldLg,
+    required this.searchStandalone,
+    required this.searchEmbedded,
     required this.statusChipRow,
     required this.statusChipCard,
   });
@@ -87,6 +89,8 @@ class SLDensity {
     buttonLg: 40,
     fieldMd: 32,
     fieldLg: 40,
+    searchStandalone: 36,
+    searchEmbedded: 32,
     statusChipRow: 20,
     statusChipCard: 24,
   );
@@ -105,6 +109,8 @@ class SLDensity {
     buttonLg: 40,
     fieldMd: 32,
     fieldLg: 40,
+    searchStandalone: 36,
+    searchEmbedded: 32,
     statusChipRow: 20,
     statusChipCard: 24,
   );
@@ -123,6 +129,8 @@ class SLDensity {
     buttonLg: 44,
     fieldMd: 40,
     fieldLg: 44,
+    searchStandalone: 44,
+    searchEmbedded: 40,
     statusChipRow: 24,
     statusChipCard: 24,
   );
@@ -159,6 +167,17 @@ class SLDensity {
 
   /// Поле ввода `lg`.
   final double fieldLg;
+
+  /// Самостоятельное поле поиска: сайдбар, список доступа, шапка экрана.
+  ///
+  /// Оно **выше** обычного поля ввода и ровно вровень со строкой списка,
+  /// которую фильтрует (`system.md`, 10.3.1). Контрол ниже своих строк
+  /// читается как подчинённый им.
+  final double searchStandalone;
+
+  /// Поле поиска внутри меню или поповера. Здесь наоборот — плотнее:
+  /// рамки у него нет, и высота работает вместе с высотой строк меню.
+  final double searchEmbedded;
 
   /// Плашка статуса в строке списка.
   final double statusChipRow;

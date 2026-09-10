@@ -8,7 +8,6 @@ import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
 import 'package:sl_tracker_web/shared/uikit/effects/sl_shimmering_effect.dart';
 import 'package:sl_tracker_web/shared/uikit/inputs/sl_search_field.dart';
 import 'package:sl_tracker_web/shared/uikit/navigation/sl_sidebar_item.dart';
-import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_skeleton.dart';
 import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
@@ -126,15 +125,24 @@ class ShellSidebar extends StatelessWidget {
   /// Сколько пикселей до конца списка запускают догрузку.
   static const loadMoreThreshold = 200.0;
 
+  /// Плейсхолдер поиска.
+  ///
+  /// Говорит, что вводить, — область поиска называет заголовок над полем
+  /// (`components.md`, 4.2). Прежнее «Поиск по моим активным задачам»
+  /// не помещалось в поле и обрезалось.
+  static const searchHint = 'Название или ключ';
+
+  /// Подпись под полем при непустом запросе.
+  static const searchScopeNotice = 'Только среди ваших активных задач';
+
   @override
   Widget build(BuildContext context) {
     final colors = SLColorScheme.of(context);
-    final breakpoint = SLBreakpoint.of(context);
+    // Ширина одна на все случаи: 280 и закреплённым, и оверлеем,
+    // и выдвижной панелью (`app-shell.md`, «Адаптив»).
     final width = collapsed
         ? SLSizes.sidebarCollapsedWidth
-        : (breakpoint.isPhone
-              ? SLSizes.sidebarDrawerWidth
-              : SLSizes.sidebarWidth);
+        : SLSizes.sidebarWidth;
 
     return Semantics(
       container: true,
@@ -177,17 +185,25 @@ class ShellSidebar extends StatelessWidget {
               ),
             ),
             const SizedBox(height: SLSpacing.space2),
-            if (collapsed)
-              _CollapsedSearchButton(focusNode: searchFocusNode)
-            else ...[
+            if (collapsed) ...[
+              _CollapsedSearchButton(focusNode: searchFocusNode),
+              const SizedBox(height: SLSpacing.space2),
+              // В свёрнутом сайдбаре список не рисуется вовсе: на 48 px
+              // строка задачи не помещается, и вместо неё — иконка
+              // со счётчиком-точкой, как в раскладке из спеки.
+              Expanded(child: _CollapsedActiveIssues(count: activeIssuesCount)),
+            ] else ...[
+              // Заголовок секции стоит **над** полем поиска, а не под ним:
+              // он и есть постоянно видимое объяснение области поиска, и
+              // плейсхолдеру эту работу больше не поручают
+              // (`app-shell.md`, `components.md` 4.2).
+              _buildListHeader(context),
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: SLSpacing.space2,
                 ),
                 child: SLSearchField(
-                  hint: breakpoint.isDesktop
-                      ? 'Поиск по моим активным задачам'
-                      : 'Поиск по моим задачам',
+                  hint: searchHint,
                   focusNode: searchFocusNode,
                   controller: searchController,
                   onQueryChanged: onSearchChanged,
@@ -196,15 +212,7 @@ class ShellSidebar extends StatelessWidget {
               // Подпись появляется только при непустом запросе: пустое поле
               // не должно занимать место под объяснение (`app-shell.md`).
               if (searchQuery.isNotEmpty) _buildSearchScopeNotice(context),
-            ],
-            const SizedBox(height: SLSpacing.space2),
-            // В свёрнутом сайдбаре список не рисуется вовсе: на 48 px строка
-            // задачи не помещается, и вместо неё — иконка со счётчиком-точкой,
-            // как в раскладке из спеки.
-            if (collapsed)
-              Expanded(child: _CollapsedActiveIssues(count: activeIssuesCount))
-            else ...[
-              _buildListHeader(context),
+              const SizedBox(height: SLSpacing.space2),
               Expanded(child: _buildList(context)),
             ],
           ],
@@ -224,8 +232,10 @@ class ShellSidebar extends StatelessWidget {
         SLSpacing.space2,
         0,
       ),
+      // Подсказка переносится на вторую строку, а не обрезается:
+      // обрезанная на середине, она бесполезна (`app-shell.md`).
       child: Text(
-        'Ищем только среди ваших активных задач',
+        searchScopeNotice,
         style: text.label.copyWith(color: colors.textMuted),
       ),
     );

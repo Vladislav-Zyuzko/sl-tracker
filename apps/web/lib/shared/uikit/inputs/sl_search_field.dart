@@ -8,19 +8,46 @@ import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
 
+/// Вид поля поиска (`docs/design/components.md`, 4.1).
+enum SLSearchFieldVariant {
+  /// Самостоятельное: сайдбар, список доступа, шапка экрана.
+  ///
+  /// Высота 36 — вровень со строкой списка, — рамка `borderControl`,
+  /// минимальная ширина 240.
+  standalone,
+
+  /// Встроенное в меню или поповер: высота 32, **рамки нет**, снизу
+  /// разделитель во всю ширину меню.
+  ///
+  /// Рамка внутри рамки меню — та же «коробка в коробке», из-за которой
+  /// переделывали кольцо фокуса (`system.md`, 10.6.1).
+  embedded;
+
+  /// Высота поля для этой плотности.
+  double height(SLDensity density) => switch (this) {
+    SLSearchFieldVariant.standalone => density.searchStandalone,
+    SLSearchFieldVariant.embedded => density.searchEmbedded,
+  };
+}
+
 /// Поле поиска (`docs/design/components.md`, 4).
 ///
-/// Отдельный компонент, а не «поле ввода с иконкой»: у него своё поведение —
-/// дебаунс, подсказка хоткея, обработка `Esc`.
+/// Отдельный компонент, а не «поле ввода с иконкой»: у него своя геометрия
+/// (`system.md`, 10.3.1), своё поведение — дебаунс, подсказка хоткея,
+/// обработка `Esc`, — и свои правила текста.
 ///
-/// Плейсхолдер обязан называть область поиска. В оболочке приложения поиск
-/// идёт только по моим активным задачам, и обрезанный до «Поиск» плейсхолдер
-/// создаёт ощущение поломки (`screens/app-shell.md`).
+/// **Плейсхолдер говорит, что вводить, а не какова область поиска**
+/// (`components.md`, 4.2). Правило выведено из дефекта: «Поиск по моим
+/// активным задачам» занимает ≈ 207 px, а под текст в поле сайдбара
+/// оставалось 184 — плейсхолдер обрезался и переставал что-либо объяснять.
+/// Область поиска живёт в заголовке над полем, в подписи под полем при
+/// вводе и в тексте пустого результата.
 class SLSearchField extends StatefulWidget {
   /// @nodoc
   const SLSearchField({
     required this.hint,
     required this.onQueryChanged,
+    this.variant = SLSearchFieldVariant.standalone,
     this.controller,
     this.focusNode,
     this.showHotkeyHint = true,
@@ -33,8 +60,13 @@ class SLSearchField extends StatefulWidget {
     super.key,
   });
 
-  /// Плейсхолдер. Называет область поиска целиком.
+  /// Плейсхолдер. Называет то, **что вводить**: «Название или ключ»,
+  /// «Поиск по адресу». Область поиска сюда не помещается и здесь
+  /// не живёт (`components.md`, 4.2).
   final String hint;
+
+  /// Самостоятельное поле или встроенное в меню.
+  final SLSearchFieldVariant variant;
 
   /// Вызывается после дебаунса. Пустая строка означает «запрос сброшен».
   final ValueChanged<String> onQueryChanged;
@@ -137,14 +169,17 @@ class _SLSearchFieldState extends State<SLSearchField> {
   Widget build(BuildContext context) {
     final colors = SLColorScheme.of(context);
     final text = SLTextScheme.of(context);
-    final height = SLDensity.ofContext(context).fieldMd;
+    final density = SLDensity.ofContext(context);
+    final height = widget.variant.height(density);
+    final isEmbedded = widget.variant == SLSearchFieldVariant.embedded;
     final showHint =
         widget.showHotkeyHint && !_focused && _controller.text.isEmpty;
 
     // Кольца фокуса нет: рамка поиска сама окрашивается в `borderFocus`,
     // и кольцо снаружи давало бы второй синий контур с зазором
     // (`system.md`, 10.6.1). Фокус показывает утолщение рамки до 2 px.
-    return SizedBox(
+    // У встроенного в меню рамки нет вовсе — фокус утолщает разделитель.
+    final field = SizedBox(
       height: height,
       child: Focus(
         onKeyEvent: _onKeyEvent,
@@ -158,7 +193,9 @@ class _SLSearchFieldState extends State<SLSearchField> {
           cursorColor: colors.accent,
           decoration: InputDecoration(
             hintText: widget.hint,
-            filled: true,
+            // Внутри меню фон уже нарисован самим меню: второй слой
+            // `surface` поверх него — лишний прямоугольник.
+            filled: !isEmbedded,
             fillColor: colors.surface,
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(
@@ -183,12 +220,50 @@ class _SLSearchFieldState extends State<SLSearchField> {
             ),
             // `contentPadding` один на все состояния: рамка утолщается
             // внутрь, и текст с кареткой при фокусе не сдвигаются.
-            border: _border(colors.borderStrong, SLBorders.hairline),
-            enabledBorder: _border(colors.borderStrong, SLBorders.hairline),
-            focusedBorder: _border(colors.borderFocus, SLBorders.controlFocus),
+            border: _decorationBorder(
+              colors,
+              isEmbedded: isEmbedded,
+              focused: false,
+            ),
+            enabledBorder: _decorationBorder(
+              colors,
+              isEmbedded: isEmbedded,
+              focused: false,
+            ),
+            focusedBorder: _decorationBorder(
+              colors,
+              isEmbedded: isEmbedded,
+              focused: true,
+            ),
           ),
         ),
       ),
+    );
+
+    if (isEmbedded) {
+      // Границу внутри меню несёт разделитель, а не контур
+      // (`components.md`, 4.1). В фокусе он утолщается до 2 px — ровно
+      // так же, как утолщается рамка самостоятельного поля.
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: _focused ? colors.borderFocus : colors.borderSubtle,
+              width: _focused ? SLBorders.controlFocus : SLBorders.hairline,
+            ),
+          ),
+        ),
+        child: field,
+      );
+    }
+
+    // Минимальная ширина — часть контракта компонента: уже 240 плейсхолдер
+    // перестаёт помещаться (`system.md`, 10.3.1). Родитель, задавший тугую
+    // ширину, всё равно победит — поэтому 240 живёт токеном и проверяется
+    // у каждого места вызова, а здесь стоит как страховка.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: SLSizes.searchFieldMinWidth),
+      child: field,
     );
   }
 
@@ -257,8 +332,19 @@ class _SLSearchFieldState extends State<SLSearchField> {
     );
   }
 
-  OutlineInputBorder _border(Color color, double width) => OutlineInputBorder(
-    borderRadius: SLRadii.smAll,
-    borderSide: BorderSide(color: color, width: width),
-  );
+  InputBorder _decorationBorder(
+    SLColorScheme colors, {
+    required bool isEmbedded,
+    required bool focused,
+  }) {
+    if (isEmbedded) return InputBorder.none;
+
+    return OutlineInputBorder(
+      borderRadius: SLRadii.smAll,
+      borderSide: BorderSide(
+        color: focused ? colors.borderFocus : colors.borderStrong,
+        width: focused ? SLBorders.controlFocus : SLBorders.hairline,
+      ),
+    );
+  }
 }

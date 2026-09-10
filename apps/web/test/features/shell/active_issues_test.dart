@@ -10,6 +10,8 @@ import 'package:sl_tracker_web/features/issues/presentation/issue_providers.dart
 import 'package:sl_tracker_web/features/shell/presentation/active_issues_providers.dart';
 import 'package:sl_tracker_web/features/shell/presentation/shell_sidebar.dart';
 import 'package:sl_tracker_web/features/shell/presentation/widgets/active_issue_row.dart';
+import 'package:sl_tracker_web/shared/uikit/inputs/sl_search_field.dart';
+import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 
 import '../../helpers/fake_issue_repositories.dart';
 import '../../helpers/fake_queue_repositories.dart';
@@ -150,19 +152,65 @@ void main() {
       ),
     );
 
-    testWidgets('плейсхолдер называет область поиска целиком', (tester) async {
-      // Обрезанный до «Поиск» плейсхолдер и создаёт ощущение поломки
-      // (`app-shell.md`, «Поиск: главный риск экрана»).
+    testWidgets('плейсхолдер говорит, что вводить, а область — заголовок', (
+      tester,
+    ) async {
+      // Прежний плейсхолдер «Поиск по моим активным задачам» занимал
+      // ≈ 207 px при 184 px места и обрезался. Область поиска теперь
+      // называет постоянно видимый заголовок над полем
+      // (`components.md`, 4.2, `app-shell.md`).
       await pumpSidebar(tester, state: ActiveIssuesState.loading);
 
-      expect(find.text('Поиск по моим активным задачам'), findsOneWidget);
+      expect(find.text('Название или ключ'), findsOneWidget);
+      expect(find.text('Поиск по моим активным задачам'), findsNothing);
+      expect(find.text('МОИ АКТИВНЫЕ ЗАДАЧИ'), findsOneWidget);
+
+      // Заголовок стоит именно **над** полем, а не под ним: иначе он
+      // не объясняет ничего.
+      expect(
+        tester.getTopLeft(find.text('МОИ АКТИВНЫЕ ЗАДАЧИ')).dy,
+        lessThan(tester.getTopLeft(find.byType(SLSearchField)).dy),
+      );
+    });
+
+    testWidgets('ширина сайдбара — одно число на все случаи, 280', (
+      tester,
+    ) async {
+      await pumpSidebar(tester, state: ActiveIssuesState.loading);
+
+      expect(
+        tester.getSize(find.byType(ShellSidebar)).width,
+        SLSizes.sidebarWidth,
+      );
+      expect(SLSizes.sidebarWidth, 280);
+    });
+
+    testWidgets('поле поиска высотой 36 — вровень со строкой списка', (
+      tester,
+    ) async {
+      // Контрол ниже строк, которые он фильтрует, читается как
+      // подчинённый им (`system.md`, 10.3.1).
+      await pumpSidebar(tester, state: ActiveIssuesState.loading);
+
+      final field = tester.getSize(find.byType(SLSearchField));
+      expect(field.height, 36);
+      expect(field.height, ShellSidebar.issueRowExtent);
+
+      // Ширина сайдбара 280, поля — 280 − 2 · space2 = 264 минус пиксель
+      // на правую границу самого сайдбара. Главное — что это больше
+      // минимальных 240 из 10.3.1, и плейсхолдер помещается целиком.
+      expect(
+        field.width,
+        closeTo(SLSizes.sidebarWidth - 2 * SLSpacing.space2, 1),
+      );
+      expect(field.width, greaterThanOrEqualTo(SLSizes.searchFieldMinWidth));
     });
 
     testWidgets('подпись о границах поиска появляется только с запросом', (
       tester,
     ) async {
       await pumpSidebar(tester, state: ActiveIssuesState.loading);
-      expect(find.text('Ищем только среди ваших активных задач'), findsNothing);
+      expect(find.text(ShellSidebar.searchScopeNotice), findsNothing);
 
       await pumpSidebar(
         tester,
@@ -179,7 +227,7 @@ void main() {
       );
 
       expect(
-        find.text('Ищем только среди ваших активных задач'),
+        find.text(ShellSidebar.searchScopeNotice),
         findsOneWidget,
       );
     });

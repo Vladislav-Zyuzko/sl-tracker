@@ -14,34 +14,155 @@ import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_skeleton.dart';
 import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
 
-/// Набор колонок строки списка задач (`components.md`, 10.4).
+/// Набор видимых колонок строки списка задач
+/// (`screens/queue-issues.md`, «Колонки по ширине содержимого»).
 ///
-/// Раскладка приходит сверху, а не вычисляется в строке: `MediaQuery`
-/// в каждой из тысячи строк — это тысяча подписок на размер окна.
-enum SLIssueRowLayout {
-  /// >= 1024. Все колонки, высота 36.
-  desktop,
+/// Порядок отбрасывания продуман: первой уходит сложность (заполнена
+/// не у всех), затем имя исполнителя — но **аватар остаётся**, потому что
+/// «кто делает» считывается по нему без имени. Ключ, название, статус
+/// и приоритет не отбрасываются никогда: без них список перестаёт быть
+/// списком задач.
+enum SLIssueColumnSet {
+  /// Все колонки экрана.
+  full,
 
-  /// 768–1023. Высота 40, сложности нет, исполнитель — один аватар.
-  tablet,
+  /// Без сложности.
+  withoutComplexity,
 
-  /// < 768. Высота 56, две строки.
-  phone;
+  /// Без сложности, исполнитель — один аватар без имени.
+  assigneeAvatarOnly,
 
-  /// Раскладка для брейкпоинта.
-  static SLIssueRowLayout of(SLBreakpoint breakpoint) => switch (breakpoint) {
-    SLBreakpoint.sm => SLIssueRowLayout.phone,
-    SLBreakpoint.md => SLIssueRowLayout.tablet,
-    SLBreakpoint.lg || SLBreakpoint.xl => SLIssueRowLayout.desktop,
-  };
+  /// Карточка в две строки: колонок нет вовсе.
+  card;
+
+  /// Показывать ли колонку сложности.
+  bool get hasComplexity => this == SLIssueColumnSet.full;
+
+  /// Показывать ли имя исполнителя рядом с аватаром.
+  bool get hasAssigneeName =>
+      this == SLIssueColumnSet.full ||
+      this == SLIssueColumnSet.withoutComplexity;
+}
+
+/// Раскладка строки списка задач: плотность и набор колонок.
+///
+/// Две независимые величины, и путать их нельзя. **Высота** строки зависит
+/// от брейкпоинта окна — это плотность интерфейса. **Набор колонок** зависит
+/// от ширины области содержимого, а не окна: она учитывает и ширину сайдбара,
+/// и его свёрнутость. Прежняя привязка колонок к брейкпоинту давала при окне
+/// 1024 колонку названия в 84 px — двенадцать символов.
+///
+/// Раскладка приходит сверху, а не вычисляется в строке: `LayoutBuilder`
+/// внутри строки убивает виртуализацию, ради которой всё и затевалось
+/// (`components.md`, 10.6).
+@immutable
+class SLIssueRowLayout {
+  const SLIssueRowLayout._({required this.density, required this.columns});
+
+  /// Плотность: от неё высота строки и высота ряда заголовков.
+  final SLDensity density;
+
+  /// Набор видимых колонок.
+  final SLIssueColumnSet columns;
+
+  /// Десктопная раскладка со всеми колонками. Значение по умолчанию.
+  static const desktop = SLIssueRowLayout._(
+    density: SLDensity.desktop,
+    columns: SLIssueColumnSet.full,
+  );
+
+  /// Карточная раскладка телефона.
+  static const phone = SLIssueRowLayout._(
+    density: SLDensity.phone,
+    columns: SLIssueColumnSet.card,
+  );
+
+  /// Ширина всего, кроме названия: колонки, зазоры между ними и поля
+  /// страницы с двух сторон.
+  ///
+  /// Считается по тем же константам, из которых строится сама строка,
+  /// поэтому не может разойтись с ней.
+  static double fixedWidth(SLIssueColumnSet columns) {
+    // Колонка чекбокса зарезервирована и пуста, но место занимает всегда.
+    var width =
+        SLIssueRow.horizontalPadding * 2 +
+        SLIssueRow.checkboxColumn +
+        SLSizes.issueKeyColumn +
+        SLSizes.statusColumn +
+        SLSizes.priorityColumn +
+        (columns.hasAssigneeName
+            ? SLSizes.assigneeColumn
+            : SLIssueRow.assigneeAvatarColumn);
+    var gaps = 4;
+
+    if (columns.hasComplexity) {
+      width += SLSizes.complexityColumn;
+      gaps += 1;
+    }
+
+    return width + gaps * SLIssueRow.columnGap;
+  }
+
+  /// Минимальная ширина содержимого для набора колонок: столько нужно,
+  /// чтобы названию осталось не меньше [SLSizes.issueTitleMinWidth].
+  static double minContentWidth(SLIssueColumnSet columns) =>
+      fixedWidth(columns) + SLSizes.issueTitleMinWidth;
+
+  /// Раскладка по брейкпоинту окна и ширине области содержимого.
+  ///
+  /// На телефоне колонок нет независимо от ширины: там карточка в две
+  /// строки, и семь колонок в 360 px не поместятся при любой арифметике.
+  static SLIssueRowLayout resolve({
+    required SLBreakpoint breakpoint,
+    required double contentWidth,
+  }) {
+    if (breakpoint.isPhone) return phone;
+
+    final columns = switch (contentWidth) {
+      final width when width >= minContentWidth(SLIssueColumnSet.full) =>
+        SLIssueColumnSet.full,
+      final width
+          when width >= minContentWidth(SLIssueColumnSet.withoutComplexity) =>
+        SLIssueColumnSet.withoutComplexity,
+      final width
+          when width >=
+              minContentWidth(SLIssueColumnSet.assigneeAvatarOnly) =>
+        SLIssueColumnSet.assigneeAvatarOnly,
+      _ => SLIssueColumnSet.card,
+    };
+
+    // Колонки кончились раньше, чем брейкпоинт: содержимое сузили сильнее,
+    // чем окно. Карточка — это карточка, у неё своя высота.
+    if (columns == SLIssueColumnSet.card) return phone;
+
+    return SLIssueRowLayout._(
+      density: SLDensity.of(breakpoint),
+      columns: columns,
+    );
+  }
 
   /// Высота строки. Она же `itemExtent` виртуализированного списка:
   /// без фиксированного экстента прокрутка на тысяче задач деградирует.
-  double get extent => switch (this) {
-    SLIssueRowLayout.desktop => SLDensity.desktop.issueRowHeight,
-    SLIssueRowLayout.tablet => SLDensity.tablet.issueRowHeight,
-    SLIssueRowLayout.phone => SLDensity.phone.issueRowHeight,
-  };
+  double get extent => density.issueRowHeight;
+
+  /// Высота ряда заголовков колонок. Ноль означает «заголовков нет».
+  double get headerHeight => density.tableHeaderHeight;
+
+  /// Карточная раскладка: две строки вместо колонок.
+  bool get isCard => columns == SLIssueColumnSet.card;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SLIssueRowLayout &&
+          identical(other.density, density) &&
+          other.columns == columns;
+
+  @override
+  int get hashCode => Object.hash(identityHashCode(density), columns);
+
+  @override
+  String toString() => 'SLIssueRowLayout(${columns.name})';
 }
 
 /// Строка списка задач (`docs/design/components.md`, 10).
@@ -170,7 +291,7 @@ class SLIssueRow extends StatelessWidget {
           left: horizontalPadding - (focused ? cursorBarWidth : 0),
           right: horizontalPadding,
         ),
-        child: layout == SLIssueRowLayout.phone
+        child: layout.isCard
             ? _buildPhone(context, colors)
             : _buildWide(context, colors),
       ),
@@ -261,7 +382,8 @@ class SLIssueRow extends StatelessWidget {
 
   /// Десктоп и планшет: одна строка колонок.
   Widget _buildWide(BuildContext context, SLColorScheme colors) {
-    final isTablet = layout == SLIssueRowLayout.tablet;
+    final columns = layout.columns;
+    final showName = columns.hasAssigneeName;
 
     return Row(
       children: [
@@ -279,8 +401,8 @@ class SLIssueRow extends StatelessWidget {
         ),
         const SizedBox(width: columnGap),
         SizedBox(
-          width: isTablet ? assigneeAvatarColumn : SLSizes.assigneeColumn,
-          child: _buildAssignee(context, showName: !isTablet),
+          width: showName ? SLSizes.assigneeColumn : assigneeAvatarColumn,
+          child: _buildAssignee(context, showName: showName),
         ),
         const SizedBox(width: columnGap),
         SizedBox(
@@ -290,7 +412,7 @@ class SLIssueRow extends StatelessWidget {
             child: SLPriorityIndicator(value: priority),
           ),
         ),
-        if (!isTablet) ...[
+        if (columns.hasComplexity) ...[
           const SizedBox(width: columnGap),
           SizedBox(
             width: SLSizes.complexityColumn,
@@ -448,20 +570,17 @@ class SLIssueTableHeader extends StatelessWidget {
   final SLIssueRowLayout layout;
 
   /// Высота ряда заголовков. На телефоне заголовков нет вовсе.
-  double get height => switch (layout) {
-    SLIssueRowLayout.desktop => SLDensity.desktop.tableHeaderHeight,
-    SLIssueRowLayout.tablet => SLDensity.tablet.tableHeaderHeight,
-    SLIssueRowLayout.phone => SLDensity.phone.tableHeaderHeight,
-  };
+  double get height => layout.headerHeight;
 
   @override
   Widget build(BuildContext context) {
-    if (layout == SLIssueRowLayout.phone) return const SizedBox.shrink();
+    if (layout.isCard) return const SizedBox.shrink();
 
     final colors = SLColorScheme.of(context);
     final text = SLTextScheme.of(context);
     final style = text.overline.copyWith(color: colors.textMuted);
-    final isTablet = layout == SLIssueRowLayout.tablet;
+    final columns = layout.columns;
+    final showName = columns.hasAssigneeName;
 
     Widget cell(String label, {TextAlign align = TextAlign.left}) => Text(
       label,
@@ -500,14 +619,14 @@ class SLIssueTableHeader extends StatelessWidget {
               SizedBox(width: SLSizes.statusColumn, child: cell('СТАТУС')),
               const SizedBox(width: SLIssueRow.columnGap),
               SizedBox(
-                width: isTablet
-                    ? SLIssueRow.assigneeAvatarColumn
-                    : SLSizes.assigneeColumn,
-                child: cell(isTablet ? '' : 'ИСПОЛНИТЕЛЬ'),
+                width: showName
+                    ? SLSizes.assigneeColumn
+                    : SLIssueRow.assigneeAvatarColumn,
+                child: cell(showName ? 'ИСПОЛНИТЕЛЬ' : ''),
               ),
               const SizedBox(width: SLIssueRow.columnGap),
               SizedBox(width: SLSizes.priorityColumn, child: cell('П')),
-              if (!isTablet) ...[
+              if (columns.hasComplexity) ...[
                 const SizedBox(width: SLIssueRow.columnGap),
                 SizedBox(
                   width: SLSizes.complexityColumn,
@@ -546,13 +665,14 @@ class SLIssueRowSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isTablet = layout == SLIssueRowLayout.tablet;
+    final columns = layout.columns;
+    final showName = columns.hasAssigneeName;
     final fraction = titleFractions[index % titleFractions.length];
 
     // На телефоне колонок нет вовсе: строка становится карточкой в две
     // строки, и скелетон обязан повторять именно её. Ширины десктопных
     // колонок в 360 px просто не помещаются.
-    if (layout == SLIssueRowLayout.phone) {
+    if (layout.isCard) {
       return Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: SLIssueRow.horizontalPadding,
@@ -617,13 +737,13 @@ class SLIssueRowSkeleton extends StatelessWidget {
           ),
           const SizedBox(width: SLIssueRow.columnGap),
           SizedBox(
-            width: isTablet
-                ? SLIssueRow.assigneeAvatarColumn
-                : SLSizes.assigneeColumn,
+            width: showName
+                ? SLSizes.assigneeColumn
+                : SLIssueRow.assigneeAvatarColumn,
             child: Row(
               children: [
                 const SLSkeletonBox.circle(diameter: 20),
-                if (!isTablet) ...[
+                if (showName) ...[
                   const SizedBox(width: SLSpacing.space2),
                   const Expanded(child: SLSkeletonLine()),
                 ],
@@ -635,7 +755,7 @@ class SLIssueRowSkeleton extends StatelessWidget {
             width: SLSizes.priorityColumn,
             child: SLSkeletonLine(width: 34),
           ),
-          if (!isTablet) ...[
+          if (columns.hasComplexity) ...[
             const SizedBox(width: SLIssueRow.columnGap),
             const SizedBox(
               width: SLSizes.complexityColumn,

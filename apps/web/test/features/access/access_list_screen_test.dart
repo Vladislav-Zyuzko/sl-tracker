@@ -11,6 +11,8 @@ import 'package:sl_tracker_web/features/access/presentation/widgets/access_entry
 import 'package:sl_tracker_web/features/access/presentation/widgets/access_source_badge.dart';
 import 'package:sl_tracker_web/features/auth/data/auth_repository.dart';
 import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
+import 'package:sl_tracker_web/shared/uikit/inputs/sl_search_field.dart';
+import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 
 import '../../helpers/fake_repositories.dart';
 import '../../helpers/pump_widget.dart';
@@ -179,6 +181,21 @@ void main() {
       );
 
       expect(find.text('Страница не найдена'), findsOneWidget);
+    });
+
+    testWidgets('поле поиска высотой 36 и не уже 240', (tester) async {
+      // Та же геометрия, что у поиска в сайдбаре: поле поиска — контрол
+      // над строками, а не строка (`system.md`, 10.3.1).
+      await pumpAccessList(
+        tester,
+        access: FakeAccessRepository(
+          entries: [fakeEntry(id: '1', email: 'anna@yandex.ru')],
+        ),
+      );
+
+      final size = tester.getSize(find.byType(SLSearchField));
+      expect(size.height, 36);
+      expect(size.width, greaterThanOrEqualTo(SLSizes.searchFieldMinWidth));
     });
 
     testWidgets('поиск уходит на сервер, а не фильтрует загруженное', (

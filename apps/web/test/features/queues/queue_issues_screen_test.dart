@@ -350,7 +350,7 @@ void main() {
       );
     });
 
-    testWidgets('на планшете счётчик уходит, а колонки сжимаются', (
+    testWidgets('на планшете счётчик уходит, а строка становится выше', (
       tester,
     ) async {
       await pumpQueue(
@@ -366,10 +366,57 @@ void main() {
 
       expect(find.textContaining('Показано'), findsNothing);
       expect(find.text('КЛЮЧ'), findsOneWidget);
-      expect(
-        tester.widget<SLIssueRow>(find.byType(SLIssueRow)).layout,
-        SLIssueRowLayout.tablet,
+      expect(tester.widget<SLIssueRow>(find.byType(SLIssueRow)).layout.extent, 40);
+    });
+
+    testWidgets('колонки отбрасываются по ширине области, а не по окну', (
+      tester,
+    ) async {
+      // Окно 830: места на всё не хватает, и первой уходит сложность.
+      // Имя исполнителя при этом остаётся — порядок отбрасывания продуман.
+      await pumpQueue(
+        tester,
+        queues: FakeQueuesRepository(),
+        issues: FakeIssuesRepository(
+          issues: [fakeIssueRow(key: 'DEV-1')],
+          role: IssueListDtoRole.admin,
+        ),
+        windowSize: const Size(830, 800),
       );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<SLIssueRow>(find.byType(SLIssueRow)).layout.columns,
+        SLIssueColumnSet.withoutComplexity,
+      );
+      expect(find.text('ИСПОЛНИТЕЛЬ'), findsOneWidget);
+      expect(find.text('С'), findsNothing);
+    });
+
+    testWidgets('таблицу обмеряет один LayoutBuilder, а не каждая строка', (
+      tester,
+    ) async {
+      // Прямая защита от того, чем это можно сломать: `LayoutBuilder`
+      // внутри строки убивает виртуализацию.
+      final issues = FakeIssuesRepository(
+        issues: [for (var i = 1; i <= 200; i++) fakeIssueRow(key: 'DEV-$i')],
+        role: IssueListDtoRole.admin,
+      )..pageSize = 200;
+
+      await pumpQueue(tester, queues: FakeQueuesRepository(), issues: issues);
+      await tester.pumpAndSettle();
+
+      final rows = tester.widgetList<SLIssueRow>(find.byType(SLIssueRow));
+      expect(rows, isNotEmpty);
+      for (final row in rows) {
+        expect(
+          find.descendant(
+            of: find.byWidget(row),
+            matching: find.byType(LayoutBuilder),
+          ),
+          findsNothing,
+        );
+      }
     });
   });
 }

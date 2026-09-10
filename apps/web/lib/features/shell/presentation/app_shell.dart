@@ -223,7 +223,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         backgroundColor: colors.surfaceSunken,
         drawer: breakpoint.isPhone
             ? Drawer(
-                width: SLSizes.sidebarDrawerWidth,
+                width: SLSizes.sidebarWidth,
                 backgroundColor: colors.surfaceSunken,
                 child: buildSidebar(collapsed: false),
               )

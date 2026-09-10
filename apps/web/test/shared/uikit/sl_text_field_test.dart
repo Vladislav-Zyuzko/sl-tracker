@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_fields.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
 import 'package:sl_tracker_web/shared/uikit/focus/sl_focus_ring.dart';
 import 'package:sl_tracker_web/shared/uikit/inputs/sl_search_field.dart';
@@ -15,6 +16,20 @@ InputDecoration _decorationOf(WidgetTester tester) =>
     tester.widget<TextField>(find.byType(TextField)).decoration!;
 
 BorderSide _sideOf(InputBorder? border) => border!.borderSide;
+
+/// Нижний разделитель встроенного поля поиска.
+BorderSide _dividerOf(WidgetTester tester) {
+  final box = tester.widget<DecoratedBox>(
+    find
+        .descendant(
+          of: find.byType(SLSearchField),
+          matching: find.byType(DecoratedBox),
+        )
+        .first,
+  );
+
+  return ((box.decoration as BoxDecoration).border! as Border).bottom;
+}
 
 void main() {
   group('SLTextField: фокус', () {
@@ -130,7 +145,7 @@ void main() {
         SizedBox(
           width: 320,
           child: SLSearchField(
-            hint: 'Поиск по моим активным задачам',
+            hint: 'Название или ключ',
             onQueryChanged: (_) {},
           ),
         ),
@@ -155,6 +170,79 @@ void main() {
       expect(focused.color, colors.borderFocus);
       expect(focused.width, SLBorders.controlFocus);
       expect(tester.getTopLeft(find.byType(EditableText)), before);
+    });
+  });
+
+  group('SLSearchField: геометрия', () {
+    testWidgets('самостоятельное поле — высотой 36', (tester) async {
+      // Высота 36 равна высоте строки списка, которую поле фильтрует:
+      // контрол ниже своих строк читается как подчинённый им
+      // (`system.md`, 10.3.1).
+      await pumpInTheme(
+        tester,
+        SizedBox(
+          width: 320,
+          child: SLSearchField(
+            hint: 'Название или ключ',
+            onQueryChanged: (_) {},
+          ),
+        ),
+      );
+
+      expect(tester.getSize(find.byType(SLSearchField)).height, 36);
+    });
+
+    test('места вызова дают полю не меньше 240', () {
+      // Ширину задаёт вызывающая сторона: тугие габариты от родителя
+      // компонент переопределить не может, поэтому 240 живёт токеном
+      // и проверяется там, где поле ставят.
+      expect(
+        SLSizes.sidebarWidth - 2 * SLSpacing.space2,
+        greaterThanOrEqualTo(SLSizes.searchFieldMinWidth),
+      );
+      expect(
+        IssueUserField.menuWidth,
+        greaterThanOrEqualTo(SLSizes.searchFieldMinWidth),
+      );
+    });
+
+    testWidgets('встроенное в меню — 32, без рамки, с разделителем', (
+      tester,
+    ) async {
+      // Рамка внутри рамки меню — «коробка в коробке», тот же дефект,
+      // из-за которого переделывали кольцо фокуса (`components.md`, 4.1).
+      await pumpInTheme(
+        tester,
+        SizedBox(
+          width: 280,
+          child: SLSearchField(
+            hint: 'Начните вводить имя',
+            variant: SLSearchFieldVariant.embedded,
+            showHotkeyHint: false,
+            onQueryChanged: (_) {},
+          ),
+        ),
+      );
+
+      expect(tester.getSize(find.byType(SLSearchField)).height, 32);
+
+      final decoration = _decorationOf(tester);
+      expect(decoration.border, InputBorder.none);
+      expect(decoration.enabledBorder, InputBorder.none);
+      expect(decoration.focusedBorder, InputBorder.none);
+      expect(decoration.filled, isFalse);
+
+      final colors = SLColorScheme.of(tester.element(find.byType(TextField)));
+      expect(_dividerOf(tester).color, colors.borderSubtle);
+      expect(_dividerOf(tester).width, SLBorders.hairline);
+
+      // В фокусе утолщается разделитель, а не появляется рамка.
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+
+      expect(_decorationOf(tester).focusedBorder, InputBorder.none);
+      expect(_dividerOf(tester).color, colors.borderFocus);
+      expect(_dividerOf(tester).width, SLBorders.controlFocus);
     });
   });
 

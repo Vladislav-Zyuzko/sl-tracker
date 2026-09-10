@@ -26,7 +26,7 @@ void main() {
           onGoNotifications: () => fired.add('notifications'),
           onShowHelp: () => fired.add('help'),
           child: SLSearchField(
-            hint: 'Поиск по моим активным задачам',
+            hint: 'Название или ключ',
             onQueryChanged: (_) {},
           ),
         ),

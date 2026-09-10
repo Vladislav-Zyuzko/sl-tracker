@@ -246,8 +246,31 @@ class _QueueIssuesScreenState extends ConsumerState<QueueIssuesScreen> {
     AsyncValue<QueueIssuesPage> issues,
     List<IssueStatusRef> statuses,
   ) {
-    final layout = SLIssueRowLayout.of(SLBreakpoint.of(context));
+    // `LayoutBuilder` стоит вокруг таблицы целиком, а не внутри строки:
+    // набор колонок вычисляется здесь один раз и уходит вниз параметром.
+    // `LayoutBuilder` в каждой строке — это тысяча замеров на прокрутку,
+    // то есть конец виртуализации (`queue-issues.md`, «Реализация»).
+    //
+    // Мерим ширину **области содержимого**, а не окна: она учитывает
+    // и ширину сайдбара, и его свёрнутость. Отсюда приятное следствие —
+    // свернув сайдбар, пользователь возвращает себе колонки.
+    return LayoutBuilder(
+      builder: (context, constraints) => _buildTable(
+        issues,
+        statuses,
+        SLIssueRowLayout.resolve(
+          breakpoint: SLBreakpoint.of(context),
+          contentWidth: constraints.maxWidth,
+        ),
+      ),
+    );
+  }
 
+  Widget _buildTable(
+    AsyncValue<QueueIssuesPage> issues,
+    List<IssueStatusRef> statuses,
+    SLIssueRowLayout layout,
+  ) {
     return issues.when(
       loading: () => _Skeleton(layout: layout),
       error: (error, _) => _buildError(error),

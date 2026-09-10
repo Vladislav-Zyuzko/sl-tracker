@@ -303,6 +303,9 @@ class IssueUserField extends ConsumerStatefulWidget {
   static const rowHeight = 32.0;
 
   /// Ширина меню.
+  ///
+  /// Не меньше 240: столько нужно полю поиска внутри
+  /// (`system.md`, 10.3.1, `components.md` 6).
   static const menuWidth = 280.0;
 
   @override
@@ -353,18 +356,19 @@ class IssueUserFieldState extends ConsumerState<IssueUserField> {
       menuChildren: [
         SizedBox(
           width: IssueUserField.menuWidth,
-          child: Padding(
-            padding: const EdgeInsets.all(SLSpacing.space2),
-            // Дебаунс и минимальная длина запроса — у самого поля:
-            // одна буквa здесь уже осмысленный фильтр, поэтому порог 1.
-            child: SLSearchField(
-              controller: _search,
-              hint: 'Начните вводить имя',
-              showHotkeyHint: false,
-              minQueryLength: 1,
-              debounce: IssueUserField.debounce,
-              onQueryChanged: _onQueryChanged,
-            ),
+          // Встроенный вид: рамки нет, снизу разделитель во всю ширину меню
+          // (`components.md`, 4.1). Рамка внутри рамки меню — «коробка
+          // в коробке», тот же дефект, из-за которого переделывали фокус.
+          // Дебаунс и минимальная длина запроса — у самого поля:
+          // одна буква здесь уже осмысленный фильтр, поэтому порог 1.
+          child: SLSearchField(
+            controller: _search,
+            variant: SLSearchFieldVariant.embedded,
+            hint: 'Начните вводить имя',
+            showHotkeyHint: false,
+            minQueryLength: 1,
+            debounce: IssueUserField.debounce,
+            onQueryChanged: _onQueryChanged,
           ),
         ),
         SizedBox(
