@@ -310,11 +310,7 @@ PickedFile fakePickedFile({
   String name = 'screenshot.png',
   String mimeType = 'image/png',
   int size = 1024,
-}) => PickedFile(
-  name: name,
-  mimeType: mimeType,
-  bytes: Uint8List(size),
-);
+}) => PickedFile(name: name, mimeType: mimeType, bytes: Uint8List(size));
 
 /// Подставной выбор файла в системном диалоге.
 class FakeFilePicker implements FilePicker {

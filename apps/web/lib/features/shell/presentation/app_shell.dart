@@ -162,8 +162,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Возвращение связи подтверждается тостом, а полоса офлайна пропадает
     // сама (`components.md`, 17.4).
     ref.listen(realtimeStatusProvider, (previous, next) {
-      if (previous == RealtimeStatus.offline &&
-          next == RealtimeStatus.online) {
+      if (previous == RealtimeStatus.offline && next == RealtimeStatus.online) {
         ref
             .read(toastControllerProvider.notifier)
             .success('Соединение восстановлено');
@@ -337,14 +336,21 @@ class _SkipToContentLinkState extends State<_SkipToContentLink> {
 
     return Focus(
       onFocusChange: (value) => setState(() => _focused = value),
+      // Только `Enter` и `Space`: ссылка не должна съедать `Tab`, иначе
+      // из неё не выйти обычным обходом фокуса.
       onKeyEvent: (node, event) {
-        if (event is KeyDownEvent) {
-          widget.focusNode.requestFocus();
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
-          return KeyEventResult.handled;
+        final key = event.logicalKey;
+        if (key != LogicalKeyboardKey.enter &&
+            key != LogicalKeyboardKey.numpadEnter &&
+            key != LogicalKeyboardKey.space) {
+          return KeyEventResult.ignored;
         }
 
-        return KeyEventResult.ignored;
+        widget.focusNode.requestFocus();
+
+        return KeyEventResult.handled;
       },
       child: _focused
           ? Container(

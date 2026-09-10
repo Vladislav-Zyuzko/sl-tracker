@@ -224,7 +224,11 @@ final class RealtimePongFrame extends RealtimeFrame {
 @immutable
 final class RealtimeErrorFrame extends RealtimeFrame {
   /// @nodoc
-  const RealtimeErrorFrame({required this.id, required this.code, this.message});
+  const RealtimeErrorFrame({
+    required this.id,
+    required this.code,
+    this.message,
+  });
 
   /// Корреляция отклонённой команды. `null` — сервер снял подписку сам:
   /// права на тему потеряны уже после подписки (`websocket.md`, 4).

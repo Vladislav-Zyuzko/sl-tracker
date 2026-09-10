@@ -110,7 +110,9 @@ class _CommentItemState extends State<CommentItem> {
             children: [
               _Header(
                 comment: comment,
-                showMenu: _hovered && (widget.onEdit != null || widget.onDelete != null),
+                showMenu:
+                    _hovered &&
+                    (widget.onEdit != null || widget.onDelete != null),
                 onEdit: widget.onEdit,
                 onDelete: widget.onDelete,
               ),

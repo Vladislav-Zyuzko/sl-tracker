@@ -28,11 +28,13 @@ import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_fields
 import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_header.dart';
 import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_links.dart';
 import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_skeletons.dart';
+import 'package:sl_tracker_web/features/projects/presentation/project_providers.dart';
 import 'package:sl_tracker_web/features/queues/presentation/queue_providers.dart';
 import 'package:sl_tracker_web/features/realtime/presentation/realtime_providers.dart';
 import 'package:sl_tracker_web/shared/uikit/buttons/sl_button.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
 import 'package:sl_tracker_web/shared/uikit/feedback/sl_toast.dart';
+import 'package:sl_tracker_web/shared/uikit/keyboard/sl_shortcuts.dart';
 import 'package:sl_tracker_web/shared/uikit/navigation/sl_tabs.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
@@ -205,8 +207,7 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
 
   IssueDto? get _issue => ref.read(issueProvider(widget.issueKey)).value;
 
-  String? get _currentUserId =>
-      ref.read(sessionControllerProvider).user?.id;
+  String? get _currentUserId => ref.read(sessionControllerProvider).user?.id;
 
   // --- Действия -------------------------------------------------------------
 
@@ -223,8 +224,12 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
 
     if (failure.code == 'assignee_not_member' ||
         failure.code == 'author_not_member') {
-      // Список участников устарел — перезапрашиваем его целиком.
-      ref.invalidate(issueMembersProvider);
+      // Список участников устарел — сбрасываем и подсказку упоминаний,
+      // и результаты селекторов автора и исполнителя: человека исключили
+      // из проекта, пока меню было открыто.
+      ref
+        ..invalidate(issueMembersProvider)
+        ..invalidate(projectMemberSearchProvider);
       toasts.error('Выбранный человек больше не участник проекта');
 
       return;
@@ -475,9 +480,7 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
   // --- Вложения -------------------------------------------------------------
 
   Future<void> _pickAndUpload() async {
-    final file = await ref
-        .read(filePickerProvider)
-        .pickOne(accept: '*/*');
+    final file = await ref.read(filePickerProvider).pickOne(accept: '*/*');
     if (file == null) return;
 
     await _uploadFiles([file]);
@@ -523,8 +526,7 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
       // бы всю ленту. Если подгружать больше нечего или попытки кончились,
       // считаем комментарий удалённым (US-102): «нет доступа» здесь
       // невозможно, задача уже открыта.
-      if (page.hasEarlier &&
-          _anchorAttempts < IssueScreen.anchorLookupPages) {
+      if (page.hasEarlier && _anchorAttempts < IssueScreen.anchorLookupPages) {
         _anchorAttempts++;
         await _commentsNotifier.loadEarlier();
 
@@ -562,48 +564,27 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
 
   // --- Клавиатура -----------------------------------------------------------
 
-  /// Набирает ли человек текст прямо сейчас.
-  ///
-  /// Хоткеи экрана — одиночные буквы, и без этой проверки буква «s»,
-  /// набранная в комментарии, открывала бы меню статуса. `Shortcuts` стоит
-  /// выше поля ввода в дереве и события до него доходят, поэтому решение
-  /// принимаем сами: если фокус внутри поля ввода, хоткей не наш.
-  static bool get _isTyping {
-    final context = FocusManager.instance.primaryFocus?.context;
-
-    return context != null &&
-        context.findAncestorStateOfType<EditableTextState>() != null;
-  }
-
-  /// Оборачивает хоткей проверкой на ввод текста.
-  VoidCallback _hotkey(VoidCallback action) => () {
-    if (_isTyping) return;
-
-    action();
-  };
-
+  /// Хоткеи экрана — одиночные буквы, и клавишу у поля ввода они не отбирают:
+  /// этим занимается [SLShortcuts]. Обычный `CallbackShortcuts` здесь
+  /// использовать нельзя — он поглощает клавишу, даже когда обработчик
+  /// ничего не сделал, и на русской раскладке «ф» (клавиша `A`) и «н»
+  /// (клавиша `Y`) переставали набираться в описании.
   Map<ShortcutActivator, VoidCallback> get _shortcuts => {
-    const SingleActivator(LogicalKeyboardKey.keyS): _hotkey(
-      () => _statusFieldKey.currentState?.open(),
-    ),
-    const SingleActivator(LogicalKeyboardKey.keyA): _hotkey(
-      () => _assigneeFieldKey.currentState?.open(),
-    ),
-    const SingleActivator(LogicalKeyboardKey.keyI): _hotkey(_assignToMe),
-    const SingleActivator(LogicalKeyboardKey.keyE): _hotkey(
-      _startEditingDescription,
-    ),
-    const SingleActivator(LogicalKeyboardKey.keyM): _hotkey(() {
+    const SingleActivator(LogicalKeyboardKey.keyS): () =>
+        _statusFieldKey.currentState?.open(),
+    const SingleActivator(LogicalKeyboardKey.keyA): () =>
+        _assigneeFieldKey.currentState?.open(),
+    const SingleActivator(LogicalKeyboardKey.keyI): _assignToMe,
+    const SingleActivator(LogicalKeyboardKey.keyE): _startEditingDescription,
+    const SingleActivator(LogicalKeyboardKey.keyM): () {
       setState(() => _tab = IssueTab.comments);
       // Поле может быть свёрнуто: сначала разворачиваем, потом фокус.
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _composerKey.currentState?.focus(),
       );
-    }),
-    const SingleActivator(LogicalKeyboardKey.keyY): _hotkey(_copyKey),
-    const SingleActivator(LogicalKeyboardKey.keyY, shift: true): _hotkey(
-      _copyLink,
-    ),
+    },
+    const SingleActivator(LogicalKeyboardKey.keyY): _copyKey,
+    const SingleActivator(LogicalKeyboardKey.keyY, shift: true): _copyLink,
   };
 
   // --- Раскладка ------------------------------------------------------------
@@ -630,15 +611,15 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
     final failure = issue.error == null ? null : ApiFailure.of(issue.error!);
     if (failure != null) return _buildError(failure);
 
-    // Хоткеи живут на уровне экрана, но не перебивают ввод: `Shortcuts`
-    // не срабатывает, пока фокус внутри текстового поля.
+    // Хоткеи живут на уровне экрана, но не перебивают ввод: `SLShortcuts`
+    // не претендует на клавишу, пока фокус внутри текстового поля.
     // `Material`, а не `ColoredBox`: на экране есть `InkWell` — крошки,
     // поля панели, строки меню, — и им нужна материальная подложка.
     // Оболочка приложения её даёт, но экран не должен зависеть от того,
     // куда его вставили.
     return Material(
       color: colors.surface,
-      child: CallbackShortcuts(
+      child: SLShortcuts(
         bindings: _shortcuts,
         child: Focus(
           autofocus: true,
@@ -759,8 +740,7 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
                       issue: issue,
                       onCopyKey: _copyKey,
                       onCopyLink: _copyLink,
-                      onDelete:
-                          (issue?.permissions.canDelete ?? false)
+                      onDelete: (issue?.permissions.canDelete ?? false)
                           ? _deleteIssue
                           : null,
                     ),
@@ -860,9 +840,7 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
               ),
             ),
             SliverPadding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: SLSpacing.space4,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: SLSpacing.space4),
               sliver: _tab == IssueTab.comments
                   ? _buildComments()
                   : HistorySliver(issueKey: widget.issueKey),
@@ -887,9 +865,7 @@ class _IssueScreenState extends ConsumerState<IssueScreen> {
     // моменту ещё не загружены.
     final page = ref.watch(issueCommentsProvider(widget.issueKey)).value;
     if (page != null) {
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _resolveAnchor(page),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) => _resolveAnchor(page));
     }
 
     return CommentsSliver(

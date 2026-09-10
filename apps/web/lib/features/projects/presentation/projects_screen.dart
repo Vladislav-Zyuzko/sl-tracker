@@ -17,6 +17,7 @@ import 'package:sl_tracker_web/shared/uikit/buttons/sl_icon_button.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
 import 'package:sl_tracker_web/shared/uikit/effects/sl_shimmering_effect.dart';
 import 'package:sl_tracker_web/shared/uikit/feedback/sl_toast.dart';
+import 'package:sl_tracker_web/shared/uikit/keyboard/sl_shortcuts.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_empty_state.dart';
@@ -71,16 +72,8 @@ class _ProjectsScreenState extends ConsumerState<ProjectsScreen> {
     super.dispose();
   }
 
-  /// Одиночные буквенные хоткеи не работают, когда человек печатает.
-  bool get _isTypingInField {
-    final focused = FocusManager.instance.primaryFocus;
-
-    return focused?.context?.widget is EditableText ||
-        focused?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
-  }
-
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent || _isTypingInField) {
+    if (event is! KeyDownEvent || slIsTypingInField()) {
       return KeyEventResult.ignored;
     }
 

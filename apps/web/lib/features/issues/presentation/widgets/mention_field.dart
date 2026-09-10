@@ -213,10 +213,7 @@ class _SLMentionFieldState extends ConsumerState<SLMentionField> {
     _highlighted = 0;
 
     _debounce?.cancel();
-    _debounce = Timer(
-      SLMentionField.debounce,
-      () => _load(trigger.query),
-    );
+    _debounce = Timer(SLMentionField.debounce, () => _load(trigger.query));
   }
 
   /// Запрашивает подсказку.
@@ -286,7 +283,8 @@ class _SLMentionFieldState extends ConsumerState<SLMentionField> {
       id: suggestion.id,
       displayName: suggestion.displayName,
     );
-    final replaced = '${text.substring(0, trigger.start)}$token '
+    final replaced =
+        '${text.substring(0, trigger.start)}$token '
         '${text.substring(caret)}';
 
     widget.controller.value = TextEditingValue(
@@ -355,7 +353,8 @@ class _SLMentionFieldState extends ConsumerState<SLMentionField> {
           enabled: widget.enabled,
           minLines: widget.minLines,
           maxLines: widget.maxLines,
-          style: widget.textStyle ?? text.body.copyWith(color: colors.textPrimary),
+          style:
+              widget.textStyle ?? text.body.copyWith(color: colors.textPrimary),
           cursorColor: colors.accent,
           onChanged: widget.onChanged,
           decoration: InputDecoration(
@@ -539,10 +538,7 @@ class _SuggestionMessage extends StatelessWidget {
         horizontal: SLSpacing.space3,
         vertical: SLSpacing.space2,
       ),
-      child: Text(
-        text,
-        style: scheme.bodyS.copyWith(color: colors.textMuted),
-      ),
+      child: Text(text, style: scheme.bodyS.copyWith(color: colors.textMuted)),
     );
   }
 }

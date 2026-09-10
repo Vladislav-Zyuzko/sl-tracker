@@ -66,10 +66,7 @@ void main() {
       );
 
       // Откат именно поля: приоритет вернулся к исходным 80.
-      expect(
-        container.read(issueProvider('DEV-42')).value!.priority.value,
-        80,
-      );
+      expect(container.read(issueProvider('DEV-42')).value!.priority.value, 80);
     });
 
     test('откат не стирает соседнее поле, изменённое тем временем', () async {
@@ -128,9 +125,7 @@ void main() {
     test('повтор того же значения запроса не порождает', () async {
       final (container, repository) = await boot();
 
-      await container
-          .read(issueProvider('DEV-42').notifier)
-          .changePriority(80);
+      await container.read(issueProvider('DEV-42').notifier).changePriority(80);
 
       expect(repository.patches, isEmpty);
     });
@@ -138,37 +133,41 @@ void main() {
     test('пустое название не сохраняется', () async {
       final (container, repository) = await boot();
 
-      await container
-          .read(issueProvider('DEV-42').notifier)
-          .changeTitle('   ');
+      await container.read(issueProvider('DEV-42').notifier).changeTitle('   ');
 
       expect(repository.patches, isEmpty);
     });
 
-    test('удаление ссылки убирает строку сразу и возвращает при отказе', () async {
-      final link = IssueLinkDto(
-        id: 'link-1',
-        url: 'https://example.com/spec',
-        title: 'Спека',
-        createdBy: fakeIssueUser(),
-        createdAt: DateTime.utc(2026, 2, 12),
-      );
+    test(
+      'удаление ссылки убирает строку сразу и возвращает при отказе',
+      () async {
+        final link = IssueLinkDto(
+          id: 'link-1',
+          url: 'https://example.com/spec',
+          title: 'Спека',
+          createdBy: fakeIssueUser(),
+          createdAt: DateTime.utc(2026, 2, 12),
+        );
 
-      final (container, repository) = await boot(
-        issue: fakeIssue(links: [link]),
-      );
-      repository.patchFailure = const ApiFailure(
-        kind: ApiFailureKind.server,
-        statusCode: 500,
-      );
+        final (container, repository) = await boot(
+          issue: fakeIssue(links: [link]),
+        );
+        repository.patchFailure = const ApiFailure(
+          kind: ApiFailureKind.server,
+          statusCode: 500,
+        );
 
-      await expectLater(
-        container.read(issueProvider('DEV-42').notifier).removeLink('link-1'),
-        throwsA(isA<ApiFailure>()),
-      );
+        await expectLater(
+          container.read(issueProvider('DEV-42').notifier).removeLink('link-1'),
+          throwsA(isA<ApiFailure>()),
+        );
 
-      expect(container.read(issueProvider('DEV-42')).value!.links, hasLength(1));
-    });
+        expect(
+          container.read(issueProvider('DEV-42')).value!.links,
+          hasLength(1),
+        );
+      },
+    );
   });
 
   group('подсказка участников', () {

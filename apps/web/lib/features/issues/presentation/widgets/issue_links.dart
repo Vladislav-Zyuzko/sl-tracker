@@ -226,9 +226,7 @@ class _AddLinkDialogState extends State<AddLinkDialog> {
     final scheme = uri?.scheme.toLowerCase();
 
     if (uri == null || (scheme != 'http' && scheme != 'https')) {
-      setState(
-        () => _error = 'Адрес должен начинаться с http:// или https://',
-      );
+      setState(() => _error = 'Адрес должен начинаться с http:// или https://');
 
       return;
     }
@@ -335,10 +333,7 @@ class ConfirmDialog extends StatelessWidget {
 
     return AlertDialog(
       backgroundColor: colors.surface,
-      title: Text(
-        title,
-        style: text.title.copyWith(color: colors.textPrimary),
-      ),
+      title: Text(title, style: text.title.copyWith(color: colors.textPrimary)),
       content: SizedBox(
         width: SLSizes.dialogSm,
         child: Text(

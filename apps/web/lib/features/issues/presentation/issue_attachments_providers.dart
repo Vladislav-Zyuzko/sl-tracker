@@ -123,9 +123,7 @@ class AttachmentsController extends AsyncNotifier<AttachmentsPage> {
 
   @override
   Future<AttachmentsPage> build() async {
-    final page = await ref
-        .read(attachmentsRepositoryProvider)
-        .list(issueKey);
+    final page = await ref.read(attachmentsRepositoryProvider).list(issueKey);
 
     return AttachmentsPage(
       items: page.items,
@@ -190,10 +188,8 @@ class AttachmentsController extends AsyncNotifier<AttachmentsPage> {
       if (ref.mounted && latest != null) {
         state = AsyncData(
           latest.copyWith(
-            items: [...latest.items]..insert(
-              index.clamp(0, latest.items.length),
-              removed,
-            ),
+            items: [...latest.items]
+              ..insert(index.clamp(0, latest.items.length), removed),
             total: latest.total + 1,
           ),
         );
@@ -216,9 +212,7 @@ class AttachmentsController extends AsyncNotifier<AttachmentsPage> {
           : null,
     );
 
-    state = AsyncData(
-      current.copyWith(uploads: [...current.uploads, upload]),
-    );
+    state = AsyncData(current.copyWith(uploads: [...current.uploads, upload]));
 
     // Слишком большой файл на сервер не отправляется вовсе: плитка ошибки
     // появляется мгновенно, а 25 МБ не уезжают в сеть ради ответа 413.

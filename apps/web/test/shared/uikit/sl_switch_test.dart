@@ -14,12 +14,8 @@ void main() {
     ) async {
       await tester.pumpWidget(
         MaterialApp(
-          theme: ThemeData(
-            extensions: [SLColorScheme.light()],
-          ),
-          home: Scaffold(
-            body: SLSwitch(value: true, onChanged: (_) {}),
-          ),
+          theme: ThemeData(extensions: [SLColorScheme.light()]),
+          home: Scaffold(body: SLSwitch(value: true, onChanged: (_) {})),
         ),
       );
 

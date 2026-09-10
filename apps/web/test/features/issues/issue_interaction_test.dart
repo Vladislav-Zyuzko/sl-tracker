@@ -6,7 +6,10 @@ import 'package:sl_tracker_web/core/domain/mention_token.dart';
 import 'package:sl_tracker_web/features/issues/presentation/issue_providers.dart';
 import 'package:sl_tracker_web/features/issues/presentation/widgets/comment_item.dart';
 import 'package:sl_tracker_web/features/issues/presentation/widgets/mention_field.dart';
+import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_fields.dart';
+import 'package:sl_tracker_web/features/projects/presentation/project_providers.dart';
 import 'package:sl_tracker_web/shared/uikit/feedback/sl_toast.dart';
+import 'package:sl_tracker_web/shared/uikit/keyboard/sl_shortcuts.dart';
 
 import '../../helpers/fake_issue_repositories.dart';
 import '../../helpers/pump_widget.dart';
@@ -127,15 +130,106 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.keyM);
       await tester.pumpAndSettle();
       expect(find.text('Ctrl+Enter — отправить'), findsOneWidget);
+      expect(slIsTypingInField(), isTrue);
 
-      // Теперь `y` — это буква «y» в комментарии, а не «скопировать ключ»,
-      // и `e` не открывает редактор описания поверх набранного текста.
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyY);
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
+      // Живой дефект: на русской раскладке «ф» — это клавиша `A`, «н» — `Y`,
+      // и в поле они не набирались. Мало проверить, что действие хоткея
+      // не выполнилось: прежняя реализация действие как раз отменяла,
+      // но клавишу всё равно поглощала, и символ не появлялся.
+      // Проверяем именно это — что событие ушло дальше, к полю.
+      const screenHotkeys = {
+        's': LogicalKeyboardKey.keyS,
+        'a': LogicalKeyboardKey.keyA,
+        'i': LogicalKeyboardKey.keyI,
+        'e': LogicalKeyboardKey.keyE,
+        'm': LogicalKeyboardKey.keyM,
+        'y': LogicalKeyboardKey.keyY,
+      };
+
+      for (final entry in screenHotkeys.entries) {
+        final handled = await simulateKeyDownEvent(entry.value);
+        await simulateKeyUpEvent(entry.value);
+        await tester.pump();
+
+        expect(
+          handled,
+          isFalse,
+          reason:
+              'клавиша «${entry.key}» перехвачена хоткеем — в вебе это '
+              'значит, что символ в поле не появится',
+        );
+      }
+
       await tester.pumpAndSettle();
 
+      // И, разумеется, сами действия тоже не выполнились.
       expect(copied, isEmpty);
       expect(find.text('Ctrl+Enter — сохранить'), findsNothing);
+      expect(find.text('Снять назначение'), findsNothing);
+    });
+  });
+
+  group('селектор исполнителя', () {
+    testWidgets('ищет участников на сервере, а не фильтрует загруженное', (
+      tester,
+    ) async {
+      final world = IssueWorld();
+
+      await pumpIssue(tester, world);
+
+      // `a` открывает селектор исполнителя.
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Анна Иванова'), findsWidgets);
+      expect(find.text('Пётр Смирнов'), findsOneWidget);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Начните вводить имя'),
+        'Пётр',
+      );
+      await tester.pump(IssueUserField.debounce + const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+
+      // Запрос ушёл на сервер параметром `q` — клиент состав проекта
+      // не выкачивает и сам не фильтрует.
+      expect(world.projects.memberQueries, contains('Пётр'));
+      expect(find.text('Пётр Смирнов'), findsOneWidget);
+
+      // Кэш подсказки держится 30 секунд — таймер надо дождаться, иначе
+      // тест уходит с висящим таймером.
+      await tester.pump(
+        ProjectMemberSearchController.cacheFor + const Duration(seconds: 1),
+      );
+    });
+
+    testWidgets('буква в поиске по участникам не улетает в хоткей', (
+      tester,
+    ) async {
+      await pumpIssue(tester, IssueWorld());
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextField, 'Начните вводить имя'));
+      await tester.pump();
+      expect(slIsTypingInField(), isTrue);
+
+      // Поле поиска живёт внутри меню, но в дереве оно под хоткеями экрана:
+      // `MenuAnchor` держит содержимое меню на месте якоря.
+      final handled = await simulateKeyDownEvent(LogicalKeyboardKey.keyS);
+      await simulateKeyUpEvent(LogicalKeyboardKey.keyS);
+      await tester.pumpAndSettle();
+
+      expect(
+        handled,
+        isFalse,
+        reason: 'клавиша «s» («ы») обязана дойти до поиска по участникам',
+      );
+
+      await tester.pump(
+        ProjectMemberSearchController.cacheFor + const Duration(seconds: 1),
+      );
     });
   });
 
@@ -253,9 +347,7 @@ void main() {
       await drainMentionCache(tester);
     });
 
-    testWidgets('«собака» внутри слова подсказку не открывает', (
-      tester,
-    ) async {
+    testWidgets('«собака» внутри слова подсказку не открывает', (tester) async {
       final controller = TextEditingController();
       addTearDown(controller.dispose);
 

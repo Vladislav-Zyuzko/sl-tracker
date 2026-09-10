@@ -441,7 +441,8 @@ class FakeIssuesRepository implements IssuesRepository {
   @override
   Future<IssueDto> changePriority(String issueKey, int priority) => _patch(
     'priority',
-    (current) => current.copyWith(priority: IssueDtoPriority.fromJson(priority)),
+    (current) =>
+        current.copyWith(priority: IssueDtoPriority.fromJson(priority)),
   );
 
   @override
@@ -491,10 +492,7 @@ class FakeIssuesRepository implements IssuesRepository {
   }
 
   @override
-  Future<IssueHistoryListDto> history(
-    String issueKey, {
-    String? cursor,
-  }) async {
+  Future<IssueHistoryListDto> history(String issueKey, {String? cursor}) async {
     final failure = historyFailure;
     if (failure != null) throw failure;
 

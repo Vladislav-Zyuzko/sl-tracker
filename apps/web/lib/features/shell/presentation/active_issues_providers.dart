@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sl_tracker_web/features/issues/data/issues_repository.dart';
 import 'package:sl_tracker_web/features/issues/domain/issue_row.dart';
+import 'package:sl_tracker_web/features/issues/presentation/issue_providers.dart';
 
 /// Запрос поиска по моим активным задачам.
 ///
@@ -90,6 +91,12 @@ class ActiveIssuesController extends AsyncNotifier<ActiveIssuesPage> {
   @override
   Future<ActiveIssuesPage> build() async {
     final query = ref.watch(activeIssuesSearchProvider);
+    // Правка задачи меняет состав списка: назначили себя — задача обязана
+    // появиться здесь сразу, сняли назначение или закрыли — исчезнуть.
+    // Событие `issue.updated` приходит только в тему `issue:<KEY>`, а сайдбар
+    // на неё не подписан (`docs/api/websocket.md`, 5), поэтому сигнал даёт
+    // сам экран задачи после успешного ответа сервера.
+    ref.watch(myActiveIssuesRevisionProvider);
     final page = await ref
         .read(issuesRepositoryProvider)
         .myActive(query: query);

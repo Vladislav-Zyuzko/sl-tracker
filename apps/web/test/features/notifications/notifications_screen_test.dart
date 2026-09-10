@@ -235,11 +235,86 @@ void main() {
       expect(router.state.uri.queryParameters['tab'], 'members');
     });
 
+    testWidgets('уведомлению без цели нажимать нечего, и это видно сразу', (
+      tester,
+    ) async {
+      // Ни ключа задачи наверху, ни в снимке: задачу удалили.
+      final repository = FakeNotificationsRepository(
+        items: [
+          fakeNotification(
+            issueKey: null,
+            payload: const NotificationPayloadDto(issueTitle: 'Что-то было'),
+          ),
+        ],
+      );
+
+      await pumpNotifications(tester, notifications: repository);
+
+      // Строка остаётся в ленте: пропажа записей задним числом хуже, чем
+      // неактивная строка (`notifications.md`).
+      expect(find.byType(NotificationRow), findsOneWidget);
+      expect(find.text('недоступно'), findsOneWidget);
+
+      // Основное решение — не дать нажать, а не объяснять после нажатия.
+      final ink = tester.widget<InkWell>(
+        find.descendant(
+          of: find.byType(NotificationRow),
+          matching: find.byType(InkWell),
+        ),
+      );
+      expect(ink.onTap, isNull);
+      expect(ink.onLongPress, isNull);
+
+      // И в порядок фокуса такая строка не попадает.
+      expect(
+        tester
+            .widgetList<Focus>(
+              find.descendant(
+                of: find.byType(NotificationRow),
+                matching: find.byType(Focus),
+              ),
+            )
+            .where((node) => node.canRequestFocus),
+        isEmpty,
+      );
+    });
+
+    testWidgets(
+      'тост-страховка говорит про задачу и проект, а не про источник',
+      (tester) async {
+        final repository = FakeNotificationsRepository(
+          items: [
+            fakeNotification(
+              issueKey: null,
+              payload: const NotificationPayloadDto(issueTitle: 'Что-то было'),
+            ),
+          ],
+        );
+
+        await pumpNotifications(tester, notifications: repository);
+
+        // Нажатие всё же произошло — клавиатурой из устаревшего состояния.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Открывать нечего: задача или проект удалены'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Источник уведомления'), findsNothing);
+      },
+    );
+
     testWidgets('«отметить все» гасит точки и убирает саму кнопку', (
       tester,
     ) async {
       final repository = FakeNotificationsRepository(
-        items: [fakeNotification(id: 'n1'), fakeNotification(id: 'n2')],
+        items: [
+          fakeNotification(id: 'n1'),
+          fakeNotification(id: 'n2'),
+        ],
       );
       await pumpNotifications(tester, notifications: repository);
 
@@ -335,9 +410,7 @@ void main() {
     ) async {
       await pumpNotifications(
         tester,
-        notifications: FakeNotificationsRepository(
-          items: [fakeNotification()],
-        ),
+        notifications: FakeNotificationsRepository(items: [fakeNotification()]),
         windowSize: const Size(400, 800),
       );
 

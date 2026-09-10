@@ -140,15 +140,11 @@ class _YandexIdButtonState extends State<YandexIdButton> {
     fixedSize: const WidgetStatePropertyAll(
       Size.fromHeight(YandexIdButton.height),
     ),
-    minimumSize: const WidgetStatePropertyAll(
-      Size(0, YandexIdButton.height),
-    ),
+    minimumSize: const WidgetStatePropertyAll(Size(0, YandexIdButton.height)),
     maximumSize: const WidgetStatePropertyAll(Size.infinite),
     shape: const WidgetStatePropertyAll(
       RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(
-          Radius.circular(YandexIdButton.radius),
-        ),
+        borderRadius: BorderRadius.all(Radius.circular(YandexIdButton.radius)),
       ),
     ),
     elevation: const WidgetStatePropertyAll(0),

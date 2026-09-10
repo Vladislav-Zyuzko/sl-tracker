@@ -88,7 +88,10 @@ void main() {
         topic: RealtimeTopics.issue(_issueKey),
         event: RealtimeEvents.issueUpdated,
         actorId: 'someone-else',
-        data: {'key': _issueKey, 'changedFields': ['status']},
+        data: {
+          'key': _issueKey,
+          'changedFields': ['status'],
+        },
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -102,9 +105,7 @@ void main() {
       // Подсветка гаснет сама.
       await Future<void>.delayed(const Duration(milliseconds: 320));
       expect(
-        setup.container
-            .read(issueRealtimeProvider(_issueKey))
-            .flashingFields,
+        setup.container.read(issueRealtimeProvider(_issueKey)).flashingFields,
         isEmpty,
       );
     });
@@ -116,14 +117,15 @@ void main() {
         topic: RealtimeTopics.issue(_issueKey),
         event: RealtimeEvents.issueUpdated,
         actorId: 'user-1',
-        data: {'key': _issueKey, 'changedFields': ['status']},
+        data: {
+          'key': _issueKey,
+          'changedFields': ['status'],
+        },
       );
       await Future<void>.delayed(Duration.zero);
 
       expect(
-        setup.container
-            .read(issueRealtimeProvider(_issueKey))
-            .flashingFields,
+        setup.container.read(issueRealtimeProvider(_issueKey)).flashingFields,
         isEmpty,
       );
     });

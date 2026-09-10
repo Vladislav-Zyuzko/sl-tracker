@@ -28,10 +28,7 @@ void main() {
 
     test('код остаётся содержимым без обрамления', () {
       expect(MarkdownPlain.of('вызови `build()`'), 'вызови build()');
-      expect(
-        MarkdownPlain.of('```dart\nfinal a = 1;\n```'),
-        'final a = 1;',
-      );
+      expect(MarkdownPlain.of('```dart\nfinal a = 1;\n```'), 'final a = 1;');
     });
 
     test('заголовки, цитаты и списки теряют маркеры', () {
@@ -54,8 +51,10 @@ void main() {
     });
 
     test('перевод строки не разрывает однострочное превью', () {
-      expect(MarkdownPlain.of('первая\nвторая\n\nтретья'),
-          'первая вторая третья');
+      expect(
+        MarkdownPlain.of('первая\nвторая\n\nтретья'),
+        'первая вторая третья',
+      );
     });
 
     test('обрезка идёт по границе слова', () {

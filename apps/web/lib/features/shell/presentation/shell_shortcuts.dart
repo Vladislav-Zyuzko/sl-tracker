@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:sl_tracker_web/shared/uikit/keyboard/sl_shortcuts.dart';
+
 /// Обработчик глобальных хоткеев оболочки
 /// (`docs/design/screens/README.md`, 5).
 ///
@@ -61,17 +63,6 @@ class _ShellShortcutsState extends State<ShellShortcuts> {
     super.dispose();
   }
 
-  /// Находится ли фокус в текстовом поле.
-  ///
-  /// Одиночные буквенные хоткеи в поле ввода не срабатывают — иначе набрать
-  /// слово «go» в комментарии было бы невозможно.
-  bool get _isTypingInField {
-    final focused = FocusManager.instance.primaryFocus;
-
-    return focused?.context?.widget is EditableText ||
-        focused?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
-  }
-
   void _startSequence() {
     _sequenceTimer?.cancel();
     _awaitingSecondKey = true;
@@ -100,7 +91,10 @@ class _ShellShortcutsState extends State<ShellShortcuts> {
       return KeyEventResult.handled;
     }
 
-    if (_isTypingInField || withCommand) return KeyEventResult.ignored;
+    // Печатают — клавиша не наша. Возвращаем `ignored`, а не «съедаем
+    // вхолостую»: событие обязано дойти до поля ввода, иначе на русской
+    // раскладке буквы «п», «и», «н», «г» перестанут набираться.
+    if (slIsTypingInField() || withCommand) return KeyEventResult.ignored;
 
     if (_awaitingSecondKey) {
       _endSequence();

@@ -160,7 +160,10 @@ class _Collapsible extends StatelessWidget {
                       colors: const [Color(0x00000000), Color(0xFF000000)],
                       stops: [
                         0,
-                        (SLMarkdown.fadeHeight / collapsedHeight).clamp(0.0, 1.0),
+                        (SLMarkdown.fadeHeight / collapsedHeight).clamp(
+                          0.0,
+                          1.0,
+                        ),
                       ],
                     ).createShader(bounds),
                     child: OverflowBox(
@@ -241,11 +244,7 @@ class _MeasuredHeightState extends State<_MeasuredHeight> {
 
     // До первого замера содержимое показывается целиком: увидеть лишнее
     // на один кадр лучше, чем моргнуть пустотой.
-    return SizedBox(
-      key: _key,
-      width: widget.maxWidth,
-      child: widget.child,
-    );
+    return SizedBox(key: _key, width: widget.maxWidth, child: widget.child);
   }
 }
 

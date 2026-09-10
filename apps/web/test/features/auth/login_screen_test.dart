@@ -150,9 +150,7 @@ void main() {
         SLBannerVariant.warning,
       );
 
-      final button = tester.widget<YandexIdButton>(
-        find.byType(YandexIdButton),
-      );
+      final button = tester.widget<YandexIdButton>(find.byType(YandexIdButton));
       expect(button.onPressed, isNull);
     });
 

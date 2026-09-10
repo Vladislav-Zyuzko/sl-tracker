@@ -94,9 +94,7 @@ class IssueFieldsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final canEdit = issue.permissions.canEdit;
     final showAssignToMe =
-        canEdit &&
-        currentUserId != null &&
-        issue.assignee?.id != currentUserId;
+        canEdit && currentUserId != null && issue.assignee?.id != currentUserId;
 
     return Semantics(
       container: true,
@@ -148,7 +146,7 @@ class IssueFieldsPanel extends StatelessWidget {
             issueKey: issue.key,
             field: IssueFieldNames.author,
             child: IssueUserField(
-              issueKey: issue.key,
+              projectSlug: issue.project.slug,
               user: issue.author,
               enabled: canEdit,
               onChanged: actions.onAuthorChanged,
@@ -162,7 +160,7 @@ class IssueFieldsPanel extends StatelessWidget {
             field: IssueFieldNames.assignee,
             child: IssueUserField(
               key: assigneeFieldKey,
-              issueKey: issue.key,
+              projectSlug: issue.project.slug,
               user: issue.assignee,
               enabled: canEdit,
               onChanged: actions.onAssigneeChanged,
@@ -350,7 +348,7 @@ class IssueFieldsBand extends StatelessWidget {
                 issueKey: issue.key,
                 field: IssueFieldNames.author,
                 child: IssueUserField(
-                  issueKey: issue.key,
+                  projectSlug: issue.project.slug,
                   user: issue.author,
                   enabled: canEdit,
                   onChanged: actions.onAuthorChanged,
@@ -362,7 +360,7 @@ class IssueFieldsBand extends StatelessWidget {
                 field: IssueFieldNames.assignee,
                 child: IssueUserField(
                   key: assigneeFieldKey,
-                  issueKey: issue.key,
+                  projectSlug: issue.project.slug,
                   user: issue.assignee,
                   enabled: canEdit,
                   onChanged: actions.onAssigneeChanged,
@@ -445,12 +443,8 @@ class _IssueFieldsCompactState extends State<IssueFieldsCompact> {
         InkWell(
           onTap: () => setState(() => _expanded = !_expanded),
           child: Container(
-            constraints: const BoxConstraints(
-              minHeight: SLSizes.touchTarget,
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: SLSpacing.space3,
-            ),
+            constraints: const BoxConstraints(minHeight: SLSizes.touchTarget),
+            padding: const EdgeInsets.symmetric(horizontal: SLSpacing.space3),
             decoration: BoxDecoration(
               color: colors.surfaceSunken,
               borderRadius: SLRadii.smAll,

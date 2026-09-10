@@ -6,12 +6,10 @@ import 'package:sl_tracker_web/core/realtime/realtime_socket.dart';
 void main() {
   group('разбор кадров живых обновлений', () {
     test('ready несёт темы, такт и предел', () {
-      final frame =
-          RealtimeFrame.decode(
-                '{"type":"ready","topics":["user:me"],'
-                '"heartbeatSeconds":30,"maxTopics":20}',
-              )
-              as RealtimeReadyFrame;
+      final frame = RealtimeFrame.decode(
+        '{"type":"ready","topics":["user:me"],'
+        '"heartbeatSeconds":30,"maxTopics":20}',
+      ) as RealtimeReadyFrame;
 
       expect(frame.topics, ['user:me']);
       expect(frame.heartbeat, const Duration(seconds: 30));
@@ -19,26 +17,22 @@ void main() {
     });
 
     test('subscribed отдаёт канонический ярлык, а не отправленный', () {
-      final frame =
-          RealtimeFrame.decode(
-                '{"type":"subscribed","id":"issue:dev-42",'
-                '"topic":"issue:DEV-42"}',
-              )
-              as RealtimeSubscribedFrame;
+      final frame = RealtimeFrame.decode(
+        '{"type":"subscribed","id":"issue:dev-42",'
+        '"topic":"issue:DEV-42"}',
+      ) as RealtimeSubscribedFrame;
 
       expect(frame.id, 'issue:dev-42');
       expect(frame.topic, 'issue:DEV-42');
     });
 
     test('event разбирается вместе с полезной нагрузкой', () {
-      final event =
-          RealtimeFrame.decode(
-                '{"type":"event","topic":"issue:DEV-42",'
-                '"event":"issue.updated","at":"2026-09-09T10:15:30.412Z",'
-                '"actorId":"user-1","data":{"key":"DEV-42",'
-                '"changedFields":["status","title"]}}',
-              )
-              as RealtimeEvent;
+      final event = RealtimeFrame.decode(
+        '{"type":"event","topic":"issue:DEV-42",'
+        '"event":"issue.updated","at":"2026-09-09T10:15:30.412Z",'
+        '"actorId":"user-1","data":{"key":"DEV-42",'
+        '"changedFields":["status","title"]}}',
+      ) as RealtimeEvent;
 
       expect(event.event, RealtimeEvents.issueUpdated);
       expect(event.changedFields, ['status', 'title']);
@@ -51,14 +45,12 @@ void main() {
     });
 
     test('счётчик непрочитанных достаётся числом', () {
-      final event =
-          RealtimeFrame.decode(
-                '{"type":"event","topic":"user:me",'
-                '"event":"notification.created","at":"2026-09-09T10:15:30Z",'
-                '"actorId":null,"data":{"id":"n1","type":"issue_mentioned",'
-                '"unreadCount":3}}',
-              )
-              as RealtimeEvent;
+      final event = RealtimeFrame.decode(
+        '{"type":"event","topic":"user:me",'
+        '"event":"notification.created","at":"2026-09-09T10:15:30Z",'
+        '"actorId":null,"data":{"id":"n1","type":"issue_mentioned",'
+        '"unreadCount":3}}',
+      ) as RealtimeEvent;
 
       expect(event.number('unreadCount'), 3);
       expect(event.actorId, isNull);
@@ -81,9 +73,9 @@ void main() {
       expect(frame.topics, isEmpty);
       expect(frame.heartbeat, const Duration(seconds: 30));
 
-      final error =
-          RealtimeFrame.decode('{"type":"error","id":null}')
-              as RealtimeErrorFrame;
+      final error = RealtimeFrame.decode(
+        '{"type":"error","id":null}',
+      ) as RealtimeErrorFrame;
 
       expect(error.code, 'unknown');
       expect(error.id, isNull);
@@ -105,7 +97,10 @@ void main() {
         realtimeUrlOf('https://tracker.example.com'),
         'wss://tracker.example.com/api/ws',
       );
-      expect(realtimeUrlOf('http://localhost:8081'), 'ws://localhost:8081/api/ws');
+      expect(
+        realtimeUrlOf('http://localhost:8081'),
+        'ws://localhost:8081/api/ws',
+      );
     });
   });
 

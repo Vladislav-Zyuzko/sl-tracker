@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
-import 'package:sl_tracker_web/shared/uikit/focus/sl_focus_ring.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_skeleton.dart';
@@ -20,6 +19,12 @@ enum SLFieldSize {
 ///
 /// Состояния (`components.md`, 3.2): обычное, наведение, фокус, заполненное,
 /// отключённое, только для чтения, загрузка значения, ошибка.
+///
+/// Фокус показывается **утолщением собственной рамки** до 2 px, а не кольцом
+/// снаружи: рамка поля и так окрашивается в `borderFocus`, и кольцо давало бы
+/// второй синий контур с зазором — тот самый «инпут внутри инпута»
+/// (`system.md`, 10.6.1). Утолщение уходит внутрь, `contentPadding` один
+/// на все состояния, текст и каретка не сдвигаются.
 ///
 /// «Только для чтения» — это не `disabled`: если у пользователя нет прав
 /// на правку поля, оно рендерится обычным текстом `textPrimary` и остаётся
@@ -207,22 +212,23 @@ class _SLTextFieldState extends State<SLTextField> {
           ),
           const SizedBox(height: SLSpacing.space1),
         ],
-        SLFocusRing(
-          focused: _focused && !widget.readOnly,
-          child: MouseRegion(
-            cursor: widget.enabled && !widget.readOnly
-                ? SystemMouseCursors.text
-                : SystemMouseCursors.basic,
-            onEnter: (_) => setState(() => _hovered = true),
-            onExit: (_) => setState(() => _hovered = false),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: isMultiline ? 72 : height),
-              child: _buildField(
-                colors: colors,
-                text: text,
-                hasError: hasError,
-                isMultiline: isMultiline,
-              ),
+        // Кольца фокуса у поля нет намеренно: его рамка сама окрашивается
+        // в `borderFocus`, и кольцо давало бы два синих контура с зазором —
+        // «инпут внутри инпута» (`system.md`, 10.6.1). Фокус показывает
+        // утолщение рамки до 2 px.
+        MouseRegion(
+          cursor: widget.enabled && !widget.readOnly
+              ? SystemMouseCursors.text
+              : SystemMouseCursors.basic,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: isMultiline ? 72 : height),
+            child: _buildField(
+              colors: colors,
+              text: text,
+              hasError: hasError,
+              isMultiline: isMultiline,
             ),
           ),
         ),
@@ -304,6 +310,9 @@ class _SLTextFieldState extends State<SLTextField> {
       );
     }
 
+    // Цвет означает состояние, толщина — фокус (`system.md`, 10.6.1).
+    // Поле с ошибкой в фокусе остаётся красным и просто утолщается: ошибка
+    // важнее того, где сейчас каретка.
     final borderColor = hasError
         ? colors.borderDanger
         : _focused
@@ -311,6 +320,7 @@ class _SLTextFieldState extends State<SLTextField> {
         : _hovered
         ? colors.textMuted
         : colors.borderStrong;
+    final borderWidth = _focused ? SLBorders.controlFocus : SLBorders.hairline;
 
     return TextField(
       controller: _controller,
@@ -352,12 +362,18 @@ class _SLTextFieldState extends State<SLTextField> {
         suffixIcon: _buildClearButton(colors),
         suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         // Границу считаем сами: InputDecorationTheme не различает наведение.
-        border: _border(borderColor),
-        enabledBorder: _border(borderColor),
-        focusedBorder: _border(borderColor),
-        errorBorder: _border(colors.borderDanger),
-        focusedErrorBorder: _border(colors.borderDanger),
-        disabledBorder: _border(colors.border),
+        // Все пять границ заданы явно, чтобы состояние не «протекало»
+        // из темы, а `contentPadding` один на все состояния — иначе текст
+        // подпрыгивал бы при получении фокуса.
+        border: _border(borderColor, borderWidth),
+        enabledBorder: _border(borderColor, borderWidth),
+        focusedBorder: _border(borderColor, borderWidth),
+        errorBorder: _border(colors.borderDanger, SLBorders.hairline),
+        focusedErrorBorder: _border(
+          colors.borderDanger,
+          SLBorders.controlFocus,
+        ),
+        disabledBorder: _border(colors.border, SLBorders.hairline),
       ),
     );
   }
@@ -389,8 +405,8 @@ class _SLTextFieldState extends State<SLTextField> {
     );
   }
 
-  OutlineInputBorder _border(Color color) => OutlineInputBorder(
+  OutlineInputBorder _border(Color color, double width) => OutlineInputBorder(
     borderRadius: SLRadii.smAll,
-    borderSide: BorderSide(color: color, width: SLBorders.hairline),
+    borderSide: BorderSide(color: color, width: width),
   );
 }

@@ -70,7 +70,10 @@ void main() {
       final realtime = await pumpShell(
         tester,
         notifications: FakeNotificationsRepository(
-          items: [fakeNotification(id: 'n1'), fakeNotification(id: 'n2')],
+          items: [
+            fakeNotification(id: 'n1'),
+            fakeNotification(id: 'n2'),
+          ],
         ),
       );
 

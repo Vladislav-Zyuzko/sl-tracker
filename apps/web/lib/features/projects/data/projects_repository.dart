@@ -133,12 +133,23 @@ class ProjectsRepository {
   }
 
   /// Участники проекта. Виден всем участникам, включая читателя (US-14).
-  Future<ProjectMemberListDto> members(String slug, {String? cursor}) async {
+  ///
+  /// [query] — поиск **на сервере** по имени и почте. При постраничной
+  /// подгрузке его надо передавать вместе с [cursor]: курсор без запроса
+  /// продолжил бы другой, нефильтрованный список. `total` в ответе при
+  /// активном поиске — число совпадений, а не состав проекта.
+  Future<ProjectMemberListDto> members(
+    String slug, {
+    String? cursor,
+    String query = '',
+    int limit = pageSize,
+  }) async {
     try {
       return await _client.membersControllerList(
         slug: slug,
-        limit: pageSize,
+        limit: limit,
         cursor: cursor,
+        q: query.isEmpty ? null : query,
       );
     } on Object catch (error) {
       throw ApiFailure.of(error);

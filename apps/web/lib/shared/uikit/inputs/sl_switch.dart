@@ -113,9 +113,7 @@ class _SLSwitchState extends State<SLSwitch> {
                 ? SystemMouseCursors.click
                 : SystemMouseCursors.basic,
             child: GestureDetector(
-              onTap: enabled
-                  ? () => widget.onChanged!(!widget.value)
-                  : null,
+              onTap: enabled ? () => widget.onChanged!(!widget.value) : null,
               // Зона нажатия на тач — не меньше 44 × 44, при том что сам
               // переключатель остаётся 32 × 18.
               child: SizedBox(

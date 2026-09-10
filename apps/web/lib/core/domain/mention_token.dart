@@ -71,11 +71,13 @@ sealed class MentionToken {
   ///
   /// [names] — актуальные имена по идентификаторам. Незнакомый токен
   /// остаётся как есть: он и должен читаться как обычный текст.
-  static String toPlainText(String body, {Map<String, String> names = const {}}) =>
-      body.replaceAllMapped(pattern, (match) {
-        final id = match.group(2)!;
-        final actual = names[id];
+  static String toPlainText(
+    String body, {
+    Map<String, String> names = const {},
+  }) => body.replaceAllMapped(pattern, (match) {
+    final id = match.group(2)!;
+    final actual = names[id];
 
-        return actual == null ? match.group(0)! : '@$actual';
-      });
+    return actual == null ? match.group(0)! : '@$actual';
+  });
 }

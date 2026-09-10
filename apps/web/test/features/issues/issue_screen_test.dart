@@ -18,11 +18,13 @@ import 'package:sl_tracker_web/features/issues/presentation/issue_screen.dart';
 import 'package:sl_tracker_web/features/issues/presentation/widgets/comment_composer.dart';
 import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_fields_panel.dart';
 import 'package:sl_tracker_web/features/issues/presentation/widgets/issue_skeletons.dart';
+import 'package:sl_tracker_web/features/projects/data/projects_repository.dart';
 import 'package:sl_tracker_web/features/queues/data/queues_repository.dart';
 import 'package:sl_tracker_web/shared/uikit/indicators/sl_status_chip.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_error_state.dart';
 
 import '../../helpers/fake_issue_repositories.dart';
+import '../../helpers/fake_project_repositories.dart';
 import '../../helpers/fake_queue_repositories.dart';
 import '../../helpers/fake_repositories.dart';
 import '../../helpers/pump_widget.dart';
@@ -47,6 +49,19 @@ class IssueWorld {
   final FakeAttachmentsRepository attachments;
   final mentions = FakeMentionsRepository();
   final queues = FakeQueuesRepository();
+
+  /// Селекторы автора и исполнителя ищут участников проекта задачи через
+  /// `GET /api/projects/{slug}/members?q=`.
+  final projects = FakeProjectsRepository()
+    ..memberList = [
+      fakeMember(userId: 'user-1', displayName: 'Анна Иванова'),
+      fakeMember(
+        userId: 'user-2',
+        displayName: 'Пётр Смирнов',
+        email: 'petr@yandex.ru',
+        role: ProjectMemberDtoRole.member,
+      ),
+    ];
   final drop = FakeFileDropTarget();
   final picker = FakeFilePicker();
 
@@ -56,6 +71,7 @@ class IssueWorld {
     attachmentsRepositoryProvider.overrideWithValue(attachments),
     mentionsRepositoryProvider.overrideWithValue(mentions),
     queuesRepositoryProvider.overrideWithValue(queues),
+    projectsRepositoryProvider.overrideWithValue(projects),
     fileDropTargetProvider.overrideWithValue(drop),
     filePickerProvider.overrideWithValue(picker),
     authRepositoryProvider.overrideWithValue(
@@ -150,9 +166,7 @@ void main() {
       tester,
     ) async {
       final world = IssueWorld()
-        ..issues.issueFailure = const ApiFailure(
-          kind: ApiFailureKind.network,
-        );
+        ..issues.issueFailure = const ApiFailure(kind: ApiFailureKind.network);
 
       await pumpWithProviders(
         tester,
@@ -332,10 +346,7 @@ void main() {
 
       world.drop.hover(over: true);
       await tester.pump();
-      expect(
-        find.text('Отпустите файлы, чтобы прикрепить'),
-        findsOneWidget,
-      );
+      expect(find.text('Отпустите файлы, чтобы прикрепить'), findsOneWidget);
 
       world.drop.hover(over: false);
       await tester.pump();
@@ -356,9 +367,7 @@ void main() {
       expect(world.attachments.uploadedNames, ['screenshot.png']);
     });
 
-    testWidgets('файл больше 25 МБ не уезжает на сервер вовсе', (
-      tester,
-    ) async {
+    testWidgets('файл больше 25 МБ не уезжает на сервер вовсе', (tester) async {
       final world = IssueWorld();
       await pumpIssue(tester, world);
 
@@ -376,11 +385,7 @@ void main() {
     testWidgets('на планшете панель полей уезжает наверх лентой', (
       tester,
     ) async {
-      await pumpIssue(
-        tester,
-        IssueWorld(),
-        windowSize: const Size(900, 800),
-      );
+      await pumpIssue(tester, IssueWorld(), windowSize: const Size(900, 800));
 
       expect(find.byType(IssueFieldsBand), findsOneWidget);
       expect(find.byType(IssueFieldsPanel), findsNothing);
@@ -389,11 +394,7 @@ void main() {
     testWidgets('на телефоне статус отдельно, остальное свёрнуто', (
       tester,
     ) async {
-      await pumpIssue(
-        tester,
-        IssueWorld(),
-        windowSize: const Size(400, 800),
-      );
+      await pumpIssue(tester, IssueWorld(), windowSize: const Size(400, 800));
 
       expect(find.byType(IssueFieldsCompact), findsOneWidget);
       expect(find.byType(SLStatusChip), findsWidgets);

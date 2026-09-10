@@ -33,9 +33,8 @@ void main() {
 
     test('маркер превращается в настоящий null', () {
       final body = send(
-        UpdateIssueDto(
-          assigneeId: PartialUpdateInterceptor.explicitNull,
-        ).toJson(),
+        UpdateIssueDto(assigneeId: PartialUpdateInterceptor.explicitNull)
+            .toJson(),
       );
 
       expect(body.containsKey('assigneeId'), isTrue);
@@ -46,9 +45,8 @@ void main() {
       // Так выражается «снять оценку сложности»: другого способа сказать
       // «пусто» перечислением у сгенерированной модели нет.
       final body = send(
-        UpdateIssueDto(
-          storyPoints: UpdateIssueDtoStoryPoints.$unknown,
-        ).toJson(),
+        UpdateIssueDto(storyPoints: UpdateIssueDtoStoryPoints.$unknown)
+            .toJson(),
       );
 
       expect(body.containsKey('storyPoints'), isTrue);

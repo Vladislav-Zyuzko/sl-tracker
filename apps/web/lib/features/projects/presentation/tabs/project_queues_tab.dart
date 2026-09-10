@@ -14,6 +14,7 @@ import 'package:sl_tracker_web/features/queues/presentation/widgets/queue_row.da
 import 'package:sl_tracker_web/features/queues/presentation/widgets/rename_queue_dialog.dart';
 import 'package:sl_tracker_web/shared/uikit/effects/sl_shimmering_effect.dart';
 import 'package:sl_tracker_web/shared/uikit/feedback/sl_toast.dart';
+import 'package:sl_tracker_web/shared/uikit/keyboard/sl_shortcuts.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_empty_state.dart';
@@ -104,9 +105,12 @@ class _ProjectQueuesTabState extends ConsumerState<ProjectQueuesTab> {
     final queues = ref.watch(projectQueuesProvider(widget.slug));
     final isPhone = SLBreakpoint.of(context).isPhone;
 
-    return CallbackShortcuts(
+    return SLShortcuts(
       // `n` — создать очередь (админ). Хоткей живёт на вкладке, а не глобально:
       // на других вкладках создавать нечего.
+      //
+      // `SLShortcuts` не отбирает клавишу у поля ввода: модалка создания
+      // открывается над вкладкой, и «н» в её поле должна набираться.
       bindings: {const SingleActivator(LogicalKeyboardKey.keyN): _create},
       child: Focus(
         autofocus: false,

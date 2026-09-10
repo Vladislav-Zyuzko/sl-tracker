@@ -38,62 +38,71 @@ Future<ProviderContainer> buildContainer({
 
 void main() {
   group('лента уведомлений', () {
-    test('первая порция приносит счётчик непрочитанных вместе с собой', () async {
-      final repository = FakeNotificationsRepository(
-        items: [
-          fakeNotification(id: 'n1'),
-          fakeNotification(id: 'n2', readAt: DateTime.utc(2026)),
-        ],
-      );
-      final container = await buildContainer(notifications: repository);
+    test(
+      'первая порция приносит счётчик непрочитанных вместе с собой',
+      () async {
+        final repository = FakeNotificationsRepository(
+          items: [
+            fakeNotification(id: 'n1'),
+            fakeNotification(id: 'n2', readAt: DateTime.utc(2026)),
+          ],
+        );
+        final container = await buildContainer(notifications: repository);
 
-      final page = await container.read(notificationsProvider.future);
+        final page = await container.read(notificationsProvider.future);
 
-      expect(page.items, hasLength(2));
-      expect(page.unreadCount, 1);
-      // Второго запроса ради счётчика не делаем: он приехал в ответе ленты.
-      expect(
-        container.read(unreadCountProvider).value,
-        1,
-      );
-    });
+        expect(page.items, hasLength(2));
+        expect(page.unreadCount, 1);
+        // Второго запроса ради счётчика не делаем: он приехал в ответе ленты.
+        expect(container.read(unreadCountProvider).value, 1);
+      },
+    );
 
-    test('пометка прочитанным оптимистична и откатывается при ошибке', () async {
-      final repository = FakeNotificationsRepository(
-        items: [fakeNotification(id: 'n1')],
-        markReadFailure: const ApiFailure(kind: ApiFailureKind.server),
-      );
-      final container = await buildContainer(notifications: repository);
-      await container.read(notificationsProvider.future);
+    test(
+      'пометка прочитанным оптимистична и откатывается при ошибке',
+      () async {
+        final repository = FakeNotificationsRepository(
+          items: [fakeNotification(id: 'n1')],
+          markReadFailure: const ApiFailure(kind: ApiFailureKind.server),
+        );
+        final container = await buildContainer(notifications: repository);
+        await container.read(notificationsProvider.future);
 
-      final controller = container.read(notificationsProvider.notifier);
+        final controller = container.read(notificationsProvider.notifier);
 
-      await expectLater(controller.markRead('n1'), throwsA(isA<ApiFailure>()));
+        await expectLater(
+          controller.markRead('n1'),
+          throwsA(isA<ApiFailure>()),
+        );
 
-      final page = container.read(notificationsProvider).requireValue;
-      expect(page.items.single.readAt, isNull, reason: 'точка вернулась');
-      expect(page.unreadCount, 1, reason: 'счётчик вернулся');
-    });
+        final page = container.read(notificationsProvider).requireValue;
+        expect(page.items.single.readAt, isNull, reason: 'точка вернулась');
+        expect(page.unreadCount, 1, reason: 'счётчик вернулся');
+      },
+    );
 
-    test('«отметить все» гасит точки, но не трогает порядок и состав', () async {
-      final repository = FakeNotificationsRepository(
-        items: [
-          fakeNotification(id: 'n1'),
-          fakeNotification(id: 'n2'),
-          fakeNotification(id: 'n3', readAt: DateTime.utc(2026)),
-        ],
-      );
-      final container = await buildContainer(notifications: repository);
-      await container.read(notificationsProvider.future);
+    test(
+      '«отметить все» гасит точки, но не трогает порядок и состав',
+      () async {
+        final repository = FakeNotificationsRepository(
+          items: [
+            fakeNotification(id: 'n1'),
+            fakeNotification(id: 'n2'),
+            fakeNotification(id: 'n3', readAt: DateTime.utc(2026)),
+          ],
+        );
+        final container = await buildContainer(notifications: repository);
+        await container.read(notificationsProvider.future);
 
-      await container.read(notificationsProvider.notifier).markAllRead();
+        await container.read(notificationsProvider.notifier).markAllRead();
 
-      final page = container.read(notificationsProvider).requireValue;
-      expect(page.items.map((item) => item.id), ['n1', 'n2', 'n3']);
-      expect(page.items.every((item) => item.readAt != null), isTrue);
-      expect(page.unreadCount, 0);
-      expect(container.read(unreadCountProvider).value, 0);
-    });
+        final page = container.read(notificationsProvider).requireValue;
+        expect(page.items.map((item) => item.id), ['n1', 'n2', 'n3']);
+        expect(page.items.every((item) => item.readAt != null), isTrue);
+        expect(page.unreadCount, 0);
+        expect(container.read(unreadCountProvider).value, 0);
+      },
+    );
 
     test('ошибка «отметить все» возвращает всё как было', () async {
       final repository = FakeNotificationsRepository(
@@ -108,10 +117,7 @@ void main() {
         throwsA(isA<ApiFailure>()),
       );
 
-      expect(
-        container.read(notificationsProvider).requireValue.unreadCount,
-        1,
-      );
+      expect(container.read(notificationsProvider).requireValue.unreadCount, 1);
     });
 
     test('дозагрузка добавляет порцию в конец и не дублирует строки', () async {
@@ -197,10 +203,7 @@ void main() {
       await expectLater(
         container
             .read(notificationSettingsProvider.notifier)
-            .toggle(
-              NotificationSettingDtoType.issueCommented,
-              enabled: false,
-            ),
+            .toggle(NotificationSettingDtoType.issueCommented, enabled: false),
         throwsA(isA<ApiFailure>()),
       );
 
@@ -226,10 +229,10 @@ void main() {
           .read(notificationSettingsProvider.notifier)
           .toggle(NotificationSettingDtoType.issueMentioned, enabled: false);
 
-      expect(
-        repository.lastUpdate,
-        (NotificationSettingDtoType.issueMentioned, false),
-      );
+      expect(repository.lastUpdate, (
+        NotificationSettingDtoType.issueMentioned,
+        false,
+      ));
       expect(
         allNotificationsDisabled(
           container.read(notificationSettingsProvider).requireValue,

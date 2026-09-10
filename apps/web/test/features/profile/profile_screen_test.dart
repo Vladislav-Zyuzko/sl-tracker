@@ -93,10 +93,7 @@ void main() {
     testWidgets('шесть настроек в порядке спеки и от первого лица', (
       tester,
     ) async {
-      await pumpProfile(
-        tester,
-        notifications: FakeNotificationsRepository(),
-      );
+      await pumpProfile(tester, notifications: FakeNotificationsRepository());
 
       expect(find.byType(NotificationSettingRow), findsNWidgets(6));
       expect(find.text('Присылать уведомления, когда:'), findsOneWidget);
@@ -114,7 +111,9 @@ void main() {
       expect(
         labels.indexOf('Меня упомянули в тексте'),
         lessThan(
-          labels.indexOf('Появился комментарий к задаче, на которую я подписан'),
+          labels.indexOf(
+            'Появился комментарий к задаче, на которую я подписан',
+          ),
         ),
       );
       expect(labels.last, 'В проект вступил новый участник');
@@ -127,20 +126,17 @@ void main() {
       await pumpProfile(tester, notifications: repository);
 
       final switches = find.byType(SLSwitch);
-      expect(
-        tester.widget<SLSwitch>(switches.first).value,
-        isTrue,
-      );
+      expect(tester.widget<SLSwitch>(switches.first).value, isTrue);
 
       await tester.tap(switches.first);
       await tester.pump();
 
       expect(tester.widget<SLSwitch>(switches.first).value, isFalse);
       await tester.pumpAndSettle();
-      expect(
-        repository.lastUpdate,
-        (NotificationSettingDtoType.issueAssigned, false),
-      );
+      expect(repository.lastUpdate, (
+        NotificationSettingDtoType.issueAssigned,
+        false,
+      ));
     });
 
     testWidgets('клик по строке переключает тумблер целиком', (tester) async {
@@ -153,10 +149,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(
-        repository.lastUpdate,
-        (NotificationSettingDtoType.issueMentioned, false),
-      );
+      expect(repository.lastUpdate, (
+        NotificationSettingDtoType.issueMentioned,
+        false,
+      ));
     });
 
     testWidgets('ошибка сохранения возвращает тумблер и объясняет', (
@@ -170,8 +166,10 @@ void main() {
       await tester.tap(find.byType(SLSwitch).first);
       await tester.pumpAndSettle();
 
-      expect(tester.widget<SLSwitch>(find.byType(SLSwitch).first).value,
-          isTrue);
+      expect(
+        tester.widget<SLSwitch>(find.byType(SLSwitch).first).value,
+        isTrue,
+      );
       expect(find.text('Не удалось сохранить настройку'), findsOneWidget);
       expect(find.text('Повторить'), findsAtLeast(1));
     });

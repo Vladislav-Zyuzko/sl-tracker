@@ -19,6 +19,7 @@ import 'package:sl_tracker_web/shared/uikit/buttons/sl_icon_button.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
 import 'package:sl_tracker_web/shared/uikit/effects/sl_shimmering_effect.dart';
 import 'package:sl_tracker_web/shared/uikit/feedback/sl_toast.dart';
+import 'package:sl_tracker_web/shared/uikit/keyboard/sl_shortcuts.dart';
 import 'package:sl_tracker_web/shared/uikit/lists/sl_issue_row.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
@@ -181,13 +182,17 @@ class _QueueIssuesScreenState extends ConsumerState<QueueIssuesScreen> {
 
     return ColoredBox(
       color: colors.surface,
-      child: CallbackShortcuts(
+      child: SLShortcuts(
         // `c` и `f` живут на уровне экрана, а не списка: они нужны и когда
         // список пуст, и когда он не в фокусе.
+        //
+        // `SLShortcuts`, а не `CallbackShortcuts`: на этом же экране стоит
+        // поле фильтра, и `c`/`f` (на русской раскладке «с» и «а») обязаны
+        // в него набираться, а не поглощаться хоткеем.
         bindings: {
-          const SingleActivator(LogicalKeyboardKey.keyC): () {
-            if (canEdit) _createIssue();
-          },
+          // Создавать нечего — клавишу не отбираем вовсе.
+          if (canEdit)
+            const SingleActivator(LogicalKeyboardKey.keyC): _createIssue,
           const SingleActivator(LogicalKeyboardKey.keyF):
               _filterFocusNode.requestFocus,
         },

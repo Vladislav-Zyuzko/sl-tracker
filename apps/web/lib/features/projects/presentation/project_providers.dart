@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -111,6 +113,100 @@ final projectMembersProvider =
       ProjectMembersPage,
       String
     >(ProjectMembersController.new, isAutoDispose: true, retry: (_, _) => null);
+
+/// Запрос к поиску участников проекта: проект плюс строка поиска.
+@immutable
+class ProjectMemberSearch {
+  /// @nodoc
+  const ProjectMemberSearch({required this.slug, this.query = ''});
+
+  /// Короткое имя проекта.
+  final String slug;
+
+  /// Строка поиска. Пустая — начало списка участников.
+  final String query;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProjectMemberSearch &&
+          other.slug == slug &&
+          other.query == query;
+
+  @override
+  int get hashCode => Object.hash(slug, query);
+}
+
+/// Совпавшие участники и сколько их всего.
+@immutable
+class ProjectMemberMatches {
+  /// @nodoc
+  const ProjectMemberMatches({required this.items, required this.total});
+
+  /// Найденные участники — не больше [ProjectMemberSearchController.limit].
+  final List<ProjectMemberDto> items;
+
+  /// Сколько совпало на сервере. При активном поиске это число совпадений,
+  /// а не состав проекта, — поэтому по нему и видно, что показано не всё.
+  final int total;
+
+  /// Совпадений больше, чем поместилось в меню.
+  bool get isTruncated => total > items.length;
+}
+
+/// Поиск участников проекта под селектор пользователя
+/// (`components.md`, 6).
+///
+/// Ищет **сервер** — `GET /api/projects/{slug}/members?q=`. Выкачивать весь
+/// состав проекта и фильтровать его на клиенте нельзя: в крупном проекте
+/// участников сотни, и за пределами первой страницы осталось бы ровно то,
+/// что человек ищет.
+///
+/// Постраничной подгрузки здесь нет намеренно: меню показывает не больше 20
+/// совпадений и предлагает уточнить запрос (`components.md`, 6). Бесконечная
+/// прокрутка в выпадающем списке из трёх строк никому не нужна.
+final projectMemberSearchProvider =
+    AsyncNotifierProvider.family<
+      ProjectMemberSearchController,
+      ProjectMemberMatches,
+      ProjectMemberSearch
+    >(
+      ProjectMemberSearchController.new,
+      isAutoDispose: true,
+      retry: (_, _) => null,
+    );
+
+/// Контроллер поиска участников.
+class ProjectMemberSearchController
+    extends AsyncNotifier<ProjectMemberMatches> {
+  /// @nodoc
+  ProjectMemberSearchController(this.search);
+
+  /// @nodoc
+  final ProjectMemberSearch search;
+
+  /// Максимум строк в меню (`components.md`, 6).
+  static const limit = 20;
+
+  /// Сколько ответ держится в памяти после закрытия меню.
+  ///
+  /// Пока человек перебирает буквы, ответ на уже набранный префикс лежит
+  /// рядом — и стирание буквы не превращается в новый запрос.
+  static const cacheFor = Duration(seconds: 30);
+
+  @override
+  Future<ProjectMemberMatches> build() async {
+    final link = ref.keepAlive();
+    final timer = Timer(cacheFor, link.close);
+    ref.onDispose(timer.cancel);
+
+    final page = await ref
+        .watch(projectsRepositoryProvider)
+        .members(search.slug, query: search.query, limit: limit);
+
+    return ProjectMemberMatches(items: page.items, total: page.total.toInt());
+  }
+}
 
 /// Загруженная часть списка участников.
 @immutable

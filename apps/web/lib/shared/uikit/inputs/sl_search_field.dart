@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
-import 'package:sl_tracker_web/shared/uikit/focus/sl_focus_ring.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/text/sl_text_scheme.dart';
@@ -142,51 +141,51 @@ class _SLSearchFieldState extends State<SLSearchField> {
     final showHint =
         widget.showHotkeyHint && !_focused && _controller.text.isEmpty;
 
-    return SLFocusRing(
-      focused: _focused,
-      child: SizedBox(
-        height: height,
-        child: Focus(
-          onKeyEvent: _onKeyEvent,
-          child: TextField(
-            controller: _controller,
-            focusNode: _focusNode,
-            onChanged: _onChanged,
-            onSubmitted: (_) => widget.onSubmitted?.call(),
-            textInputAction: TextInputAction.search,
-            style: text.bodyS.copyWith(color: colors.textPrimary),
-            cursorColor: colors.accent,
-            decoration: InputDecoration(
-              hintText: widget.hint,
-              filled: true,
-              fillColor: colors.surface,
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: SLSpacing.space1,
-              ),
-              prefixIcon: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: SLSpacing.space2,
-                ),
-                child: Icon(
-                  Icons.search_rounded,
-                  size: SLIconSizes.icon16,
-                  color: colors.iconMuted,
-                ),
-              ),
-              prefixIconConstraints: const BoxConstraints(
-                minWidth: 0,
-                minHeight: 0,
-              ),
-              suffixIcon: _buildSuffix(colors, text, showHint: showHint),
-              suffixIconConstraints: const BoxConstraints(
-                minWidth: 0,
-                minHeight: 0,
-              ),
-              border: _border(colors.borderStrong),
-              enabledBorder: _border(colors.borderStrong),
-              focusedBorder: _border(colors.borderFocus),
+    // Кольца фокуса нет: рамка поиска сама окрашивается в `borderFocus`,
+    // и кольцо снаружи давало бы второй синий контур с зазором
+    // (`system.md`, 10.6.1). Фокус показывает утолщение рамки до 2 px.
+    return SizedBox(
+      height: height,
+      child: Focus(
+        onKeyEvent: _onKeyEvent,
+        child: TextField(
+          controller: _controller,
+          focusNode: _focusNode,
+          onChanged: _onChanged,
+          onSubmitted: (_) => widget.onSubmitted?.call(),
+          textInputAction: TextInputAction.search,
+          style: text.bodyS.copyWith(color: colors.textPrimary),
+          cursorColor: colors.accent,
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            filled: true,
+            fillColor: colors.surface,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: SLSpacing.space1,
             ),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: SLSpacing.space2),
+              child: Icon(
+                Icons.search_rounded,
+                size: SLIconSizes.icon16,
+                color: colors.iconMuted,
+              ),
+            ),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 0,
+              minHeight: 0,
+            ),
+            suffixIcon: _buildSuffix(colors, text, showHint: showHint),
+            suffixIconConstraints: const BoxConstraints(
+              minWidth: 0,
+              minHeight: 0,
+            ),
+            // `contentPadding` один на все состояния: рамка утолщается
+            // внутрь, и текст с кареткой при фокусе не сдвигаются.
+            border: _border(colors.borderStrong, SLBorders.hairline),
+            enabledBorder: _border(colors.borderStrong, SLBorders.hairline),
+            focusedBorder: _border(colors.borderFocus, SLBorders.controlFocus),
           ),
         ),
       ),
@@ -258,8 +257,8 @@ class _SLSearchFieldState extends State<SLSearchField> {
     );
   }
 
-  OutlineInputBorder _border(Color color) => OutlineInputBorder(
+  OutlineInputBorder _border(Color color, double width) => OutlineInputBorder(
     borderRadius: SLRadii.smAll,
-    borderSide: BorderSide(color: color, width: SLBorders.hairline),
+    borderSide: BorderSide(color: color, width: width),
   );
 }

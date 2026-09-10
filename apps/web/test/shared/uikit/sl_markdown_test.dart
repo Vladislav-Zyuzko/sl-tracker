@@ -149,9 +149,7 @@ void main() {
         tester,
         const SizedBox(
           width: 600,
-          child: SLMarkdown(
-            data: 'Привет, @[Посторонний](user:$id)!',
-          ),
+          child: SLMarkdown(data: 'Привет, @[Посторонний](user:$id)!'),
         ),
       );
 
@@ -212,7 +210,8 @@ void main() {
     });
 
     test('незнакомый токен в простом тексте остаётся как есть', () {
-      const body = 'Привет, @[Кто-то](user:11111111-2222-3333-4444-555555555555)!';
+      const body =
+          'Привет, @[Кто-то](user:11111111-2222-3333-4444-555555555555)!';
 
       expect(MentionToken.toPlainText(body), body);
     });

@@ -141,15 +141,23 @@ abstract final class SLThemeData {
       labelStyle: _text.label.copyWith(color: colors.textSecondary),
       helperStyle: _text.label.copyWith(color: colors.textMuted),
       errorStyle: _text.label.copyWith(color: colors.danger),
+      // Один и тот же `contentPadding` во всех состояниях: рамка в фокусе
+      // утолщается внутрь, и текст с кареткой при получении фокуса
+      // не сдвигаются ни на пиксель (`system.md`, 10.6.1).
       contentPadding: const EdgeInsets.symmetric(
         horizontal: SLSpacing.space2,
         vertical: SLSpacing.space1,
       ),
+      // Цвет рамки означает состояние, толщина — фокус (`system.md`, 10.6.1).
+      // Кольцо фокуса полю ввода не добавляется: в `borderFocus` должен быть
+      // ровно один контур, и здесь это сама рамка.
       border: border(colors.borderStrong),
       enabledBorder: border(colors.borderStrong),
-      focusedBorder: border(colors.borderFocus),
+      focusedBorder: border(colors.borderFocus, SLBorders.controlFocus),
       errorBorder: border(colors.borderDanger),
-      focusedErrorBorder: border(colors.borderDanger),
+      // Ошибка важнее того, где сейчас каретка: цвет остаётся «ошибочным»,
+      // фокус передаётся утолщением.
+      focusedErrorBorder: border(colors.borderDanger, SLBorders.controlFocus),
       disabledBorder: border(colors.border),
     );
   }

@@ -173,9 +173,7 @@ class _SLMarkdownEditorState extends State<SLMarkdownEditor> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: SLSpacing.space2,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: SLSpacing.space2),
               child: SLTabBar<_EditorTab>(
                 tabs: const [
                   SLTabItem(value: _EditorTab.write, label: 'Написать'),

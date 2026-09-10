@@ -18,11 +18,10 @@ import 'package:sl_tracker_web/features/realtime/presentation/realtime_providers
 /// запрос ради счётчика не нужен (`websocket.md`, 5). Событие
 /// `notification.read` приходит, когда человек прочитал уведомления
 /// **в другой вкладке** — счётчик в шапке обязан уменьшиться и здесь.
-final unreadCountProvider =
-    AsyncNotifierProvider<UnreadCountController, int>(
-      UnreadCountController.new,
-      retry: (_, _) => null,
-    );
+final unreadCountProvider = AsyncNotifierProvider<UnreadCountController, int>(
+  UnreadCountController.new,
+  retry: (_, _) => null,
+);
 
 /// Контроллер счётчика непрочитанных.
 class UnreadCountController extends AsyncNotifier<int> {
@@ -54,7 +53,9 @@ class UnreadCountController extends AsyncNotifier<int> {
   /// Перечитывает счётчик с сервера.
   Future<void> refresh() async {
     try {
-      final count = await ref.read(notificationsRepositoryProvider).unreadCount();
+      final count = await ref
+          .read(notificationsRepositoryProvider)
+          .unreadCount();
       if (ref.mounted) state = AsyncData(count);
     } on Object {
       // Счётчик в шапке — не повод показывать ошибку на весь экран:
@@ -340,10 +341,7 @@ class NotificationsController extends AsyncNotifier<NotificationsPage> {
         ],
         total: page.total.toInt(),
         unreadCount: page.unreadCount.toInt(),
-        highlighted: {
-          ...latest.highlighted,
-          for (final item in fresh) item.id,
-        },
+        highlighted: {...latest.highlighted, for (final item in fresh) item.id},
       ),
     );
     _publishUnread(page.unreadCount.toInt());
@@ -366,9 +364,7 @@ class NotificationsController extends AsyncNotifier<NotificationsPage> {
   }
 
   void _replace(NotificationsPage page, int index, NotificationDto value) {
-    state = AsyncData(
-      page.copyWith(items: [...page.items]..[index] = value),
-    );
+    state = AsyncData(page.copyWith(items: [...page.items]..[index] = value));
   }
 
   void _setUnread(int value) {

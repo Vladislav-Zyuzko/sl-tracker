@@ -135,9 +135,7 @@ class CommentsController extends AsyncNotifier<CommentsPage> {
 
   @override
   Future<CommentsPage> build() async {
-    final page = await ref
-        .read(commentsRepositoryProvider)
-        .list(issueKey);
+    final page = await ref.read(commentsRepositoryProvider).list(issueKey);
 
     return CommentsPage(
       items: page.items,
@@ -243,8 +241,7 @@ class CommentsController extends AsyncNotifier<CommentsPage> {
         // порции. Если человек уже догрузил ленту вглубь, эта граница
         // осталась позади, и подменять ею свой курсор нельзя.
         earlierCursor: _pagedBack ? latest.earlierCursor : page.nextCursor,
-        clearEarlierCursor:
-            !_pagedBack && page.nextCursor == null,
+        clearEarlierCursor: !_pagedBack && page.nextCursor == null,
       ),
     );
   }
@@ -284,9 +281,7 @@ class CommentsController extends AsyncNotifier<CommentsPage> {
       createdAt: DateTime.now(),
     );
 
-    state = AsyncData(
-      current.copyWith(pending: [...current.pending, pending]),
-    );
+    state = AsyncData(current.copyWith(pending: [...current.pending, pending]));
 
     await _deliver(pending);
   }
@@ -296,14 +291,14 @@ class CommentsController extends AsyncNotifier<CommentsPage> {
     final current = state.value;
     if (current == null) return;
 
-    final index = current.pending.indexWhere(
-      (item) => item.localId == localId,
-    );
+    final index = current.pending.indexWhere((item) => item.localId == localId);
     if (index < 0) return;
 
     final pending = current.pending[index].copyWith(failed: false);
     state = AsyncData(
-      current.copyWith(pending: _replacePending(current.pending, index, pending)),
+      current.copyWith(
+        pending: _replacePending(current.pending, index, pending),
+      ),
     );
 
     await _deliver(pending);
@@ -371,10 +366,8 @@ class CommentsController extends AsyncNotifier<CommentsPage> {
       if (ref.mounted && latest != null) {
         state = AsyncData(
           latest.copyWith(
-            items: [...latest.items]..insert(
-              index.clamp(0, latest.items.length),
-              removed,
-            ),
+            items: [...latest.items]
+              ..insert(index.clamp(0, latest.items.length), removed),
             total: latest.total + 1,
           ),
         );

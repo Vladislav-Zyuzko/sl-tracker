@@ -45,9 +45,7 @@ void main() {
 
     test('отправленный комментарий виден сразу, до ответа сервера', () async {
       final (container, _) = await boot();
-      final notifier = container.read(
-        issueCommentsProvider('DEV-42').notifier,
-      );
+      final notifier = container.read(issueCommentsProvider('DEV-42').notifier);
 
       final pending = notifier.send('Новый текст', fakeIssueUser());
 
@@ -80,9 +78,7 @@ void main() {
 
     test('повтор после ошибки доводит комментарий до ленты', () async {
       final (container, repository) = await boot();
-      final notifier = container.read(
-        issueCommentsProvider('DEV-42').notifier,
-      );
+      final notifier = container.read(issueCommentsProvider('DEV-42').notifier);
 
       repository.createFailure = _failure;
       await notifier.send('Текст', fakeIssueUser());
@@ -104,9 +100,7 @@ void main() {
 
     test('«Удалить» убирает неотправленный комментарий', () async {
       final (container, repository) = await boot();
-      final notifier = container.read(
-        issueCommentsProvider('DEV-42').notifier,
-      );
+      final notifier = container.read(issueCommentsProvider('DEV-42').notifier);
 
       repository.createFailure = _failure;
       await notifier.send('Черновик', fakeIssueUser());

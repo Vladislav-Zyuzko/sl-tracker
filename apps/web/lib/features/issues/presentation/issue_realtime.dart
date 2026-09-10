@@ -138,14 +138,15 @@ class IssueRealtimeController extends Notifier<IssueLiveState> {
   CommentsController get _comments =>
       ref.read(issueCommentsProvider(issueKey).notifier);
 
-  void _refreshIssue() =>
-      ref.read(issueProvider(issueKey).notifier).refresh();
+  void _refreshIssue() => ref.read(issueProvider(issueKey).notifier).refresh();
 
   /// Зажигает подсветку изменённых полей и гасит её через [flashDuration].
   void _flash(List<String> fields) {
     if (fields.isEmpty) return;
 
-    state = state.copyWith(flashingFields: {...state.flashingFields, ...fields});
+    state = state.copyWith(
+      flashingFields: {...state.flashingFields, ...fields},
+    );
 
     Timer(flashDuration, () {
       if (!ref.mounted) return;

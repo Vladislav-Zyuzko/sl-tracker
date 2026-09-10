@@ -18,6 +18,7 @@ import 'package:sl_tracker_web/shared/uikit/buttons/sl_icon_button.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
 import 'package:sl_tracker_web/shared/uikit/feedback/sl_toast.dart';
 import 'package:sl_tracker_web/shared/uikit/indicators/sl_counter_badge.dart';
+import 'package:sl_tracker_web/shared/uikit/keyboard/sl_shortcuts.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_breakpoints.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_empty_state.dart';
@@ -98,7 +99,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (target == null) {
       ref
           .read(toastControllerProvider.notifier)
-          .show('Источник уведомления больше недоступен');
+          .show(NotificationLine.noTargetToast, variant: SLToastVariant.info);
 
       return;
     }
@@ -201,15 +202,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     }
   }
 
-  bool get _isTypingInField {
-    final focused = FocusManager.instance.primaryFocus;
-
-    return focused?.context?.widget is EditableText ||
-        focused?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
-  }
-
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent || _isTypingInField) {
+    if (event is! KeyDownEvent || slIsTypingInField()) {
       return KeyEventResult.ignored;
     }
 

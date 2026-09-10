@@ -74,6 +74,10 @@ class NotificationRow extends StatelessWidget {
     final unread = notification.readAt == null;
     final time = SLDateFormat.timeOrDay(notification.createdAt);
     final context2 = NotificationLine.contextOf(notification);
+    // Переходить некуда — строка готовится неактивной заранее, а не
+    // объясняется после нажатия (`notifications.md`, «Когда переходить
+    // некуда»). Из ленты она при этом не исчезает.
+    final available = NotificationLine.targetOf(notification) != null;
 
     final background = highlighted
         ? colors.accentSurface
@@ -94,14 +98,17 @@ class NotificationRow extends StatelessWidget {
             TextSpan(
               text: span.text,
               style: switch (span.kind) {
-                NotificationSpanKind.actor => unread
-                    ? text.bodySStrong.copyWith(color: colors.textPrimary)
-                    : text.bodyS.copyWith(color: colors.textPrimary),
+                NotificationSpanKind.actor =>
+                  unread
+                      ? text.bodySStrong.copyWith(color: colors.textPrimary)
+                      : text.bodyS.copyWith(color: colors.textPrimary),
                 NotificationSpanKind.plain => text.bodyS.copyWith(
                   color: colors.textSecondary,
                 ),
+                // Ключ недоступной задачи теряет цвет акцента: он больше
+                // не ссылка.
                 NotificationSpanKind.key => text.bodySStrong.copyWith(
-                  color: colors.accent,
+                  color: available ? colors.accent : colors.textMuted,
                 ),
               },
             ),
@@ -109,6 +116,14 @@ class NotificationRow extends StatelessWidget {
       ),
       maxLines: compact ? 2 : 1,
       overflow: TextOverflow.ellipsis,
+    );
+
+    final unavailableMark = Padding(
+      padding: const EdgeInsets.only(left: SLSpacing.space1),
+      child: Text(
+        NotificationLine.unavailableLabel,
+        style: text.label.copyWith(color: colors.textDisabled),
+      ),
     );
 
     final secondLine = Text(
@@ -119,7 +134,8 @@ class NotificationRow extends StatelessWidget {
     );
 
     return Semantics(
-      button: true,
+      // Недоступная строка кнопкой не притворяется.
+      button: available,
       selected: selected,
       label: NotificationLine.semanticsOf(notification, time: time),
       child: ExcludeSemantics(
@@ -130,9 +146,12 @@ class NotificationRow extends StatelessWidget {
             duration: SLMotion.durationOf(context, SLMotion.base),
             height: compact ? compactHeight : height,
             color: selected ? colors.surfaceSelected : background,
+            // Оба обработчика `null` — `InkWell` перестаёт быть и
+            // нажимаемым, и подсвечиваемым при наведении, и фокусируемым:
+            // `Tab` строку пропускает, курсор остаётся `basic`.
             child: InkWell(
-              onTap: onOpen,
-              onLongPress: onOpenInNewTab,
+              onTap: available ? onOpen : null,
+              onLongPress: available ? onOpenInNewTab : null,
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: SLSpacing.space2,
@@ -167,12 +186,20 @@ class NotificationRow extends StatelessWidget {
                             Row(
                               children: [
                                 Flexible(child: firstLine),
+                                if (!available) unavailableMark,
                                 const SizedBox(width: SLSpacing.space2),
                                 timeLabel,
                               ],
                             )
+                          else if (available)
+                            firstLine
                           else
-                            firstLine,
+                            Row(
+                              children: [
+                                Flexible(child: firstLine),
+                                unavailableMark,
+                              ],
+                            ),
                           if (context2.isNotEmpty) secondLine,
                           if (compact) timeLabel,
                         ],

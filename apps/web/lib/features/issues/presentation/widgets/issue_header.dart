@@ -327,15 +327,16 @@ class _IssueTitleState extends State<IssueTitle> {
                       required currentLength,
                       required isFocused,
                       required maxLength,
-                    }) =>
-                        currentLength < IssueTitle.counterFrom
-                        ? null
-                        : Text(
-                            '${(maxLength ?? 0) - currentLength}',
-                            style: text.label.copyWith(
-                              color: colors.textMuted,
-                            ),
-                          ),
+                    }) => currentLength < IssueTitle.counterFrom
+                    ? null
+                    : Text(
+                        '${(maxLength ?? 0) - currentLength}',
+                        style: text.label.copyWith(color: colors.textMuted),
+                      ),
+                // Кольца фокуса нет: рамка сама окрашивается в `borderFocus`,
+                // фокус показывает утолщение до 2 px (`system.md`, 10.6.1).
+                // Пустое название в фокусе остаётся красным: ошибка важнее
+                // того, где сейчас каретка.
                 decoration: InputDecoration(
                   isDense: true,
                   border: const OutlineInputBorder(),
@@ -347,6 +348,7 @@ class _IssueTitleState extends State<IssueTitle> {
                   focusedBorder: OutlineInputBorder(
                     borderSide: BorderSide(
                       color: _empty ? colors.borderDanger : colors.borderFocus,
+                      width: SLBorders.controlFocus,
                     ),
                   ),
                 ),

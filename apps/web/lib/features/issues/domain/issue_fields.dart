@@ -54,7 +54,7 @@ IssueDtoPriority priorityDtoOf(int value) => IssueDtoPriority.fromJson(value);
 IssueDtoStoryPoints? storyPointsDtoOf(int? value) =>
     value == null ? null : IssueDtoStoryPoints.fromJson(value);
 
-/// Пользователь задачи из строки подсказки участников.
+/// Пользователь задачи из строки подсказки упоминаний.
 ///
 /// Подсказка отдаёт `MentionSuggestionDto`, а поля задачи хранят
 /// `IssueUserDto`: одни и те же люди, разные схемы контракта.
@@ -62,6 +62,17 @@ IssueUserDto issueUserOf(MentionSuggestionDto suggestion) => IssueUserDto(
   id: suggestion.id,
   displayName: suggestion.displayName,
   avatarUrl: suggestion.avatarUrl,
+);
+
+/// Пользователь задачи из строки списка участников проекта.
+///
+/// Идентификатор здесь называется `userId`, а не `id`: это другая схема
+/// контракта, и переименование не косметика — перепутать их значит отправить
+/// на сервер чужой идентификатор.
+IssueUserDto issueUserOfMember(ProjectMemberDto member) => IssueUserDto(
+  id: member.userId,
+  displayName: member.displayName,
+  avatarUrl: member.avatarUrl,
 );
 
 /// Имена полей задачи так, как они приходят в `changedFields` события

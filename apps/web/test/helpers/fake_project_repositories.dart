@@ -232,15 +232,40 @@ class FakeProjectsRepository implements ProjectsRepository {
     return project;
   }
 
+  /// Запросы поиска участников по порядку — тест проверяет, что фильтрует
+  /// сервер, а не клиент.
+  final memberQueries = <String>[];
+
   @override
-  Future<ProjectMemberListDto> members(String slug, {String? cursor}) async {
+  Future<ProjectMemberListDto> members(
+    String slug, {
+    String? cursor,
+    String query = '',
+    int limit = ProjectsRepository.pageSize,
+  }) async {
     final failure = membersFailure;
     if (failure != null) throw failure;
 
+    memberQueries.add(query);
+
+    // Сервер фильтрует по имени и почте; подставной делает то же самое,
+    // чтобы тест видел разницу между «нашли» и «не нашли».
+    final matched = query.isEmpty
+        ? memberList
+        : memberList
+              .where(
+                (member) =>
+                    member.displayName.toLowerCase().contains(
+                      query.toLowerCase(),
+                    ) ||
+                    member.email.toLowerCase().contains(query.toLowerCase()),
+              )
+              .toList();
+
     return ProjectMemberListDto(
-      items: memberList,
+      items: matched.take(limit).toList(),
       nextCursor: null,
-      total: memberList.length,
+      total: matched.length,
     );
   }
 

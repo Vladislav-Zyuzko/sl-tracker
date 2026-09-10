@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sl_tracker_web/core/network/api_failure.dart';
+import 'package:sl_tracker_web/core/api/generated/export.dart';
 import 'package:sl_tracker_web/features/issues/data/issues_repository.dart';
 import 'package:sl_tracker_web/features/issues/domain/issue_row.dart';
+import 'package:sl_tracker_web/features/issues/presentation/issue_providers.dart';
 import 'package:sl_tracker_web/features/shell/presentation/active_issues_providers.dart';
 import 'package:sl_tracker_web/features/shell/presentation/shell_sidebar.dart';
 import 'package:sl_tracker_web/features/shell/presentation/widgets/active_issue_row.dart';
 
+import '../../helpers/fake_issue_repositories.dart';
 import '../../helpers/fake_queue_repositories.dart';
 import '../../helpers/pump_widget.dart';
 
@@ -47,6 +50,61 @@ void main() {
       await container.read(activeIssuesProvider.future);
 
       expect(repository.searchQueries, ['', 'csv']);
+    });
+
+    test('назначение себя исполнителем перечитывает список сайдбара', () async {
+      // Живой дефект: человек назначил себя исполнителем на экране задачи,
+      // а «мои активные задачи» в сайдбаре остались прежними. Событие
+      // `issue.updated` приходит только в тему `issue:<KEY>`
+      // (`docs/api/websocket.md`, 5), на которую сайдбар не подписан, —
+      // значит сигнал обязан дать сам экран задачи.
+      final repository = FakeIssuesRepository()
+        ..issue = fakeIssue()
+        ..myIssues = [];
+      final container = containerWith(repository);
+
+      final before = await container.read(activeIssuesProvider.future);
+      expect(before.items, isEmpty);
+      expect(repository.searchQueries, hasLength(1));
+
+      // Экран задачи открыт: правка идёт от загруженной задачи.
+      await container.read(issueProvider('DEV-42').future);
+
+      // Сервер начал отдавать задачу как мою активную.
+      repository.myIssues = [fakeMyIssue(key: 'DEV-42')];
+
+      await container
+          .read(issueProvider('DEV-42').notifier)
+          .changeAssignee(
+            const IssueUserDto(id: 'me', displayName: 'Я', avatarUrl: null),
+          );
+
+      final after = await container.read(activeIssuesProvider.future);
+
+      expect(
+        repository.searchQueries,
+        hasLength(2),
+        reason: 'список перечитан',
+      );
+      expect(after.items.single.key, 'DEV-42');
+    });
+
+    test('смена сложности список сайдбара не трогает', () async {
+      // Перечитываем не на всякую правку, а только на ту, что меняет состав
+      // или порядок списка: лишний запрос на каждое движение мыши не нужен.
+      final repository = FakeIssuesRepository()
+        ..issue = fakeIssue()
+        ..myIssues = [fakeMyIssue(key: 'DEV-42')];
+      final container = containerWith(repository);
+
+      await container.read(activeIssuesProvider.future);
+      await container.read(issueProvider('DEV-42').future);
+      await container
+          .read(issueProvider('DEV-42').notifier)
+          .changeStoryPoints(5);
+      await container.read(activeIssuesProvider.future);
+
+      expect(repository.searchQueries, hasLength(1));
     });
 
     test('сбой списка не выбрасывает исключение наружу', () async {

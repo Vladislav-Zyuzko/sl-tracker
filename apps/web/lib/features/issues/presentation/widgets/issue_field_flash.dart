@@ -38,9 +38,8 @@ class IssueFieldFlash extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final flashing = ref.watch(
-      issueRealtimeProvider(
-        issueKey,
-      ).select((live) => live.flashingFields.contains(field)),
+      issueRealtimeProvider(issueKey)
+          .select((live) => live.flashingFields.contains(field)),
     );
 
     return AnimatedContainer(

@@ -63,9 +63,7 @@ class NotificationSettingRow extends StatelessWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: minHeight),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: SLSpacing.space2,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: SLSpacing.space2),
                 child: Row(
                   children: [
                     Expanded(

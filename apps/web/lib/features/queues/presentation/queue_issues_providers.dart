@@ -5,6 +5,7 @@ import 'package:sl_tracker_web/core/domain/issue_status.dart';
 import 'package:sl_tracker_web/features/issues/data/issues_repository.dart';
 import 'package:sl_tracker_web/features/issues/domain/issue_row.dart';
 import 'package:sl_tracker_web/features/issues/domain/issue_status_ref.dart';
+import 'package:sl_tracker_web/features/issues/presentation/issue_providers.dart';
 import 'package:sl_tracker_web/features/projects/domain/project_role.dart';
 import 'package:sl_tracker_web/features/queues/domain/issue_sort.dart';
 import 'package:sl_tracker_web/shared/uikit/indicators/sl_role_badge.dart';
@@ -271,6 +272,9 @@ class QueueIssuesController extends AsyncNotifier<QueueIssuesPage> {
       if (!ref.mounted) return;
 
       _write(issueKey, (row) => row.copyWith(status: updated.status.ref));
+      // Задача могла уйти из активных (или вернуться в них) — список
+      // в сайдбаре об этом иначе не узнает.
+      ref.read(myActiveIssuesRevisionProvider.notifier).bump();
     } on Object {
       if (ref.mounted) _write(issueKey, (_) => previous);
 

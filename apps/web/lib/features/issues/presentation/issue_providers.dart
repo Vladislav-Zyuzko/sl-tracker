@@ -9,6 +9,33 @@ import 'package:sl_tracker_web/features/issues/data/issues_repository.dart';
 import 'package:sl_tracker_web/core/domain/issue_status.dart';
 import 'package:sl_tracker_web/features/issues/domain/issue_fields.dart';
 
+/// Сигнал «состав моих активных задач мог измениться».
+///
+/// Живёт в фиче задач, а слушает его сайдбар оболочки: правку делает экран
+/// задачи, а список «мои активные задачи» о ней узнать иначе не может.
+/// В теме `user:me` события `issue.updated` нет (`docs/api/websocket.md`, 5),
+/// то есть на живые обновления здесь опереться не на что: сервер рассылает
+/// его только в тему `issue:<KEY>`, на которую сайдбар не подписан.
+///
+/// Счётчик, а не `void`-поток: провайдер списка просто `watch`-ит число
+/// и перечитывает первую страницу, когда оно изменилось. Перечитываем,
+/// а не правим строку на месте: порядок в списке задаёт сервер (приоритет,
+/// затем время изменения), и вычислять место новой задачи на клиенте —
+/// значит однажды показать её не там, где сервер.
+final myActiveIssuesRevisionProvider =
+    NotifierProvider<MyActiveIssuesRevisionController, int>(
+      MyActiveIssuesRevisionController.new,
+    );
+
+/// Контроллер счётчика правок.
+class MyActiveIssuesRevisionController extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  /// Сообщает, что список пора перечитать.
+  void bump() => state = state + 1;
+}
+
 /// Задача целиком (US-41).
 ///
 /// Экран не перезапрашивает задачу после каждой правки: `PATCH` возвращает
@@ -61,6 +88,7 @@ class IssueController extends AsyncNotifier<IssueDto> {
       ),
       rollback: (current) => current.copyWith(status: before.status),
       request: () => _repository.changeStatus(issueKey, statusId),
+      affectsMyActive: true,
     );
   }
 
@@ -73,6 +101,7 @@ class IssueController extends AsyncNotifier<IssueDto> {
       optimistic: before.copyWith(priority: priorityDtoOf(priority)),
       rollback: (current) => current.copyWith(priority: before.priority),
       request: () => _repository.changePriority(issueKey, priority),
+      affectsMyActive: true,
     );
   }
 
@@ -109,6 +138,7 @@ class IssueController extends AsyncNotifier<IssueDto> {
       optimistic: before.copyWith(assignee: assignee),
       rollback: (current) => current.copyWith(assignee: before.assignee),
       request: () => _repository.changeAssignee(issueKey, assignee?.id),
+      affectsMyActive: true,
     );
   }
 
@@ -122,6 +152,7 @@ class IssueController extends AsyncNotifier<IssueDto> {
       optimistic: before.copyWith(title: trimmed),
       rollback: (current) => current.copyWith(title: before.title),
       request: () => _repository.changeTitle(issueKey, trimmed),
+      affectsMyActive: true,
     );
   }
 
@@ -138,11 +169,7 @@ class IssueController extends AsyncNotifier<IssueDto> {
 
   /// Добавляет внешнюю ссылку (US-47).
   Future<void> addLink({required String url, String? title}) async {
-    final updated = await _repository.addLink(
-      issueKey,
-      url: url,
-      title: title,
-    );
+    final updated = await _repository.addLink(issueKey, url: url, title: title);
 
     if (ref.mounted) state = AsyncData(updated);
   }
@@ -165,9 +192,24 @@ class IssueController extends AsyncNotifier<IssueDto> {
   }
 
   /// Удаляет задачу (US-44). Не оптимистично: экран после этого закрывается.
-  Future<void> remove() => _repository.remove(issueKey);
+  Future<void> remove() async {
+    await _repository.remove(issueKey);
+    _notifyMyActiveChanged();
+  }
 
   IssuesRepository get _repository => ref.read(issuesRepositoryProvider);
+
+  /// Просит сайдбар перечитать «мои активные задачи».
+  ///
+  /// Вызывается только после успешного ответа сервера: до него состав списка
+  /// не изменился, а показать в сайдбаре задачу, которую сервер отверг, —
+  /// хуже, чем показать её на полсекунды позже.
+  void _notifyMyActiveChanged() {
+    // Провайдер задачи автоудаляемый: пока летел запрос, экран могли закрыть.
+    if (!ref.mounted) return;
+
+    ref.read(myActiveIssuesRevisionProvider.notifier).bump();
+  }
 
   /// Оптимистичная правка одного поля.
   ///
@@ -177,12 +219,14 @@ class IssueController extends AsyncNotifier<IssueDto> {
     required IssueDto optimistic,
     required IssueDto Function(IssueDto current) rollback,
     required Future<IssueDto> Function() request,
+    bool affectsMyActive = false,
   }) async {
     state = AsyncData(optimistic);
 
     try {
       final updated = await request();
       if (ref.mounted) state = AsyncData(updated);
+      if (affectsMyActive) _notifyMyActiveChanged();
     } on Object {
       final current = state.value;
       if (ref.mounted && current != null) {
@@ -217,15 +261,13 @@ class IssueMemberQuery {
   int get hashCode => Object.hash(issueKey, query);
 }
 
-/// Участники проекта задачи — источник и для подсказки `@`, и для селекторов
-/// автора и исполнителя.
+/// Подсказка упоминаний `@` (US-74).
 ///
-/// Маршрут один и тот же — `GET /api/issues/{key}/mention-suggestions`, — и
-/// это осознанно: он единственный в контракте, кто **на сервере** ищет по
-/// участникам проекта задачи. У `GET /api/projects/{slug}/members` параметра
-/// поиска нет, и подменять его выкачиванием всего списка с фильтрацией
-/// на клиенте нельзя. Отдельный маршрут поиска участников — запрос
-/// к бэкенду, он записан в отчёте.
+/// Только для подсказки в тексте: селекторы автора и исполнителя ушли
+/// на `GET /api/projects/{slug}/members?q=` (`projectMemberSearchProvider`).
+/// Маршруты разные не по недосмотру — у них разный смысл: подсказка отдаёт
+/// то, что годится в токен `@[имя](user:<uuid>)`, и ограничена 20 строками
+/// и частотой запросов, а селектор выбирает участника проекта.
 final issueMembersProvider =
     AsyncNotifierProvider.family<
       IssueMembersController,
@@ -234,8 +276,7 @@ final issueMembersProvider =
     >(IssueMembersController.new, isAutoDispose: true, retry: (_, _) => null);
 
 /// Контроллер подсказки участников.
-class IssueMembersController
-    extends AsyncNotifier<List<MentionSuggestionDto>> {
+class IssueMembersController extends AsyncNotifier<List<MentionSuggestionDto>> {
   /// @nodoc
   IssueMembersController(this.query);
 

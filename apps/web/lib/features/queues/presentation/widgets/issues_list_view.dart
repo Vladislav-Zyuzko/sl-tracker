@@ -12,6 +12,7 @@ import 'package:sl_tracker_web/shared/uikit/buttons/sl_button.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
 import 'package:sl_tracker_web/shared/uikit/effects/sl_shimmering_effect.dart';
 import 'package:sl_tracker_web/shared/uikit/indicators/sl_status_chip.dart';
+import 'package:sl_tracker_web/shared/uikit/keyboard/sl_shortcuts.dart';
 import 'package:sl_tracker_web/shared/uikit/lists/sl_issue_row.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_metrics.dart';
 import 'package:sl_tracker_web/shared/uikit/sl_shadows.dart';
@@ -215,6 +216,10 @@ class _IssuesListViewState extends State<IssuesListView> {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
+
+    // `j`, `k` и `s` — одиночные буквы. Пока фокус в поле ввода, они
+    // не наши, и «съедать» их нельзя: событие обязано дойти до поля.
+    if (slIsTypingInField()) return KeyEventResult.ignored;
 
     final key = event.logicalKey;
     final keyboard = HardwareKeyboard.instance;

@@ -54,10 +54,7 @@ void main() {
       socket.emitReady();
       await Future<void>.delayed(Duration.zero);
 
-      expect(
-        socket.commands('subscribe').single['topic'],
-        'issue:DEV-42',
-      );
+      expect(socket.commands('subscribe').single['topic'], 'issue:DEV-42');
 
       socket.emitSubscribed(id: 'issue:DEV-42', topic: 'issue:DEV-42');
       await Future<void>.delayed(Duration.zero);
@@ -69,8 +66,10 @@ void main() {
       await subscription.cancel();
       await Future<void>.delayed(Duration.zero);
 
-      expect(setup.factory.last.commands('unsubscribe').single['topic'],
-          'issue:DEV-42');
+      expect(
+        setup.factory.last.commands('unsubscribe').single['topic'],
+        'issue:DEV-42',
+      );
     });
 
     test('на `user:me` подписывает сервер, команду клиент не шлёт', () async {
@@ -91,93 +90,98 @@ void main() {
       expect(socket.commands('subscribe'), isEmpty);
     });
 
-    test('события сопоставляются по каноническому ярлыку, а не по своему', () async {
-      final setup = buildClient();
-      final events = <RealtimeEvent>[];
+    test(
+      'события сопоставляются по каноническому ярлыку, а не по своему',
+      () async {
+        final setup = buildClient();
+        final events = <RealtimeEvent>[];
 
-      setup.client.start();
-      await Future<void>.delayed(Duration.zero);
+        setup.client.start();
+        await Future<void>.delayed(Duration.zero);
 
-      // Подписываемся строчными буквами и старым именем проекта — сервер
-      // ответит каноническими ярлыками, и сравнивать надо с ними.
-      final issue = setup.client.signals('issue:dev-42').listen((signal) {
-        if (signal is RealtimeEvent) events.add(signal);
-      });
-      final project = setup.client.signals('project:old-name').listen((
-        signal,
-      ) {
-        if (signal is RealtimeEvent) events.add(signal);
-      });
-      addTearDown(issue.cancel);
-      addTearDown(project.cancel);
+        // Подписываемся строчными буквами и старым именем проекта — сервер
+        // ответит каноническими ярлыками, и сравнивать надо с ними.
+        final issue = setup.client.signals('issue:dev-42').listen((signal) {
+          if (signal is RealtimeEvent) events.add(signal);
+        });
+        final project = setup.client.signals('project:old-name').listen((
+          signal,
+        ) {
+          if (signal is RealtimeEvent) events.add(signal);
+        });
+        addTearDown(issue.cancel);
+        addTearDown(project.cancel);
 
-      final socket = setup.factory.last;
-      socket.emitReady();
-      await Future<void>.delayed(Duration.zero);
+        final socket = setup.factory.last;
+        socket.emitReady();
+        await Future<void>.delayed(Duration.zero);
 
-      socket
-        ..emitSubscribed(id: 'issue:dev-42', topic: 'issue:DEV-42')
-        ..emitSubscribed(id: 'project:old-name', topic: 'project:new-name');
-      await Future<void>.delayed(Duration.zero);
+        socket
+          ..emitSubscribed(id: 'issue:dev-42', topic: 'issue:DEV-42')
+          ..emitSubscribed(id: 'project:old-name', topic: 'project:new-name');
+        await Future<void>.delayed(Duration.zero);
 
-      socket
-        ..emitEvent(
-          topic: 'issue:DEV-42',
-          event: RealtimeEvents.commentCreated,
-          data: {'id': 'c1', 'issueKey': 'DEV-42'},
-        )
-        ..emitEvent(
-          topic: 'project:new-name',
-          event: RealtimeEvents.memberJoined,
-          data: {'userId': 'u1', 'role': 'member'},
-        );
-      await Future<void>.delayed(Duration.zero);
+        socket
+          ..emitEvent(
+            topic: 'issue:DEV-42',
+            event: RealtimeEvents.commentCreated,
+            data: {'id': 'c1', 'issueKey': 'DEV-42'},
+          )
+          ..emitEvent(
+            topic: 'project:new-name',
+            event: RealtimeEvents.memberJoined,
+            data: {'userId': 'u1', 'role': 'member'},
+          );
+        await Future<void>.delayed(Duration.zero);
 
-      expect(events.map((event) => event.event), [
-        RealtimeEvents.commentCreated,
-        RealtimeEvents.memberJoined,
-      ]);
-    });
+        expect(events.map((event) => event.event), [
+          RealtimeEvents.commentCreated,
+          RealtimeEvents.memberJoined,
+        ]);
+      },
+    );
 
-    test('после переподключения подписки восстановлены и просят перечитать',
-        () async {
-      final setup = buildClient();
-      final signals = <RealtimeSignal>[];
+    test(
+      'после переподключения подписки восстановлены и просят перечитать',
+      () async {
+        final setup = buildClient();
+        final signals = <RealtimeSignal>[];
 
-      setup.client.start();
-      await Future<void>.delayed(Duration.zero);
+        setup.client.start();
+        await Future<void>.delayed(Duration.zero);
 
-      final subscription = setup.client
-          .signals(RealtimeTopics.issue('DEV-42'))
-          .listen(signals.add);
-      addTearDown(subscription.cancel);
+        final subscription = setup.client
+            .signals(RealtimeTopics.issue('DEV-42'))
+            .listen(signals.add);
+        addTearDown(subscription.cancel);
 
-      final first = setup.factory.last;
-      first
-        ..emitReady()
-        ..emitSubscribed(id: 'issue:DEV-42', topic: 'issue:DEV-42');
-      await Future<void>.delayed(Duration.zero);
+        final first = setup.factory.last;
+        first
+          ..emitReady()
+          ..emitSubscribed(id: 'issue:DEV-42', topic: 'issue:DEV-42');
+        await Future<void>.delayed(Duration.zero);
 
-      // Обрыв сети: сокет закрылся кодом 1006.
-      first.emitClose(1006);
-      await Future<void>.delayed(Duration.zero);
+        // Обрыв сети: сокет закрылся кодом 1006.
+        first.emitClose(1006);
+        await Future<void>.delayed(Duration.zero);
 
-      expect(setup.client.status.value, RealtimeStatus.offline);
+        expect(setup.client.status.value, RealtimeStatus.offline);
 
-      // Ждём задержку переподключения (1 с плюс случайная добавка).
-      await Future<void>.delayed(const Duration(milliseconds: 1600));
-      expect(setup.factory.attempts, 2);
+        // Ждём задержку переподключения (1 с плюс случайная добавка).
+        await Future<void>.delayed(const Duration(milliseconds: 1600));
+        expect(setup.factory.attempts, 2);
 
-      final second = setup.factory.last;
-      second
-        ..emitReady()
-        ..emitSubscribed(id: 'issue:DEV-42', topic: 'issue:DEV-42');
-      await Future<void>.delayed(Duration.zero);
+        final second = setup.factory.last;
+        second
+          ..emitReady()
+          ..emitSubscribed(id: 'issue:DEV-42', topic: 'issue:DEV-42');
+        await Future<void>.delayed(Duration.zero);
 
-      expect(setup.client.status.value, RealtimeStatus.online);
-      // За время обрыва события потеряны: экран обязан перечитать данные.
-      expect(signals.single, isA<RealtimeResync>());
-    });
+        expect(setup.client.status.value, RealtimeStatus.online);
+        // За время обрыва события потеряны: экран обязан перечитать данные.
+        expect(signals.single, isA<RealtimeResync>());
+      },
+    );
 
     test('4401 останавливает цикл и сообщает о потере сессии', () async {
       final setup = buildClient();
@@ -237,69 +241,75 @@ void main() {
       expect(setup.factory.attempts, greaterThanOrEqualTo(3));
     });
 
-    test('отказ в теме просит перечитать её, соединение остаётся живым',
-        () async {
-      final setup = buildClient();
-      final signals = <RealtimeSignal>[];
+    test(
+      'отказ в теме просит перечитать её, соединение остаётся живым',
+      () async {
+        final setup = buildClient();
+        final signals = <RealtimeSignal>[];
 
-      setup.client.start();
-      await Future<void>.delayed(Duration.zero);
+        setup.client.start();
+        await Future<void>.delayed(Duration.zero);
 
-      final subscription = setup.client
-          .signals(RealtimeTopics.issue('DEV-42'))
-          .listen(signals.add);
-      addTearDown(subscription.cancel);
+        final subscription = setup.client
+            .signals(RealtimeTopics.issue('DEV-42'))
+            .listen(signals.add);
+        addTearDown(subscription.cancel);
 
-      final socket = setup.factory.last;
-      socket.emitReady();
-      await Future<void>.delayed(Duration.zero);
+        final socket = setup.factory.last;
+        socket.emitReady();
+        await Future<void>.delayed(Duration.zero);
 
-      socket.emit({
-        'type': 'error',
-        'id': 'issue:DEV-42',
-        'code': 'topic_forbidden',
-        'message': 'Тема недоступна',
-      });
-      await Future<void>.delayed(Duration.zero);
+        socket.emit({
+          'type': 'error',
+          'id': 'issue:DEV-42',
+          'code': 'topic_forbidden',
+          'message': 'Тема недоступна',
+        });
+        await Future<void>.delayed(Duration.zero);
 
-      expect(signals.single, isA<RealtimeTopicLost>());
-      expect(setup.client.status.value, RealtimeStatus.online);
-    });
+        expect(signals.single, isA<RealtimeTopicLost>());
+        expect(setup.client.status.value, RealtimeStatus.online);
+      },
+    );
 
-    test('снятие подписки сервером без ярлыка темы просит перечитать все',
-        () async {
-      final setup = buildClient();
-      final issueSignals = <RealtimeSignal>[];
-      final meSignals = <RealtimeSignal>[];
+    test(
+      'снятие подписки сервером без ярлыка темы просит перечитать все',
+      () async {
+        final setup = buildClient();
+        final issueSignals = <RealtimeSignal>[];
+        final meSignals = <RealtimeSignal>[];
 
-      setup.client.start();
-      await Future<void>.delayed(Duration.zero);
+        setup.client.start();
+        await Future<void>.delayed(Duration.zero);
 
-      final issue = setup.client
-          .signals(RealtimeTopics.issue('DEV-42'))
-          .listen(issueSignals.add);
-      final me = setup.client.signals(RealtimeTopics.me).listen(meSignals.add);
-      addTearDown(issue.cancel);
-      addTearDown(me.cancel);
+        final issue = setup.client
+            .signals(RealtimeTopics.issue('DEV-42'))
+            .listen(issueSignals.add);
+        final me = setup.client
+            .signals(RealtimeTopics.me)
+            .listen(meSignals.add);
+        addTearDown(issue.cancel);
+        addTearDown(me.cancel);
 
-      final socket = setup.factory.last;
-      socket.emitReady();
-      await Future<void>.delayed(Duration.zero);
-      socket.emitSubscribed(id: 'issue:DEV-42', topic: 'issue:DEV-42');
-      await Future<void>.delayed(Duration.zero);
+        final socket = setup.factory.last;
+        socket.emitReady();
+        await Future<void>.delayed(Duration.zero);
+        socket.emitSubscribed(id: 'issue:DEV-42', topic: 'issue:DEV-42');
+        await Future<void>.delayed(Duration.zero);
 
-      socket.emit({
-        'type': 'error',
-        'id': null,
-        'code': 'topic_forbidden',
-        'message': 'Тема недоступна',
-      });
-      await Future<void>.delayed(Duration.zero);
+        socket.emit({
+          'type': 'error',
+          'id': null,
+          'code': 'topic_forbidden',
+          'message': 'Тема недоступна',
+        });
+        await Future<void>.delayed(Duration.zero);
 
-      expect(issueSignals.single, isA<RealtimeTopicLost>());
-      // Свою тему отобрать нельзя — её не трогаем.
-      expect(meSignals, isEmpty);
-    });
+        expect(issueSignals.single, isA<RealtimeTopicLost>());
+        // Свою тему отобрать нельзя — её не трогаем.
+        expect(meSignals, isEmpty);
+      },
+    );
 
     test('выход закрывает сокет и не переподключается', () async {
       final setup = buildClient();

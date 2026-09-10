@@ -516,9 +516,8 @@ class ImageViewerDialog extends StatelessWidget {
                 Expanded(
                   child: SLMiddleEllipsisText(
                     value: fileName,
-                    style: SLTextScheme.of(
-                      context,
-                    ).bodyS.copyWith(color: colors.textPrimary),
+                    style: SLTextScheme.of(context).bodyS
+                        .copyWith(color: colors.textPrimary),
                   ),
                 ),
                 SLIconButton(

@@ -10,10 +10,7 @@ void main() {
     testWidgets('надпись и знак — из требований Яндекса', (tester) async {
       await pumpInTheme(
         tester,
-        SizedBox(
-          width: 360,
-          child: YandexIdButton(onPressed: () {}),
-        ),
+        SizedBox(width: 360, child: YandexIdButton(onPressed: () {})),
       );
 
       expect(find.text(YandexIdButton.label), findsOneWidget);
@@ -31,35 +28,19 @@ void main() {
     ) async {
       await pumpInTheme(
         tester,
-        SizedBox(
-          width: 360,
-          child: YandexIdButton(onPressed: () {}),
-        ),
+        SizedBox(width: 360, child: YandexIdButton(onPressed: () {})),
       );
 
       final style = tester
           .widget<FilledButton>(find.byType(FilledButton))
           .style!;
 
-      expect(
-        style.backgroundColor?.resolve({}),
-        YandexIdButton.background,
-      );
-      expect(
-        style.foregroundColor?.resolve({}),
-        YandexIdButton.foreground,
-      );
-      expect(
-        style.fixedSize?.resolve({})?.height,
-        YandexIdButton.height,
-      );
+      expect(style.backgroundColor?.resolve({}), YandexIdButton.background);
+      expect(style.foregroundColor?.resolve({}), YandexIdButton.foreground);
+      expect(style.fixedSize?.resolve({})?.height, YandexIdButton.height);
 
-      final shape =
-          style.shape?.resolve({})! as RoundedRectangleBorder;
-      expect(
-        shape.borderRadius,
-        BorderRadius.circular(YandexIdButton.radius),
-      );
+      final shape = style.shape?.resolve({})! as RoundedRectangleBorder;
+      expect(shape.borderRadius, BorderRadius.circular(YandexIdButton.radius));
     });
 
     testWidgets('нажатие срабатывает', (tester) async {
@@ -67,10 +48,7 @@ void main() {
 
       await pumpInTheme(
         tester,
-        SizedBox(
-          width: 360,
-          child: YandexIdButton(onPressed: () => taps++),
-        ),
+        SizedBox(width: 360, child: YandexIdButton(onPressed: () => taps++)),
       );
 
       await tester.tap(find.byType(FilledButton));
@@ -105,10 +83,7 @@ void main() {
 
       await pumpInTheme(
         tester,
-        SizedBox(
-          width: 360,
-          child: YandexIdButton(onPressed: () {}),
-        ),
+        SizedBox(width: 360, child: YandexIdButton(onPressed: () {})),
       );
 
       expect(

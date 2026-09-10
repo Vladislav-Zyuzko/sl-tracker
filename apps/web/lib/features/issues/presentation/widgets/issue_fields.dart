@@ -6,7 +6,7 @@ import 'package:sl_tracker_web/core/domain/issue_complexity.dart';
 import 'package:sl_tracker_web/core/domain/issue_priority.dart';
 import 'package:sl_tracker_web/core/domain/issue_status.dart';
 import 'package:sl_tracker_web/features/issues/domain/issue_fields.dart';
-import 'package:sl_tracker_web/features/issues/presentation/issue_providers.dart';
+import 'package:sl_tracker_web/features/projects/presentation/project_providers.dart';
 import 'package:sl_tracker_web/shared/uikit/avatars/sl_avatar.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
 import 'package:sl_tracker_web/shared/uikit/indicators/sl_complexity_indicator.dart';
@@ -262,12 +262,14 @@ class IssueComplexityField extends StatelessWidget {
 
 /// Селектор пользователя (`components.md`, 6).
 ///
-/// Поиск идёт **на сервере**, среди участников проекта задачи: списка всех
-/// пользователей трекера у клиента нет и быть не должно.
+/// Поиск идёт **на сервере**, среди участников проекта задачи:
+/// `GET /api/projects/{slug}/members?q=`. Списка всех пользователей трекера
+/// у клиента нет и быть не должно, а выкачивать состав проекта целиком ради
+/// фильтрации на клиенте нельзя — в крупном проекте участников сотни.
 class IssueUserField extends ConsumerStatefulWidget {
   /// @nodoc
   const IssueUserField({
-    required this.issueKey,
+    required this.projectSlug,
     required this.user,
     required this.onChanged,
     this.onClear,
@@ -276,8 +278,8 @@ class IssueUserField extends ConsumerStatefulWidget {
     super.key,
   });
 
-  /// @nodoc
-  final String issueKey;
+  /// Короткое имя проекта задачи: по нему сервер ищет участников.
+  final String projectSlug;
 
   /// Текущее значение. `null` — «Не назначен».
   final IssueUserDto? user;
@@ -335,9 +337,7 @@ class IssueUserFieldState extends ConsumerState<IssueUserField> {
 
     if (!widget.enabled) {
       return Semantics(
-        label: widget.user == null
-            ? 'Не назначен'
-            : widget.user!.displayName,
+        label: widget.user == null ? 'Не назначен' : widget.user!.displayName,
         excludeSemantics: true,
         child: trigger,
       );
@@ -370,7 +370,7 @@ class IssueUserFieldState extends ConsumerState<IssueUserField> {
         SizedBox(
           width: IssueUserField.menuWidth,
           child: _Results(
-            issueKey: widget.issueKey,
+            slug: widget.projectSlug,
             query: _query,
             selectedId: widget.user?.id,
             onSelect: (user) {
@@ -393,8 +393,7 @@ class IssueUserFieldState extends ConsumerState<IssueUserField> {
           ),
       ],
       builder: (context, controller, child) => Semantics(
-        label:
-            '${widget.user?.displayName ?? 'Не назначен'}, изменить',
+        label: '${widget.user?.displayName ?? 'Не назначен'}, изменить',
         button: true,
         excludeSemantics: true,
         child: InkWell(
@@ -412,13 +411,13 @@ class IssueUserFieldState extends ConsumerState<IssueUserField> {
 /// участников сотни.
 class _Results extends ConsumerWidget {
   const _Results({
-    required this.issueKey,
+    required this.slug,
     required this.query,
     required this.selectedId,
     required this.onSelect,
   });
 
-  final String issueKey;
+  final String slug;
   final String query;
   final String? selectedId;
   final ValueChanged<IssueUserDto> onSelect;
@@ -430,64 +429,86 @@ class _Results extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = SLColorScheme.of(context);
     final text = SLTextScheme.of(context);
-    final members = ref.watch(
-      issueMembersProvider(
-        IssueMemberQuery(issueKey: issueKey, query: query),
-      ),
-    );
+    final search = ProjectMemberSearch(slug: slug, query: query);
+    final members = ref.watch(projectMemberSearchProvider(search));
 
     return switch (members) {
       AsyncError() => _Message(
         text: 'Не удалось загрузить список',
-        onRetry: () => ref.invalidate(
-          issueMembersProvider(
-            IssueMemberQuery(issueKey: issueKey, query: query),
-          ),
-        ),
+        onRetry: () => ref.invalidate(projectMemberSearchProvider(search)),
       ),
-      AsyncData(:final value) when value.isEmpty => const _Message(
+      AsyncData(:final value) when value.items.isEmpty => const _Message(
         text: 'Никого не нашли среди участников проекта',
       ),
-      AsyncData(:final value) => ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: maxHeight),
-        child: ListView.builder(
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          itemExtent: IssueUserField.rowHeight,
-          itemCount: value.length,
-          itemBuilder: (context, index) {
-            final item = value[index];
+      AsyncData(:final value) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Высота считается, а не берётся из `shrinkWrap`: меню спрашивает
+          // у содержимого внутреннюю высоту, а виртуализированный список
+          // на такой вопрос отвечать не умеет — и не должен.
+          SizedBox(
+            height: (value.items.length * IssueUserField.rowHeight).clamp(
+              0.0,
+              maxHeight,
+            ),
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemExtent: IssueUserField.rowHeight,
+              itemCount: value.items.length,
+              itemBuilder: (context, index) {
+                final item = value.items[index];
 
-            return InkWell(
-              onTap: () => onSelect(issueUserOf(item)),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: SLSpacing.space3,
-                ),
-                child: Row(
-                  children: [
-                    SLAvatar(
-                      userId: item.id,
-                      fullName: item.displayName,
-                      photoUrl: item.avatarUrl,
-                      decorative: true,
+                return InkWell(
+                  onTap: () => onSelect(issueUserOfMember(item)),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: SLSpacing.space3,
                     ),
-                    const SizedBox(width: SLSpacing.space2),
-                    Expanded(
-                      child: Text(
-                        item.displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: text.bodyS.copyWith(color: colors.textPrimary),
-                      ),
+                    child: Row(
+                      children: [
+                        SLAvatar(
+                          userId: item.userId,
+                          fullName: item.displayName,
+                          photoUrl: item.avatarUrl,
+                          decorative: true,
+                        ),
+                        const SizedBox(width: SLSpacing.space2),
+                        Expanded(
+                          child: Text(
+                            item.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: text.bodyS.copyWith(
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        if (item.userId == selectedId) const _Check(),
+                      ],
                     ),
-                    if (item.id == selectedId) const _Check(),
-                  ],
+                  ),
+                );
+              },
+            ),
+          ),
+          // Совпадений больше, чем помещается: догружать их прокруткой
+          // в меню из трёх строк бессмысленно, честнее попросить уточнить
+          // запрос (`components.md`, 6).
+          if (value.isTruncated)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: SLSpacing.space3,
+                vertical: SLSpacing.space1,
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Уточните запрос',
+                  style: text.label.copyWith(color: colors.textMuted),
                 ),
               ),
-            );
-          },
-        ),
+            ),
+        ],
       ),
       _ => const _Message(text: 'Загружаем участников…'),
     };
@@ -601,8 +622,7 @@ class _MenuField extends StatelessWidget {
       button: true,
       excludeSemantics: true,
       child: InkWell(
-        onTap: () =>
-            controller.isOpen ? controller.close() : controller.open(),
+        onTap: () => controller.isOpen ? controller.close() : controller.open(),
         borderRadius: SLRadii.smAll,
         child: Align(alignment: Alignment.centerLeft, child: child),
       ),

@@ -359,8 +359,7 @@ class _Settings extends ConsumerWidget {
             // Отключить всё можно, но не молча.
             const SLBanner(
               title: 'Все уведомления отключены',
-              description:
-                  'Вы не узнаете о назначенных задачах и упоминаниях.',
+              description: 'Вы не узнаете о назначенных задачах и упоминаниях.',
               variant: SLBannerVariant.warning,
             ),
           ],

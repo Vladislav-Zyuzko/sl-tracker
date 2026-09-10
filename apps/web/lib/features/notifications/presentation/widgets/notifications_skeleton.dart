@@ -30,9 +30,7 @@ class NotificationsSkeleton extends StatelessWidget {
                 ? NotificationRow.compactHeight
                 : NotificationRow.height,
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: SLSpacing.space2,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: SLSpacing.space2),
               child: Row(
                 children: [
                   const SizedBox(width: NotificationRow.dotColumn),
