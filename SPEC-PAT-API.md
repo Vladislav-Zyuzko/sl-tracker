@@ -1,8 +1,11 @@
-# SPEC: PAT-эндпоинты и бот-пользователь для MCP
+# SPEC: PAT-эндпоинты SL Tracker
 
 - **Статус:** спецификация к [`RFC-MCP-SERVER.md`](RFC-MCP-SERVER.md)
-- **Исполнитель:** `sl-backend-engineer` (+ `sl-qa`, `sl-frontend-engineer` для экрана)
+- **Исполнитель:** `sl-backend-engineer` (+ `sl-qa`; `sl-frontend-engineer` — экран)
 - **Принцип:** все изменения строго аддитивные; существующие маршруты и поведение веб-клиента не меняются.
+- **Ключевое решение пользователя:** машинной идентичности **нет** — токен принадлежит
+  **участнику проекта** и наследует его права. Ни новых пользователей, ни членства, ни ролей
+  заводить не нужно.
 
 ---
 
@@ -61,7 +64,7 @@ export function tokenPrefix(token: string): string { return token.slice(0, 8); }
 |---|---|
 | `create(userId, kind, options?)` | новые опции `{ label?, purpose? = 'session', ttlSeconds? }`; при `purpose='pat'` срок берётся из `ttlSeconds` (или `null` = бессрочно), а не из `SESSION_TTL_SECONDS`; в `IssuedSession` добавить `prefix: tokenPrefix(token)` |
 | `listForUser(userId, purpose)` | новый: список из БД (без Redis), сортировка по `createdAt desc`, без секрета |
-| `revoke(id, actorUserId?)` | новый: `revokedAt = now()` + удаление `sl:session:<id>` и id из `sl:sessions:by-user:<userId>`; идемпотентно |
+| `revoke(id, actorUserId)` | новый: `revokedAt = now()` + удаление `sl:session:<id>` и id из `sl:sessions:by-user:<userId>`; идемпотентно; `actorUserId` обязателен и должен совпадать с владельцем токена |
 | `countActive(userId, purpose)` | новый: для лимита активных PAT |
 | `touch(session)` | **для `purpose='pat'` обновляет только `lastSeenAt`, `expiresAt` не двигает** |
 
@@ -73,7 +76,7 @@ export function tokenPrefix(token: string): string { return token.slice(0, 8); }
 `tokens.service.ts`, `dto/`, `index.ts`; зарегистрировать в `app.module.ts`.
 Контроллер под глобальным `SessionGuard` (никаких `@Public()`).
 
-### 3.1 `POST /api/tokens` — выпустить токен
+### 3.1 `POST /api/tokens` — выпустить токен себе
 
 ```ts
 export class CreateTokenDto {
@@ -82,17 +85,16 @@ export class CreateTokenDto {
 
   @IsOptional() @IsInt() @Min(1) @Max(3650)
   expiresInDays?: number | null;       // null = бессрочно; отсутствует → 365
-
-  @IsOptional() @IsUUID()
-  userId?: string;                     // только владелец инстанса: выпустить токен боту
 }
 ```
 
 Правила:
 
 1. Требуется **cookie-сессия** (`request.slAuth.session.kind === 'cookie'`) — иначе
-   `403 { code: 'pat_cannot_manage_tokens' }`. Это защита от размножения утечки.
-2. `userId` разрешён только `isInstanceOwner` — иначе `403 { code: 'forbidden_scope' }`.
+   `403 { code: 'pat_cannot_manage_tokens' }`. Защита от размножения утечки: токеном нельзя
+   выпустить новый токен.
+2. Токен всегда выпускается **текущему пользователю** (`request.slAuth.user.id`). Параметра
+   «выдать другому» нет — это осознанно: машинный доступ = доступ участника, вынесенный в токен.
 3. Лимит активных PAT на пользователя — 20 → `409 { code: 'token_limit_reached' }`.
 4. Rate limit — тем же декоратором/guard-ом, что у auth-маршрутов.
 5. Ответ `201` (секрет показывается **единственный раз** за всю жизнь токена):
@@ -103,9 +105,10 @@ export class CreateTokenDto {
   "createdAt": "2026-09-24T00:00:00.000Z" }
 ```
 
-### 3.2 `GET /api/tokens` — список
+### 3.2 `GET /api/tokens` — список своих токенов
 
-Свои токены; владельцу доступен `?userId=<uuid>`. Секрета в ответе нет ни при каких условиях:
+Секрета в ответе нет ни при каких условиях; только `purpose='pat'`; по умолчанию без
+отозванных (`?includeRevoked=true` — показать).
 
 ```json
 { "items": [ { "id": "uuid", "name": "dsh-mcp", "prefix": "3f9a1c22", "purpose": "pat",
@@ -113,102 +116,73 @@ export class CreateTokenDto {
                "revokedAt": "…|null" } ], "total": 1 }
 ```
 
-Только `purpose='pat'` и, по умолчанию, без отозванных (`?includeRevoked=true` — показать).
-
 ### 3.3 `DELETE /api/tokens/{id}` — отозвать
 
-Свой токен или (владелец) любой. Идемпотентно, ответ `204`. После отзыва первый же запрос
-с этим токеном обязан получить `401 session_expired` (Redis-ключ удалён, `revokedAt` стоит).
+Только свой токен. Идемпотентно, ответ `204`. После отзыва первый же запрос с этим токеном
+обязан получить `401 session_expired` (Redis-ключ удалён, `revokedAt` стоит).
 
 ### 3.4 Коды ошибок
 
 | Код | HTTP | Когда |
 |---|---|---|
 | `pat_cannot_manage_tokens` | 403 | запрос с PAT на управление токенами |
-| `forbidden_scope` | 403 | не владелец пытается выпустить/отозвать чужой токен |
 | `token_limit_reached` | 409 | больше 20 активных PAT |
-| `not_found` | 404 | токена нет или он не PAT |
+| `not_found` | 404 | токена нет, он не PAT или принадлежит другому пользователю |
 | — | 401 | обычные правила guard-а |
 
 Все ответы — в формате ошибок проекта (`code` + `message`), Swagger-аннотации обязательны.
+Ни `GET`, ни `DELETE` не должны раскрывать существование чужого токена: для чужого id — `404`,
+а не `403`.
 
-## 4. Бот-пользователь (bootstrap из env)
-
-### 4.1 Переменные (`config/env.schema.ts`, `.env.example`)
-
-```ts
-MCP_BOT_EMAIL: z.email().optional(),                                        // пусто → bootstrap выключен
-MCP_BOT_DISPLAY_NAME: z.string().min(1).max(255).optional(),                // по умолчанию «SL Bot»
-MCP_BOT_PROJECTS: z.string().optional(),                                    // слаги через запятую: sl-tracker,home
-MCP_BOT_PROJECT_ROLE: z.enum(['admin','member','reader']).default('member'),
-```
-
-### 4.2 Сервис `apps/api/src/mcp-bot/mcp-bot-bootstrap.service.ts`
-
-`OnApplicationBootstrap`, по образцу `AccessBootstrapService` (идемпотентность, «источник
-правды — БД», тихий выход при пустом env):
-
-1. **Пользователь.** Найти по `lower(email)` или создать `users`:
-   `displayName = MCP_BOT_DISPLAY_NAME ?? 'SL Bot'`, `avatarUrl = null`, `lastLoginAt = null`.
-   **`identities` не создавать** — бот никогда не логинится.
-2. **Список доступа.** Найти/создать `access_entries` для этого email:
-   `source = 'config'`, `isInstanceOwner = false`, `userId` = созданный пользователь.
-   Существующую запись не перезаписывать (как в access-bootstrap).
-3. **Членство.** Для каждого слага из `MCP_BOT_PROJECTS`: найти проект; если нет — warning
-   и продолжать (не падать). Если членства нет — вставить `project_members`
-   (`role = MCP_BOT_PROJECT_ROLE`); существующее членство **не менять** (ручное решение
-   человека важнее env).
-4. **Логи.** Только факты и количество: «бот готов: projects=2, role=member». Email и любые
-   секреты в логи не писать.
-
-Границы: удаление переменной из env ничего не удаляет (отзыв — через экран доступа);
-повторный запуск не создаёт дублей; ошибка bootstrap не должна ронять старт API.
-
-## 5. Тесты (обязательный минимум для `sl-qa`)
+## 4. Тесты (обязательный минимум для `sl-qa`)
 
 **Юнит**
 
-- `tokenPrefix` и `parseBotProjects` (мусор/дубликаты/пробелы схлопываются, как в `parseBootstrapEmails`).
+- `tokenPrefix` — стабилен и не зависит от длины токена.
 - Валидация `CreateTokenDto`: имя 1..64, `expiresInDays` 1..3650 либо `null`.
 
 **Интеграционные** (реальные Postgres + Redis тестового стенда)
 
-1. `POST /api/tokens` из-под cookie → 201, `GET /api/me` с выданным токеном → 200, тот же `userId`.
+1. `POST /api/tokens` из-под cookie → 201; `GET /api/me` с выданным токеном → 200 и **тот же `userId`**.
 2. `GET /api/tokens` не содержит поля `token` и не отдаёт секрет ни в каком виде.
-3. `DELETE /api/tokens/{id}` → 204, следующий запрос с токеном → 401 `session_expired`.
+3. `DELETE /api/tokens/{id}` → 204; следующий запрос с токеном → 401 `session_expired`.
 4. Запрос с PAT на `POST /api/tokens` → 403 `pat_cannot_manage_tokens`.
-5. Не-владелец с `userId` другого пользователя → 403 `forbidden_scope`.
-6. Владелец выпускает токен боту → бот может создать задачу в проекте, где он участник.
-7. Bootstrap идемпотентен: два старта → одна запись `users`, одна `access_entries`, одно `project_members`.
-8. `purpose='pat'` не продлевает `expiresAt` при использовании, но обновляет `lastSeenAt`.
-9. Отзыв доступа бота (`DELETE /api/access-entries/{id}`) гасит его PAT: запрос → 401.
+5. Чужой токен: `DELETE /api/tokens/{id}` другого пользователя → 404, токен продолжает работать у владельца.
+6. **Скоуп = роль.** Владелец-`reader`: токен читает задачу (200), но `PATCH`/`POST comments` → 403;
+   владелец-`member`: те же вызовы проходят, автор задачи/комментария — владелец токена.
+7. `purpose='pat'` не продлевает `expiresAt` при использовании, но обновляет `lastSeenAt`.
+8. Истёкший PAT (`expiresAt` в прошлом) → 401 `session_expired`.
+9. Отзыв доступа владельцу (`DELETE /api/access-entries/{id}`) гасит его PAT: запрос → 401.
 
 **E2E smoke**
 
-Сценарий «MCP-путь»: создать задачу ботом → добавить комментарий → сменить статус → прочитать
-задачу; проверить, что автор — бот, а статус сменился.
+Сценарий «MCP-путь»: создать задачу токеном → добавить комментарий → сменить статус →
+прочитать задачу; автор — владелец токена, статус сменился.
 
-## 6. Экран «Токены доступа» (frontend, отдельная задача)
+## 5. Экран «Токены доступа» (frontend, отдельная задача)
 
 - Место: профиль → раздел «Доступ» (рядом с настройками уведомлений).
 - Список: имя, префикс (`3f9a1c22…`), создан, последний вход, срок/«бессрочно», статус.
 - Создание: имя + срок (365 дней по умолчанию, пункт «бессрочно» с предупреждением) →
   **одноразовый** показ токена с кнопкой «Скопировать» и предупреждением «показывается один раз».
+- Текст-предупреждение: «Токен даёт доступ к трекеру от вашего имени. Не передавайте его
+  третьим лицам; при утечке отзовите его здесь».
 - Отзыв: подтверждение → 204 → строка помечается отозванной.
-- Состояния: пусто, ошибка 409 (лимит), 403 (нет прав), сеть.
+- Состояния: пусто, ошибка 409 (лимит), 403, сеть.
 - Дизайн — по `docs/design/system.md`; тексты — по `docs/design/flows.md`.
 
-## 7. Документация, которую надо обновить
+## 6. Документация, которую надо обновить
 
 | Файл | Что |
 |---|---|
-| `docs/adr/0007-personal-access-tokens.md` | **новый ADR**: PAT как сессия с назначением, явный срок, запрет PAT→PAT, бот из env |
+| `docs/adr/0007-personal-access-tokens.md` | **новый ADR**: PAT как сессия с назначением, явный срок без продления, запрет PAT→PAT, токен принадлежит участнику (без отдельной машинной идентичности) |
 | `docs/product/stories/auth.md` | история «токен доступа для машинного клиента» + критерии приёмки |
-| `.env.example` | `MCP_BOT_EMAIL`, `MCP_BOT_DISPLAY_NAME`, `MCP_BOT_PROJECTS`, `MCP_BOT_PROJECT_ROLE` |
 | `docs/api/openapi.json` | перегенерировать (артефакт сборки) |
 | `CLAUDE.md` | ничего не менять: это задача, а не изменение правил проекта |
 
-## 8. Definition of Done
+Переменных окружения новые правки **не добавляют** — ни `MCP_BOT_*`, ни каких-либо других.
+
+## 7. Definition of Done
 
 1. Все acceptance criteria из RFC §6 выполняются на живом инстансе.
 2. Новые тесты зелёные; существующие тесты API не изменялись ради «подгонки».

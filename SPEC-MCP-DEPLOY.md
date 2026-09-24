@@ -17,7 +17,7 @@ Caddy ── /api/*  ──▶ api:3000      (как сейчас)
    │    /mcp*   ──▶ mcp:8080       (новое)
    ▼
 caddy: статика Flutter в корне
-                   mcp:8080  ──(Bearer PAT бота)──▶  http://api:3000   (внутренняя сеть)
+                   mcp:8080  ──(Bearer PAT участника)──▶  http://api:3000   (внутренняя сеть)
 ```
 
 - MCP-сервер не публикует порты на хост: до него дотягивается только сеть compose, как до
@@ -59,7 +59,8 @@ networks:
       PORT: 8080
       # Внутренний адрес API: без TLS и без выхода в интернет.
       SL_API_URL: http://api:3000
-      # PAT бота (выпускается через POST /api/tokens, см. SPEC-PAT-API.md §3).
+      # PAT участника проекта (выпускается через POST /api/tokens из его cookie-сессии,
+      # см. SPEC-PAT-API.md §3). Права MCP = права этого участника.
       SL_API_TOKEN: ${MCP_SL_API_TOKEN:?MCP_SL_API_TOKEN не задан}
       # Токен, который предъявляют MCP-клиенты (dsh-term, Claude Code).
       SL_MCP_TOKEN: ${MCP_CLIENT_TOKEN:?MCP_CLIENT_TOKEN не задан}
@@ -157,7 +158,7 @@ git clone https://github.com/Vladislav-Zyuzko/ai-challenge.git /opt/sl-tracker-m
 # 2. Переменные в .env трекера
 cd /opt/sl-tracker
 #   SL_MCP_DOMAIN=mcp.72-56-41-79.sslip.io
-#   MCP_SL_API_TOKEN=<PAT бота, выпущенный через POST /api/tokens>
+#   MCP_SL_API_TOKEN=<PAT участника, выпущенный через POST /api/tokens>
 #   MCP_CLIENT_TOKEN=<токен для MCP-клиентов, сгенерировать: openssl rand -hex 32>
 #   MCP_DEFAULT_QUEUE=SL
 #   MCP_READONLY=0
@@ -170,7 +171,7 @@ docker compose -f infra/compose/docker-compose.prod.yml --env-file .env ps
 docker compose -f infra/compose/docker-compose.prod.yml --env-file .env logs --tail=50 mcp
 ```
 
-Порядок важен: сначала backend-правки из `SPEC-PAT-API.md` и PAT бота, потом MCP-сервис —
+Порядок важен: сначала backend-правки из `SPEC-PAT-API.md` и PAT участника, потом MCP-сервис —
 иначе `SL_API_TOKEN` неоткуда взять.
 
 ## 6. `.env.example` (добавить)
@@ -210,7 +211,7 @@ curl -sS -X POST https://mcp.72-56-41-79.sslip.io:8443/mcp \
   -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 
-# 5. Вызов инструмента и проверка в трекере: создаётся задача, автор — бот.
+# 5. Вызов инструмента и проверка в трекере: создаётся задача, автор — владелец токена.
 ```
 
 Дополнительно: `curl` с чужим `Origin` → 403 (проверка Origin на стороне MCP-сервера);
@@ -219,7 +220,7 @@ curl -sS -X POST https://mcp.72-56-41-79.sslip.io:8443/mcp \
 ## 8. Откат
 
 1. `docker compose ... stop mcp` и убрать site-блок из `Caddyfile` → `docker compose ... up -d caddy`.
-2. Отозвать PAT бота: `DELETE /api/tokens/{id}` (или отозвать доступ бота — тогда погаснут все
+2. Отозвать PAT: `DELETE /api/tokens/{id}` (или отозвать доступ владельцу — тогда погаснут все
    его токены, см. `SPEC-PAT-API.md`).
 3. Backend-правки откатывать не нужно: они аддитивные и без MCP ни на что не влияют.
 
