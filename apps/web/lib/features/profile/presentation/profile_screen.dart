@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:sl_tracker_web/core/api/generated/export.dart';
+import 'package:sl_tracker_web/app/router/app_routes.dart';
 import 'package:sl_tracker_web/features/auth/presentation/session_providers.dart';
 import 'package:sl_tracker_web/features/notifications/domain/notification_setting_text.dart';
 import 'package:sl_tracker_web/features/notifications/presentation/notifications_providers.dart';
 import 'package:sl_tracker_web/features/profile/presentation/widgets/notification_setting_row.dart';
 import 'package:sl_tracker_web/features/profile/presentation/widgets/profile_skeleton.dart';
 import 'package:sl_tracker_web/features/profile/presentation/widgets/theme_mode_section.dart';
+import 'package:sl_tracker_web/features/tokens/presentation/tokens_providers.dart';
 import 'package:sl_tracker_web/shared/uikit/avatars/sl_avatar.dart';
 import 'package:sl_tracker_web/shared/uikit/buttons/sl_button.dart';
 import 'package:sl_tracker_web/shared/uikit/colors/sl_color_scheme.dart';
@@ -159,6 +162,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 const SizedBox(height: SLSpacing.space3),
                 const ThemeModeSection(),
                 const SizedBox(height: SLSpacing.space8),
+                // Секция стоит прямо перед «Сессией» не случайно: «Выйти»
+                // не выключает агентов, и место, где машинный доступ
+                // выключают, должно быть рядом.
+                _SectionTitle('Доступ'),
+                const SizedBox(height: SLSpacing.space3),
+                const _TokensRow(),
+                const SizedBox(height: SLSpacing.space8),
                 _SectionTitle('Сессия'),
                 const SizedBox(height: SLSpacing.space3),
                 Align(
@@ -172,6 +182,88 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 const SizedBox(height: SLSpacing.space8),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Строка-переход на экран токенов доступа (`screens/profile.md`).
+///
+/// Видна всем: токен себе выпускает любой участник, новых прав это не даёт.
+/// Счётчик берётся из `GET /api/tokens` — отдельного поля в `GET /api/me`
+/// для него нет. Пока счётчик не загружен и если он не загрузился, строка
+/// показывает текст без числа: мигнувший «Активных: 0», который через секунду
+/// станет «2», хуже, чем его отсутствие.
+class _TokensRow extends ConsumerWidget {
+  const _TokensRow();
+
+  /// Высота строки.
+  static const height = 56.0;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = SLColorScheme.of(context);
+    final text = SLTextScheme.of(context);
+    // Счётчик спрашиваем только тогда, когда известно, кто перед нами:
+    // запрос к `/api/tokens` без сессии всё равно вернёт 401.
+    final signedIn = ref.watch(
+      sessionControllerProvider.select((session) => session.user != null),
+    );
+    final count = signedIn ? ref.watch(activeTokensCountProvider).value : null;
+
+    final hint = count == null
+        ? 'Для агентов и скриптов'
+        : 'Для агентов и скриптов. Активных: $count';
+
+    return Semantics(
+      button: true,
+      label: 'Токены доступа. $hint',
+      child: ExcludeSemantics(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: colors.borderSubtle,
+                width: SLBorders.hairline,
+              ),
+            ),
+          ),
+          child: InkWell(
+            onTap: () => GoRouter.of(context).go(AppRoutes.tokens),
+            child: SizedBox(
+              height: height,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Токены доступа',
+                          style: text.bodyS.copyWith(color: colors.textPrimary),
+                        ),
+                        const SizedBox(height: SLSpacing.space1),
+                        Text(
+                          hint,
+                          style: text.label.copyWith(color: colors.textMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: SLSpacing.space3),
+                  // Шеврон — единственный, но достаточный признак перехода:
+                  // в секции уведомлений его нет ни у одной строки.
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: SLIconSizes.icon16,
+                    color: colors.iconMuted,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

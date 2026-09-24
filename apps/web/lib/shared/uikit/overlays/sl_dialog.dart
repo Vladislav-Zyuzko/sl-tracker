@@ -23,6 +23,7 @@ class SLDialog extends StatelessWidget {
     this.width = SLSizes.dialogSm,
     this.banner,
     this.onClose,
+    this.semanticsLabel,
     super.key,
   });
 
@@ -45,6 +46,14 @@ class SLDialog extends StatelessWidget {
   /// так поступают, пока идёт отправка.
   final VoidCallback? onClose;
 
+  /// Имя маршрута для скринридера, когда оно длиннее видимого заголовка.
+  /// `null` — именем служит [title].
+  ///
+  /// Нужно там, где заголовок короткий, а главное про окно сказано не в нём:
+  /// «Токен создан. Сохраните его сейчас — больше он не будет показан»
+  /// (`screens/tokens.md`).
+  final String? semanticsLabel;
+
   /// Высота шапки.
   static const headerHeight = 48.0;
 
@@ -65,7 +74,7 @@ class SLDialog extends StatelessWidget {
       scopesRoute: true,
       namesRoute: true,
       explicitChildNodes: true,
-      label: title,
+      label: semanticsLabel ?? title,
       child: Dialog(
         backgroundColor: colors.surface,
         surfaceTintColor: colors.surface,
@@ -154,9 +163,13 @@ class SLDialog extends StatelessWidget {
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
+                          // `Flexible`, а не голая кнопка: у длинных подписей
+                          // («Всё равно закрыть» рядом с «Вернуться») сумма
+                          // ширин перерастает окно `sm`, и Row переполняется
+                          // вместо того, чтобы ужать кнопки.
                           for (final action in actions) ...[
                             const SizedBox(width: SLSpacing.space2),
-                            action,
+                            Flexible(child: action),
                           ],
                         ],
                       ),

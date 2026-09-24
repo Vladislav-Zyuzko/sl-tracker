@@ -17,7 +17,7 @@ T _$identity<T>(T value) => value;
 mixin _$MyIssueListDto {
 
 /// Приоритет по убыванию, при равенстве — сначала недавно изменённые
- List<MyIssueDto> get items; String? get nextCursor;/// Всего активных задач у пользователя, **без учёта поиска**: счётчик у заголовка
+ List<MyIssueDto> get items; String? get nextCursor;/// Сколько активных задач подходит под запрос: счётчик у заголовка списка. Поиск `q` учитывается — при поиске без совпадений это `0`, а не число всех задач.
  num get total;
 /// Create a copy of MyIssueListDto
 /// with the given fields replaced by the non-null parameter values.
@@ -232,7 +232,7 @@ class _MyIssueListDto implements MyIssueListDto {
 }
 
 @override final  String? nextCursor;
-/// Всего активных задач у пользователя, **без учёта поиска**: счётчик у заголовка
+/// Сколько активных задач подходит под запрос: счётчик у заголовка списка. Поиск `q` учитывается — при поиске без совпадений это `0`, а не число всех задач.
 @override final  num total;
 
 /// Create a copy of MyIssueListDto

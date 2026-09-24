@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 
 import 'clients/access_client.dart';
 import 'clients/auth_client.dart';
+import 'clients/tokens_client.dart';
 import 'clients/health_client.dart';
 import 'clients/projects_client.dart';
 import 'clients/invitations_client.dart';
@@ -19,6 +20,10 @@ import 'clients/attachments_client.dart';
 /// SL Tracker API `v0.1.0`.
 ///
 /// HTTP API трекера задач SL Tracker. Единственный источник правды по контракту: файл генерируется из кода, руками не редактируется.
+///
+/// **Формат ошибки.** Любой отказ приходит телом `{ statusCode, message, code }`: `code` — машиночитаемая причина, по ней клиент выбирает текст для человека, `message` — русский текст на случай, если код клиенту незнаком. Форма одна и у доменных отказов, и у отказов проверки полей.
+///
+/// Два кода общие для всех эндпоинтов: `invalid_request` — поле запроса не прошло проверку, а своего кода у него нет; `invalid_characters` — в тексте есть нулевой символ `U+0000`, который не хранится в базе. Остальные коды перечислены в описании конкретных ответов.
 class SlApiClient {
   SlApiClient(Dio dio, {String? baseUrl}) : _dio = dio, _baseUrl = baseUrl;
 
@@ -29,6 +34,7 @@ class SlApiClient {
 
   AccessClient? _access;
   AuthClient? _auth;
+  TokensClient? _tokens;
   HealthClient? _health;
   ProjectsClient? _projects;
   InvitationsClient? _invitations;
@@ -42,6 +48,8 @@ class SlApiClient {
   AccessClient get access => _access ??= AccessClient(_dio, baseUrl: _baseUrl);
 
   AuthClient get auth => _auth ??= AuthClient(_dio, baseUrl: _baseUrl);
+
+  TokensClient get tokens => _tokens ??= TokensClient(_dio, baseUrl: _baseUrl);
 
   HealthClient get health => _health ??= HealthClient(_dio, baseUrl: _baseUrl);
 

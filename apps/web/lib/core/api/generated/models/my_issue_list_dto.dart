@@ -16,7 +16,7 @@ abstract class MyIssueListDto with _$MyIssueListDto {
     required List<MyIssueDto> items,
     required String? nextCursor,
 
-    /// Всего активных задач у пользователя, **без учёта поиска**: счётчик у заголовка
+    /// Сколько активных задач подходит под запрос: счётчик у заголовка списка. Поиск `q` учитывается — при поиске без совпадений это `0`, а не число всех задач.
     required num total,
   }) = _MyIssueListDto;
 

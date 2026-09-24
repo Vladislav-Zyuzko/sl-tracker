@@ -16,6 +16,7 @@ import 'package:sl_tracker_web/features/projects/presentation/project_screen.dar
 import 'package:sl_tracker_web/features/projects/presentation/projects_screen.dart';
 import 'package:sl_tracker_web/features/queues/presentation/queue_issues_screen.dart';
 import 'package:sl_tracker_web/features/shell/presentation/app_shell.dart';
+import 'package:sl_tracker_web/features/tokens/presentation/tokens_screen.dart';
 import 'package:sl_tracker_web/shared/uikit/themes/sl_theme_data.dart';
 
 import '../helpers/pump_widget.dart';
@@ -146,6 +147,13 @@ void main() {
       await pumpAt(tester, AppRoutes.access);
       expect(find.byType(AccessListScreen), findsOneWidget);
     });
+
+    testWidgets('токены открываются прямой ссылкой /me/tokens', (tester) async {
+      await pumpAt(tester, AppRoutes.tokens);
+
+      expect(find.byType(TokensScreen), findsOneWidget);
+      expect(find.byType(AppShell), findsOneWidget);
+    });
   });
 
   group('маршруты вне оболочки', () {
@@ -210,6 +218,17 @@ void main() {
         router.routerDelegate.currentConfiguration.uri.path,
         AppRoutes.access,
       );
+    });
+
+    // Адрес из `SPEC-PAT-API.md` §5: ссылки из спеки обязаны работать.
+    testWidgets('/profile/tokens приводится к /me/tokens', (tester) async {
+      final router = await pumpAt(tester, '/profile/tokens');
+
+      expect(
+        router.routerDelegate.currentConfiguration.uri.path,
+        AppRoutes.tokens,
+      );
+      expect(find.byType(TokensScreen), findsOneWidget);
     });
 
     testWidgets('неизвестный путь показывает экран «не найдено»', (

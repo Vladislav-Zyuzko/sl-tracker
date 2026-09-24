@@ -20,6 +20,8 @@ import 'package:sl_tracker_web/features/queues/domain/issue_sort.dart';
 import 'package:sl_tracker_web/features/queues/presentation/queue_issues_providers.dart';
 import 'package:sl_tracker_web/features/queues/presentation/queue_issues_screen.dart';
 import 'package:sl_tracker_web/features/shell/presentation/app_shell.dart';
+import 'package:sl_tracker_web/features/tokens/presentation/token_secret_guard.dart';
+import 'package:sl_tracker_web/features/tokens/presentation/tokens_screen.dart';
 import 'package:sl_tracker_web/shared/uikit/states/sl_error_state.dart';
 
 /// Роутер приложения.
@@ -155,6 +157,10 @@ final _routes = <RouteBase>[
   GoRoute(path: '/projects', redirect: (_, _) => AppRoutes.projects),
   GoRoute(path: '/profile', redirect: (_, _) => AppRoutes.profile),
   GoRoute(path: '/access', redirect: (_, _) => AppRoutes.access),
+  // `SPEC-PAT-API.md` §5 называет экран токенов `/profile/tokens`; канон
+  // личного раздела — `/me` (ADR-0005), поэтому старый адрес из RFC
+  // остаётся постоянным редиректом и ссылки из спеки не ломаются.
+  GoRoute(path: '/profile/tokens', redirect: (_, _) => AppRoutes.tokens),
 
   ShellRoute(
     builder: (context, state, child) => AppShell(child: child),
@@ -236,6 +242,15 @@ final _routes = <RouteBase>[
             path: 'access',
             name: AppRoutes.accessName,
             builder: (context, state) => const AccessListScreen(),
+          ),
+          GoRoute(
+            path: 'tokens',
+            name: AppRoutes.tokensName,
+            // Пока показан секрет, уход с экрана перехватывается: переход
+            // по ссылке в оболочке и кнопка «назад» браузера спрашивают
+            // подтверждение, потому что второй раз токен не показать.
+            onExit: (context, state) => confirmLeavingTokenSecret(context),
+            builder: (context, state) => const TokensScreen(),
           ),
         ],
       ),
