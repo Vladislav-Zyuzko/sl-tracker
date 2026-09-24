@@ -392,6 +392,152 @@
         ]
       }
     },
+    "/api/tokens": {
+      "get": {
+        "description": "Сначала новые. Секрета в ответе нет ни при каких условиях — в базе его и не существует, хранится только HMAC. Сессии входа в список не попадают.",
+        "operationId": "TokensController_list",
+        "parameters": [
+          {
+            "name": "includeRevoked",
+            "required": false,
+            "in": "query",
+            "description": "Показать отозванные токены. По умолчанию их в списке нет.",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Запрос сделан токеном, а не из браузера (`pat_cannot_manage_tokens`): управлять токенами может только человек из веб-интерфейса."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Мои токены доступа",
+        "tags": [
+          "tokens"
+        ]
+      },
+      "post": {
+        "description": "Токен выпускается **текущему пользователю** и даёт ровно его права: отдельной машинной идентичности в трекере нет, задачи и комментарии подписываются владельцем токена (RFC MCP, §5.2).\n\n**Секрет возвращается единственный раз** — в этом ответе. Повторно получить его нельзя: в базе лежит только HMAC. Потерян — выпускайте новый и отзывайте старый.\n\nСрок обязателен и конечен: по умолчанию 365 дней, допустимо 1..3650. Использование токена срок **не продлевает**.",
+        "operationId": "TokensController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedTokenDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Название пустое или длиннее 64 символов (`invalid_token_name`); срок не целое число, `null` или вне диапазона 1..3650 (`invalid_expires_in_days`)."
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Запрос сделан токеном, а не из браузера (`pat_cannot_manage_tokens`): управлять токенами может только человек из веб-интерфейса."
+          },
+          "409": {
+            "description": "Больше 20 действующих токенов (`token_limit_reached`)"
+          },
+          "429": {
+            "description": "Слишком частые запросы (`rate_limited`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Выпустить токен доступа",
+        "tags": [
+          "tokens"
+        ]
+      }
+    },
+    "/api/tokens/{id}": {
+      "delete": {
+        "description": "Действует немедленно: следующий запрос с этим токеном получает 401 `session_expired`. Идемпотентно — повторный отзыв своего токена тоже 204.\n\nЧужой, несуществующий и не-PAT идентификатор отвечают одинаково (404): существование чужого токена раскрывать нельзя.",
+        "operationId": "TokensController_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Идентификатор токена из списка",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Токен отозван"
+          },
+          "401": {
+            "description": "Нет сессии или она погашена"
+          },
+          "403": {
+            "description": "Запрос сделан токеном, а не из браузера (`pat_cannot_manage_tokens`): управлять токенами может только человек из веб-интерфейса."
+          },
+          "404": {
+            "description": "Токена нет или он не ваш (`not_found`)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Отозвать токен",
+        "tags": [
+          "tokens"
+        ]
+      }
+    },
     "/api/health": {
       "get": {
         "description": "Отвечает 200, если доступны PostgreSQL и Redis, иначе 503. Авторизация не требуется: эндпоинт используется как health-проба обратного прокси.",
@@ -3357,6 +3503,142 @@
           "isInstanceOwner",
           "canManageAccessList",
           "session"
+        ]
+      },
+      "TokenDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "dsh-mcp",
+            "description": "Имя, которое дал владелец"
+          },
+          "prefix": {
+            "type": "string",
+            "example": "3f9a1c22",
+            "description": "Первые 8 символов токена — чтобы опознать его в списке. Не секрет и не часть проверки: сам секрет не хранится нигде и после выпуска не показывается."
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "pat"
+            ],
+            "description": "Всегда `pat`: сессии входа через этот раздел не видны и не отзываются."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Когда токен предъявляли в последний раз, с точностью до суток: чаще раза в день отметка не обновляется. Пока токеном ни разу не пользовались, **не позже** `createdAt` — отметка ставится кодом, а `createdAt` дефолтом базы, и они расходятся на единицы миллисекунд. Признак «ни разу» проверяется как `lastSeenAt <= createdAt`, сравнение на равенство даст ложное «уже пользовались»."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Когда токен перестанет действовать. Срок задаётся при выпуске и **не продлевается** использованием; бессрочных токенов не бывает."
+          },
+          "revokedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Когда токен отозвали. `null` — токен не отозван."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "purpose",
+          "createdAt",
+          "lastSeenAt",
+          "expiresAt",
+          "revokedAt"
+        ]
+      },
+      "TokenListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Сначала новые",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TokenDto"
+            }
+          },
+          "total": {
+            "type": "number",
+            "description": "Сколько токенов в ответе"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ]
+      },
+      "CreateTokenDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "example": "dsh-mcp",
+            "description": "Как владелец назвал токен — «dsh-mcp», «ноутбук». Нужно, чтобы через полгода было понятно, что отзывать."
+          },
+          "expiresInDays": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 3650,
+            "default": 365,
+            "description": "Срок жизни токена в днях. Поле можно не передавать — тогда 365. Бессрочных токенов не бывает: `null` отклоняется, как и значение вне диапазона."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "IssuedTokenDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "dsh-mcp"
+          },
+          "prefix": {
+            "type": "string",
+            "example": "3f9a1c22"
+          },
+          "token": {
+            "type": "string",
+            "example": "3f9a1c22-1f0e-4a5c-9a1b-0c2d3e4f5a6b.QmFzZTY0VmVyaWZpZXI",
+            "description": "Сам токен. **Показывается ровно один раз** — в этом ответе. Предъявляется заголовком `Authorization: Bearer <токен>` и даёт те же права, что у владельца."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "token",
+          "expiresAt",
+          "createdAt"
         ]
       },
       "DependencyHealthDto": {

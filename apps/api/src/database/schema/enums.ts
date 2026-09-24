@@ -28,6 +28,16 @@ export const statusCategoryEnum = pgEnum('status_category', ['open', 'in_progres
 /** Способ предъявления сессии: cookie для веба, bearer для будущей мобилки (ADR-0002). */
 export const sessionKindEnum = pgEnum('session_kind', ['cookie', 'bearer']);
 
+/**
+ * Назначение сессии: обычный вход/мобилка или персональный токен доступа.
+ *
+ * Это не способ предъявления (`session_kind`), а ответ на вопрос «кому и зачем выдана».
+ * PAT — та же сессия, поэтому он бесплатно получает хеширование секрета, кэш в Redis
+ * и отзыв вместе с доступом; отличается он сроком, отсутствием продления и тем, что
+ * им нельзя управлять токенами (RFC MCP, §5.1, §5.3, §5.4).
+ */
+export const sessionPurposeEnum = pgEnum('session_purpose', ['session', 'pat']);
+
 /** Что именно зафиксировано записью истории (stories/history.md, US-91). */
 export const issueHistoryKindEnum = pgEnum('issue_history_kind', [
   'issue_created',

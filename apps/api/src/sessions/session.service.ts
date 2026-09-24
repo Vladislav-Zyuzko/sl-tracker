@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, gt, isNull } from 'drizzle-orm';
 import type { Redis } from 'ioredis';
 import { ENV, type Env } from '../config/index.js';
 import { DB, type Database, type Executor } from '../database/index.js';
@@ -11,9 +11,17 @@ import {
   generateSessionVerifier,
   hashSessionVerifier,
   parseSessionToken,
+  tokenPrefix,
   verifierMatches,
 } from './session-token.js';
-import type { IssuedSession, SessionKind, SessionRecord } from './session.types.js';
+import type {
+  CreateSessionOptions,
+  IssuedSession,
+  SessionKind,
+  SessionPurpose,
+  SessionRecord,
+  SessionSummary,
+} from './session.types.js';
 
 /**
  * Сессия продлевается и отметка «был здесь» обновляется не чаще раза в сутки: иначе
@@ -26,6 +34,12 @@ const SESSION_REFRESH_AFTER_SECONDS = 24 * 60 * 60;
 interface CachedSession {
   userId: string;
   kind: SessionKind;
+  /**
+   * Назначение сессии. В хешах, записанных до появления PAT, поля нет — при чтении
+   * пустое значение считается `session`, иначе выкат выбросил бы из приложения всех,
+   * чья сессия уже лежит в кэше.
+   */
+  purpose: SessionPurpose;
   tokenHash: string;
   /** Момент истечения, миллисекунды эпохи. */
   expiresAt: string;
@@ -68,32 +82,137 @@ export class SessionService {
   async create(
     userId: string,
     kind: SessionKind,
+    options: CreateSessionOptions = {},
     executor: Executor = this.db,
   ): Promise<IssuedSession> {
     const id = generateSessionId();
     const verifier = generateSessionVerifier();
     const tokenHash = hashSessionVerifier(verifier, this.env.SESSION_SECRET);
+    const token = formatSessionToken(id, verifier);
+    const prefix = tokenPrefix(token);
+    const purpose = options.purpose ?? 'session';
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + SESSION_TTL_SECONDS * 1000);
+    const expiresAt = new Date(now.getTime() + (options.ttlSeconds ?? SESSION_TTL_SECONDS) * 1000);
 
-    await executor.insert(sessions).values({
-      id,
-      userId,
-      kind,
-      tokenHash,
-      expiresAt,
-      lastSeenAt: now,
-    });
+    const [row] = await executor
+      .insert(sessions)
+      .values({
+        id,
+        userId,
+        kind,
+        purpose,
+        label: options.label ?? null,
+        // Префикс — не секрет: это начало идентификатора сессии, который и так лежит
+        // в этой же строке открытым текстом. Секрет по-прежнему только в виде HMAC.
+        tokenPrefix: prefix,
+        tokenHash,
+        expiresAt,
+        lastSeenAt: now,
+      })
+      .returning({ createdAt: sessions.createdAt });
 
     await this.cache(id, {
       userId,
       kind,
+      purpose,
       tokenHash,
       expiresAt: String(expiresAt.getTime()),
       lastSeenAt: String(now.getTime()),
     });
 
-    return { id, token: formatSessionToken(id, verifier), expiresAt };
+    return { id, token, prefix, expiresAt, createdAt: row?.createdAt ?? now };
+  }
+
+  /**
+   * Сессии пользователя заданного назначения — для экрана «Токены доступа».
+   *
+   * Читается только PostgreSQL: список показывается человеку, а не проверяет доступ,
+   * и в Redis всё равно нет ни имени, ни момента отзыва. Секрет и его хеш в выборку
+   * не попадают ни при каких условиях.
+   */
+  async listForUser(
+    userId: string,
+    purpose: SessionPurpose,
+    options: { includeRevoked?: boolean } = {},
+  ): Promise<SessionSummary[]> {
+    const conditions = [eq(sessions.userId, userId), eq(sessions.purpose, purpose)];
+    if (!options.includeRevoked) {
+      conditions.push(isNull(sessions.revokedAt));
+    }
+
+    const rows = await this.db
+      .select({
+        id: sessions.id,
+        label: sessions.label,
+        prefix: sessions.tokenPrefix,
+        purpose: sessions.purpose,
+        createdAt: sessions.createdAt,
+        lastSeenAt: sessions.lastSeenAt,
+        expiresAt: sessions.expiresAt,
+        revokedAt: sessions.revokedAt,
+      })
+      .from(sessions)
+      .where(and(...conditions))
+      .orderBy(desc(sessions.createdAt));
+
+    return rows;
+  }
+
+  /**
+   * Сколько действующих сессий этого назначения у пользователя. Нужно для лимита PAT:
+   * отозванные и протухшие в него не входят, иначе лимит упирался бы в историю.
+   */
+  async countActive(userId: string, purpose: SessionPurpose): Promise<number> {
+    const [row] = await this.db
+      .select({ value: count() })
+      .from(sessions)
+      .where(
+        and(
+          eq(sessions.userId, userId),
+          eq(sessions.purpose, purpose),
+          isNull(sessions.revokedAt),
+          gt(sessions.expiresAt, new Date()),
+        ),
+      );
+
+    return row?.value ?? 0;
+  }
+
+  /**
+   * Отзывает одну сессию по требованию её владельца.
+   *
+   * `false` — сессии нет, она чужая или у неё другое назначение. Вызывающий отвечает
+   * на все три случая одинаково (404): существование чужого токена раскрывать нельзя.
+   *
+   * Идемпотентно: повторный отзыв отвечает `true` и ещё раз вычищает Redis — так
+   * `DELETE` остаётся безопасным для повтора, а гонка двух вкладок не даёт 404.
+   */
+  async revoke(sessionId: string, actorUserId: string, purpose: SessionPurpose): Promise<boolean> {
+    const [row] = await this.db
+      .select({ revokedAt: sessions.revokedAt })
+      .from(sessions)
+      .where(
+        and(
+          eq(sessions.id, sessionId),
+          eq(sessions.userId, actorUserId),
+          eq(sessions.purpose, purpose),
+        ),
+      )
+      .limit(1);
+
+    if (!row) {
+      return false;
+    }
+
+    if (!row.revokedAt) {
+      await this.db
+        .update(sessions)
+        .set({ revokedAt: new Date() })
+        .where(and(eq(sessions.id, sessionId), isNull(sessions.revokedAt)));
+    }
+
+    await this.forget(sessionId, actorUserId);
+    return true;
   }
 
   /**
@@ -128,6 +247,7 @@ export class SessionService {
       id: parsed.id,
       userId: cached.userId,
       kind: cached.kind,
+      purpose: cached.purpose,
       expiresAt,
       lastSeenAt: new Date(Number(cached.lastSeenAt)),
     };
@@ -137,6 +257,12 @@ export class SessionService {
    * Отмечает обращение и продлевает сессию — не чаще раза в сутки, чтобы обычный запрос
    * не превращался в запись в PostgreSQL.
    *
+   * У PAT продлевается **только** `lastSeenAt`: срок токена задан при выпуске и тихо
+   * уезжать вперёд не должен, иначе токен в конфиге агента становится бессрочным
+   * (RFC MCP, §5.3). Порог в сутки для него тот же: «последний раз использован»
+   * с точностью до суток хватает для аудита, а запись в PostgreSQL на каждый запрос
+   * агента — нет.
+   *
    * Ошибка продления не отменяет запрос: доступ уже разрешён, продление — удобство.
    */
   async touch(session: SessionRecord): Promise<void> {
@@ -145,11 +271,12 @@ export class SessionService {
       return;
     }
 
-    const expiresAt = new Date(now + SESSION_TTL_SECONDS * 1000);
+    const slides = session.purpose !== 'pat';
+    const expiresAt = slides ? new Date(now + SESSION_TTL_SECONDS * 1000) : session.expiresAt;
     try {
       const [row] = await this.db
         .update(sessions)
-        .set({ expiresAt, lastSeenAt: new Date(now) })
+        .set({ lastSeenAt: new Date(now), ...(slides ? { expiresAt } : {}) })
         .where(and(eq(sessions.id, session.id), isNull(sessions.revokedAt)))
         .returning({ tokenHash: sessions.tokenHash });
 
@@ -160,6 +287,7 @@ export class SessionService {
       await this.cache(session.id, {
         userId: session.userId,
         kind: session.kind,
+        purpose: session.purpose,
         tokenHash: row.tokenHash,
         expiresAt: String(expiresAt.getTime()),
         lastSeenAt: String(now),
@@ -232,6 +360,8 @@ export class SessionService {
       return {
         userId: cached.userId,
         kind: cached.kind as SessionKind,
+        // Хеши, записанные до появления PAT, поля не имеют: это обычные сессии входа.
+        purpose: (cached.purpose as SessionPurpose | undefined) ?? 'session',
         tokenHash: cached.tokenHash,
         expiresAt: cached.expiresAt,
         lastSeenAt: cached.lastSeenAt ?? cached.expiresAt,
@@ -242,6 +372,7 @@ export class SessionService {
       .select({
         userId: sessions.userId,
         kind: sessions.kind,
+        purpose: sessions.purpose,
         tokenHash: sessions.tokenHash,
         expiresAt: sessions.expiresAt,
         lastSeenAt: sessions.lastSeenAt,
@@ -257,6 +388,7 @@ export class SessionService {
     const record: CachedSession = {
       userId: row.userId,
       kind: row.kind,
+      purpose: row.purpose,
       tokenHash: row.tokenHash,
       expiresAt: String(row.expiresAt.getTime()),
       lastSeenAt: String(row.lastSeenAt.getTime()),
@@ -267,7 +399,13 @@ export class SessionService {
   }
 
   private async cache(sessionId: string, record: CachedSession): Promise<void> {
-    const ttlSeconds = Math.max(1, Math.ceil((Number(record.expiresAt) - Date.now()) / 1000));
+    // Запись в кэше не живёт дольше обычной сессии, даже если сама сессия длиннее (PAT
+    // выдаётся на год). Иначе ключ пережил бы множество `sl:sessions:by-user:<userId>`,
+    // и отзыв доступа, который вычищает Redis именно по множеству, не нашёл бы токен:
+    // погашенный в базе PAT продолжал бы проходить по кэшу. При истечении ключа сессия
+    // поднимается из PostgreSQL (`load`) — это кэш, а не источник правды.
+    const remaining = Math.ceil((Number(record.expiresAt) - Date.now()) / 1000);
+    const ttlSeconds = Math.max(1, Math.min(SESSION_TTL_SECONDS, remaining));
 
     await this.redis
       .multi()

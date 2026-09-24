@@ -141,7 +141,9 @@ class FakeSessions {
     return Promise.resolve({
       id: `session-${this.created.length}`,
       token: `session-${this.created.length}.verifier`,
+      prefix: `session-${this.created.length}`.slice(0, 8),
       expiresAt: new Date(Date.now() + 1000),
+      createdAt: new Date(),
     });
   }
 }
