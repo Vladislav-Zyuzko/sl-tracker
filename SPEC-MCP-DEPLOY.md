@@ -59,8 +59,8 @@ networks:
       PORT: 8080
       # Внутренний адрес API: без TLS и без выхода в интернет.
       SL_API_URL: http://api:3000
-      # PAT участника проекта (выпускается через POST /api/tokens из его cookie-сессии,
-      # см. SPEC-PAT-API.md §3). Права MCP = права этого участника.
+      # PAT участника проекта (профиль → Доступ → Токены, срок 365 дней; см. SPEC-PAT-API.md).
+      # Права MCP = права этого участника.
       SL_API_TOKEN: ${MCP_SL_API_TOKEN:?MCP_SL_API_TOKEN не задан}
       # Токен, который предъявляют MCP-клиенты (dsh-term, Claude Code).
       SL_MCP_TOKEN: ${MCP_CLIENT_TOKEN:?MCP_CLIENT_TOKEN не задан}
@@ -158,7 +158,7 @@ git clone https://github.com/Vladislav-Zyuzko/ai-challenge.git /opt/sl-tracker-m
 # 2. Переменные в .env трекера
 cd /opt/sl-tracker
 #   SL_MCP_DOMAIN=mcp.72-56-41-79.sslip.io
-#   MCP_SL_API_TOKEN=<PAT участника, выпущенный через POST /api/tokens>
+#   MCP_SL_API_TOKEN=<PAT участника: профиль → Доступ → Токены → «Создать», срок 365 дней>
 #   MCP_CLIENT_TOKEN=<токен для MCP-клиентов, сгенерировать: openssl rand -hex 32>
 #   MCP_DEFAULT_QUEUE=SL
 #   MCP_READONLY=0
