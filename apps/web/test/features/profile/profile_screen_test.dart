@@ -8,12 +8,14 @@ import 'package:sl_tracker_web/features/profile/presentation/profile_screen.dart
 import 'package:sl_tracker_web/features/profile/presentation/widgets/notification_setting_row.dart';
 import 'package:sl_tracker_web/features/profile/presentation/widgets/profile_skeleton.dart';
 import 'package:sl_tracker_web/features/profile/presentation/widgets/theme_mode_section.dart';
+import 'package:sl_tracker_web/features/tokens/data/tokens_repository.dart';
 import 'package:sl_tracker_web/shared/uikit/feedback/sl_toast.dart';
 import 'package:sl_tracker_web/shared/uikit/indicators/sl_owner_badge.dart';
 import 'package:sl_tracker_web/shared/uikit/inputs/sl_switch.dart';
 
 import '../../helpers/fake_notification_repositories.dart';
 import '../../helpers/fake_repositories.dart';
+import '../../helpers/fake_tokens_repository.dart';
 import '../../helpers/pump_widget.dart';
 
 /// Поднимает экран профиля с готовой сессией.
@@ -21,6 +23,7 @@ Future<void> pumpProfile(
   WidgetTester tester, {
   required FakeNotificationsRepository notifications,
   MeResponseDto? user,
+  FakeTokensRepository? tokens,
   Size windowSize = const Size(1280, 800),
 }) async {
   await pumpWithProviders(
@@ -29,6 +32,11 @@ Future<void> pumpProfile(
     windowSize: windowSize,
     overrides: [
       notificationsRepositoryProvider.overrideWithValue(notifications),
+      // Секция «Доступ» спрашивает число действующих токенов: без подставного
+      // репозитория экран ушёл бы в сеть.
+      tokensRepositoryProvider.overrideWithValue(
+        tokens ?? FakeTokensRepository(),
+      ),
       signedIn(user: user),
     ],
   );
@@ -212,6 +220,7 @@ void main() {
         const SLToastHost(child: ProfileScreen()),
         overrides: [
           notificationsRepositoryProvider.overrideWithValue(repository),
+          tokensRepositoryProvider.overrideWithValue(FakeTokensRepository()),
           signedIn(),
         ],
       );
@@ -237,6 +246,43 @@ void main() {
 
       expect(notificationsTitle.dy, lessThan(appearanceTitle.dy));
       expect(appearanceTitle.dy, lessThan(sessionTitle.dy));
+    });
+
+    testWidgets('секция «Доступ» ведёт на токены и считает действующие', (
+      tester,
+    ) async {
+      await pumpProfile(
+        tester,
+        notifications: FakeNotificationsRepository(),
+        tokens: FakeTokensRepository(
+          tokens: [
+            fakeToken(id: '1'),
+            fakeToken(id: '2', name: 'ноутбук'),
+            // Истёкший действующим не считается — как и на самом экране.
+            fakeToken(id: '3', expiresAt: DateTime(2020, 1, 1)),
+          ],
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('ДОСТУП'), findsOneWidget);
+      expect(find.text('Токены доступа'), findsOneWidget);
+      expect(find.text('Для агентов и скриптов. Активных: 2'), findsOneWidget);
+    });
+
+    testWidgets('счётчик токенов не загружен — строка живёт без числа', (
+      tester,
+    ) async {
+      await pumpProfile(
+        tester,
+        notifications: FakeNotificationsRepository(),
+        tokens: FakeTokensRepository(
+          listFailure: const ApiFailure(kind: ApiFailureKind.network),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Для агентов и скриптов'), findsOneWidget);
     });
 
     testWidgets('на телефоне кнопка выхода занимает всю ширину', (

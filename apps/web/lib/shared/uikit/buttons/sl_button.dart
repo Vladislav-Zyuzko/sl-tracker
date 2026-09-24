@@ -65,6 +65,7 @@ class SLButton extends StatefulWidget {
     this.expand = false,
     this.focusNode,
     this.autofocus = false,
+    this.foregroundColor,
     super.key,
   });
 
@@ -96,6 +97,12 @@ class SLButton extends StatefulWidget {
 
   /// @nodoc
   final bool autofocus;
+
+  /// Цвет текста и иконки поверх варианта. Единственный законный случай —
+  /// подтверждение копирования: на 2000 мс подпись становится «Скопировано»
+  /// цветом `success` (`components.md`, 23.1). Значение берётся из
+  /// [SLColorScheme], литералов здесь не бывает.
+  final Color? foregroundColor;
 
   @override
   State<SLButton> createState() => _SLButtonState();
@@ -272,6 +279,9 @@ class _SLButtonState extends State<SLButton> {
     if (states.contains(WidgetState.disabled) && !widget.isLoading) {
       return colors.textDisabled;
     }
+
+    final override = widget.foregroundColor;
+    if (override != null) return override;
 
     return switch (widget.variant) {
       SLButtonVariant.primary || SLButtonVariant.danger => colors.textOnAccent,

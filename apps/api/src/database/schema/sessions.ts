@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
-import { char, index, pgTable, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { char, index, pgTable, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
 import { createdAt, primaryId, tstz } from './_shared.js';
-import { sessionKindEnum } from './enums.js';
+import { sessionKindEnum, sessionPurposeEnum } from './enums.js';
 import { users } from './users.js';
 
 /**
@@ -17,6 +17,13 @@ import { users } from './users.js';
  *
  * Самого токена сессии тут нет: хранится только SHA-256 от него. Утечка дампа БД
  * не даёт возможности предъявить чужую сессию.
+ *
+ * Здесь же живут персональные токены доступа (PAT) — строки с `purpose = 'pat'`.
+ * Отдельной таблицы у них нет намеренно: иначе в горячем пути запроса появился бы
+ * второй механизм аутентификации со своим кэшем, хешированием и семантикой отзыва
+ * (RFC MCP, §5.1). Отличается PAT тремя вещами: у него есть имя от человека, явный
+ * конечный срок и **нет скользящего продления** — токен в конфиге агента не должен
+ * продлевать себе жизнь самим фактом использования (RFC MCP, §5.3).
  */
 export const sessions = pgTable(
   'sessions',
@@ -27,6 +34,19 @@ export const sessions = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     /** cookie для веба, bearer для будущей мобилки. Доменный код разницы не видит. */
     kind: sessionKindEnum('kind').notNull(),
+    /**
+     * Человекочитаемое имя, которое дал владелец («dsh-mcp»). Только у PAT: сессию входа
+     * никто не называет, и в списке токенов её быть не должно.
+     */
+    label: varchar('label', { length: 64 }),
+    /** `pat` — токен, выпущенный через `POST /api/tokens`; `session` — обычный вход. */
+    purpose: sessionPurposeEnum('purpose').notNull().default('session'),
+    /**
+     * Первые 8 символов предъявляемого токена. Нужны, чтобы человек опознал свой токен
+     * в списке; в проверке не участвуют и секретом не являются — это начало
+     * идентификатора сессии, который и так ездит в каждом запросе.
+     */
+    tokenPrefix: varchar('token_prefix', { length: 12 }),
     /** SHA-256 от секрета сессии в hex. Сам секрет не хранится нигде. */
     tokenHash: char('token_hash', { length: 64 }).notNull(),
     /** Сессия живёт не меньше 30 дней при периодическом использовании (US-02). */
@@ -40,6 +60,8 @@ export const sessions = pgTable(
     uniqueIndex('sessions_token_hash_key').on(t.tokenHash),
     // Отзыв доступа: погасить все сессии пользователя одним запросом (ADR-0006).
     index('sessions_user_id_idx').on(t.userId),
+    // Экран «Токены доступа»: выборка «мои PAT» не должна читать сессии входа.
+    index('sessions_user_purpose_idx').on(t.userId, t.purpose),
     // Фоновая уборка протухших сессий.
     index('sessions_active_expires_at_idx')
       .on(t.expiresAt)

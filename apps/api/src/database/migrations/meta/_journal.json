@@ -8,6 +8,13 @@
       "when": 1788719773849,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790225361477,
+      "tag": "0001_personal_access_tokens",
+      "breakpoints": true
     }
   ]
 }

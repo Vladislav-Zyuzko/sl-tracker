@@ -81,6 +81,23 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
+# MCP-сервер обновляется только если владелец включил профиль `mcp` в .env.
+# Без профиля `compose config --services` его вообще не покажет, и шаг пропускается —
+# на стендах без машинного доступа ничего не меняется.
+#
+# Отказ MCP намеренно НЕ останавливает выкат: это пристройка к трекеру, и ронять
+# из-за неё уже поднятое приложение неправильно. Но и молчать нельзя.
+if compose config --services 2>/dev/null | grep -qx "mcp"; then
+  step "Профиль mcp включён — поднимаю MCP-сервер"
+  if compose up -d mcp; then
+    compose ps mcp
+  else
+    echo "ПРЕДУПРЕЖДЕНИЕ: MCP-сервер не поднялся. Трекер работает, машинный доступ — нет."
+    echo "  Логи: compose logs --tail=50 mcp"
+    echo "  Частые причины: пустой MCP_SL_API_TOKEN, нет клона в MCP_BUILD_CONTEXT."
+  fi
+fi
+
 step "Готово: $(git rev-parse --short HEAD)"
 if [ -n "$TARGET" ]; then
   echo "ВНИМАНИЕ: репозиторий отцеплен от ветки (detached HEAD) — это откат."

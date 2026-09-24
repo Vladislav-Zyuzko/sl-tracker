@@ -131,6 +131,53 @@ services:
       api-migrate:
         condition: service_completed_successfully
 
+  # Машинный доступ к трекеру для внешних агентов (RFC-MCP-SERVER.md).
+  #
+  # Сервис выключен по умолчанию — он живёт в профиле `mcp`. Иначе `compose build`
+  # в deploy.sh падал бы на каждом выкате у всех, кто не клонировал репозиторий
+  # MCP-сервера: build context указывает на отдельный проект вне этого репозитория.
+  # Включается одной строкой в .env: COMPOSE_PROFILES=mcp
+  #
+  # Портов на хост не публикует: снаружи до него дотягивается только Caddy
+  # по имени `mcp` во внутренней сети, как до postgres и redis.
+  mcp:
+    profiles: ["mcp"]
+    build:
+      context: ${MCP_BUILD_CONTEXT:-/opt/sl-tracker-mcp/sl-tracker-mcp}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      # Внутренний адрес API: без TLS и без выхода в интернет.
+      SL_API_URL: http://api:3000
+      # Персональный токен участника (профиль → Доступ → Токены доступа).
+      # Права MCP равны правам этого человека — отдельной машинной учётки нет.
+      #
+      # Здесь НЕЛЬЗЯ писать ${MCP_SL_API_TOKEN:?...}, хотя так и просится:
+      # compose подставляет переменные во весь файл ДО того, как отсеет сервисы
+      # по профилям. С `:?` весь стек переставал бы конфигурироваться у любого,
+      # кто не завёл MCP-переменные, — включая `deploy.sh` на боевом сервере.
+      # Проверено: `compose config` падает даже при выключенном профиле.
+      # Поэтому пусто по умолчанию, а отказ при пустом токене — на стороне
+      # самого MCP-сервера (он обязан не стартовать молча).
+      SL_API_TOKEN: ${MCP_SL_API_TOKEN:-}
+      # Токен, который предъявляют сами MCP-клиенты (dsh-term, Claude Code).
+      SL_MCP_TOKEN: ${MCP_CLIENT_TOKEN:-}
+      SL_DEFAULT_QUEUE: ${MCP_DEFAULT_QUEUE:-SL}
+      # Защита в глубину: 1 — сервер отказывает во всех изменяющих инструментах.
+      SL_MCP_READONLY: ${MCP_READONLY:-1}
+      SL_MCP_ALLOWED_QUEUES: ${MCP_ALLOWED_QUEUES:-}
+      SL_LOG_LEVEL: ${MCP_LOG_LEVEL:-info}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    depends_on:
+      api:
+        condition: service_started
+
   caddy:
     build:
       context: ../../apps/web
@@ -148,6 +195,10 @@ services:
     environment:
       SL_DOMAIN: ${SL_DOMAIN:?SL_DOMAIN не задан}
       SL_S3_DOMAIN: ${SL_S3_DOMAIN:?SL_S3_DOMAIN не задан}
+      # Домен MCP-сервера. С дефолтом, а не через :? — иначе стенды, где MCP
+      # не нужен, перестали бы подниматься. mcp.localhost Caddy обслуживает
+      # внутренним сертификатом, в Let's Encrypt не ходит.
+      SL_MCP_DOMAIN: ${SL_MCP_DOMAIN:-mcp.localhost}
       SL_ACME_EMAIL: ${SL_ACME_EMAIL:?SL_ACME_EMAIL не задан}
       SL_HTTP_PORT: ${HTTP_PORT:-80}
       SL_HTTPS_PORT: ${HTTPS_PORT:-8443}

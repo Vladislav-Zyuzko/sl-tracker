@@ -51,6 +51,13 @@ sealed class AppRoutes {
   /// @nodoc
   static const accessName = 'access';
 
+  /// Персональные токены доступа. Экран личный: виден всем, «нет прав»
+  /// у него не бывает.
+  static const tokens = '/me/tokens';
+
+  /// @nodoc
+  static const tokensName = 'tokens';
+
   /// Центр уведомлений.
   static const notifications = '/notifications';
 

@@ -4,6 +4,7 @@
 # Переменные приходят из окружения контейнера (см. docker-compose.prod.yml):
 #   SL_DOMAIN      — адрес приложения, например tracker.185-12-34-56.sslip.io
 #   SL_S3_DOMAIN   — адрес хранилища,  например s3.185-12-34-56.sslip.io
+#   SL_MCP_DOMAIN  — адрес MCP-сервера, например mcp.185-12-34-56.sslip.io
 #   SL_ACME_EMAIL  — почта для Let's Encrypt
 {
 	email {$SL_ACME_EMAIL}
@@ -31,7 +32,7 @@
 # и видел ошибку сертификата. Проверки Let's Encrypt (/.well-known/acme-challenge/)
 # Caddy перехватывает до этого блока, продление сертификатов он не ломает.
 # 308, как у автоматического: сохраняет метод запроса.
-http://{$SL_DOMAIN}, http://{$SL_S3_DOMAIN} {
+http://{$SL_DOMAIN}, http://{$SL_S3_DOMAIN}, http://{$SL_MCP_DOMAIN} {
 	redir https://{host}:{$SL_HTTPS_PORT:443}{uri} 308
 }
 
@@ -102,6 +103,60 @@ http://{$SL_DOMAIN}, http://{$SL_S3_DOMAIN} {
 	}
 
 	reverse_proxy minio:9000
+}
+
+# --- MCP-сервер -----------------------------------------------------------
+# Машинный доступ к трекеру: отдельный контейнер `mcp` ходит в API по внутренней
+# сети с персональным токеном участника (RFC-MCP-SERVER.md, SPEC-MCP-DEPLOY.md).
+#
+# Отдельное имя, а не путь внутри основного домена, — потому что у основного
+# домена catch-all отдаёт Flutter SPA: любой незнакомый путь ушёл бы в index.html
+# и MCP-клиент получил бы HTML вместо JSON-RPC.
+#
+# Пока MCP не развёрнут, SL_MCP_DOMAIN по умолчанию равен mcp.localhost:
+# такой блок валиден, сертификат Caddy выписывает сам (внутренний УЦ, без похода
+# в Let's Encrypt), наружу он не торчит и живому стенду не мешает.
+{$SL_MCP_DOMAIN} {
+	encode zstd gzip
+
+	log {
+		output file /var/log/caddy/mcp-access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format json
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# MCP-эндпоинт: один путь, POST, ответ может быть SSE-потоком.
+	#
+	# Активных проверок здоровья тут нет намеренно, хотя в спеке они были.
+	# Апстрим ровно один: отбраковывать его некуда, на отказ Caddy и так ответит
+	# 502. Зато при выключенном профиле `mcp` контейнера не существует, и проверки
+	# раз в 15 секунд писали бы в лог ошибку до конца времён. Готовность самого
+	# контейнера стережёт healthcheck в compose.
+	handle /mcp* {
+		reverse_proxy mcp:8080 {
+			# Без этого Caddy буферизует SSE, и клиент не увидит поток:
+			# длинный вызов инструмента «висит» до закрытия соединения.
+			flush_interval -1
+		}
+	}
+
+	handle /healthz {
+		reverse_proxy mcp:8080
+	}
+
+	# Ничего, кроме /mcp и /healthz, на этом имени не живёт.
+	handle {
+		respond 404
+	}
 }
 
 # ПРИМЕЧАНИЕ про многопоточный рендеринг Flutter Web.

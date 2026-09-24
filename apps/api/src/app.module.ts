@@ -15,6 +15,7 @@ import { QueuesModule } from './queues/index.js';
 import { RealtimeGatewayModule } from './realtime/index.js';
 import { RedisModule } from './redis/index.js';
 import { SessionsModule } from './sessions/index.js';
+import { TokensModule } from './tokens/index.js';
 
 /**
  * Корневой модуль. Структура — по доменам: каждый домен приносит свои контроллеры,
@@ -29,6 +30,7 @@ import { SessionsModule } from './sessions/index.js';
     SessionsModule,
     AccessModule,
     AuthModule,
+    TokensModule,
     HealthModule,
     ProjectsModule,
     InvitationsModule,

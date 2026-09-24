@@ -76,12 +76,24 @@ sealed class SLDateFormat {
   }
 
   /// «12 февраля 2026, 14:30» — точное время для тултипа.
-  static String exact(DateTime date) {
-    final local = date.toLocal();
-    final month = _genitiveMonths[local.month - 1];
+  static String exact(DateTime date) => '${long(date)}, ${clock(date)}';
 
-    return '${local.day} $month ${local.year}, '
-        '${_twoDigits(local.hour)}:${_twoDigits(local.minute)}';
+  /// «12 февраля 2026» — дата словами, без времени.
+  ///
+  /// Нужна там, где дата стоит внутри фразы: «Токен перестанет работать
+  /// 24 сентября 2027 года» (`screens/tokens.md`). Год показывается всегда:
+  /// такие фразы читают вне контекста списка.
+  static String long(DateTime date) {
+    final local = date.toLocal();
+
+    return '${local.day} ${_genitiveMonths[local.month - 1]} ${local.year}';
+  }
+
+  /// «14:32» — время суток.
+  static String clock(DateTime date) {
+    final local = date.toLocal();
+
+    return '${_twoDigits(local.hour)}:${_twoDigits(local.minute)}';
   }
 
   static String _twoDigits(int value) => value.toString().padLeft(2, '0');
