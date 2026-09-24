@@ -212,6 +212,71 @@ crontab -e
 > Раз в неделю забирай архив к себе:
 > `scp server:/opt/sl-tracker/backups/db-*.sql.gz ./`
 
+## 10. MCP-сервер: машинный доступ для агентов (необязательно)
+
+Ставится отдельно и только когда нужен. Пока блок `MCP_*` в `.env` пуст, стек
+работает ровно как раньше: контейнер `mcp` лежит в профиле compose и без явного
+включения не собирается и не запускается. Подробности — `SPEC-MCP-DEPLOY.md`
+в корне репозитория.
+
+**Порядок важен.** Сначала выкатывается API с токенами доступа, потом выпускается
+сам токен, и только потом поднимается контейнер: `MCP_SL_API_TOKEN` больше взять
+неоткуда — из базы токен не достаётся даже владельцу сервера.
+
+```bash
+# 1. Код MCP-сервера (отдельный репозиторий, на сервер клонируется вручную)
+git clone https://github.com/Vladislav-Zyuzko/ai-challenge.git /opt/sl-tracker-mcp
+# внутри лежит каталог sl-tracker-mcp/ — он и есть build context
+
+# 2. Токен выпускается В ИНТЕРФЕЙСЕ трекера, а не в консоли:
+#    профиль → Доступ → Токены доступа → «Создать», срок 365 дней.
+#    Показывается один раз — копируй сразу.
+
+# 3. Переменные в .env трекера
+cd /opt/sl-tracker
+#   COMPOSE_PROFILES=mcp
+#   SL_MCP_DOMAIN=mcp.72-56-41-79.sslip.io
+#   MCP_BUILD_CONTEXT=/opt/sl-tracker-mcp/sl-tracker-mcp
+#   MCP_SL_API_TOKEN=<токен из шага 2>
+#   MCP_CLIENT_TOKEN=<openssl rand -hex 32>
+#   MCP_DEFAULT_QUEUE=SL
+#   MCP_READONLY=1        # запись включать после того, как проверил чтение
+
+# 4. Сборка и запуск
+docker compose -f infra/compose/docker-compose.prod.yml --env-file .env build mcp
+docker compose -f infra/compose/docker-compose.prod.yml --env-file .env up -d mcp caddy
+docker compose -f infra/compose/docker-compose.prod.yml --env-file .env ps
+```
+
+Caddy надо перезапустить вместе с MCP: домен `mcp.<ip>.sslip.io` появляется в его
+конфигурации только когда задан `SL_MCP_DOMAIN`, и сертификат он запросит при первом
+запуске с новым именем.
+
+**Проверка снаружи**, без `docker exec`:
+
+```bash
+# Сертификат и живость
+curl -sS -o /dev/null -w '%{http_code}
+' https://mcp.72-56-41-79.sslip.io:8443/healthz   # 200
+
+# Без токена — отказ
+curl -sS -o /dev/null -w '%{http_code}
+' -X POST https://mcp.72-56-41-79.sslip.io:8443/mcp   -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'   # 401
+```
+
+**Откат** — снять профиль и погасить контейнер; трекера это не касается:
+
+```bash
+docker compose -f infra/compose/docker-compose.prod.yml --env-file .env stop mcp
+# убрать COMPOSE_PROFILES=mcp и SL_MCP_DOMAIN из .env, затем
+docker compose -f infra/compose/docker-compose.prod.yml --env-file .env up -d caddy
+```
+
+Токен при этом лучше отозвать на том же экране в профиле — лежащий без дела
+секрет однажды утечёт.
+
+---
+
 ---
 
 ## Обновление версии
